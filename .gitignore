@@ -1,0 +1,14 @@
+__pycache__/
+*.py[cod]
+.venv/
+.env
+.DS_Store
+
+# Local data, uploads, generated files and browser state
+data/
+*.db
+*.sqlite3
+uploads/
+generated/
+*.pdf
+.playwright/
