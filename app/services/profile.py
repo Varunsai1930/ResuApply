@@ -620,3 +620,55 @@ def save(session: Session, data: dict, base_revision: int | None = None) -> Save
         candidate.updated_at = now
     session.commit()
     return SaveResult(candidate, result.changes, normalized.warnings, saved=True)
+
+
+# ---------------------------------------------------------------- lookups
+
+@dataclass(frozen=True)
+class Source:
+    """A citable piece of the profile: the summary, an entry, a bullet or a certification."""
+
+    id: str
+    kind: str  # summary | education | experience | projects | bullet | certification
+    entry: str | None
+    text: str
+    technologies: tuple[str, ...] = ()
+
+
+def sources(profile: Profile | dict | None) -> dict[str, Source]:
+    """Every citable source in the profile, keyed by ID."""
+    prof = _dump(profile)
+    index: dict[str, Source] = {}
+    if prof.get("summary"):
+        index["summary"] = Source("summary", "summary", None, prof["summary"])
+    for section in ENTRY_SECTIONS:
+        for entry in prof.get(section) or []:
+            label = " · ".join(
+                _clean_str(entry.get(f))
+                for f in ("title", "role", "organization", "name", "degree", "field", "institution")
+                if entry.get(f)
+            )
+            techs = tuple(entry.get("technologies") or ())
+            index[entry["id"]] = Source(entry["id"], section, entry["id"], label, techs)
+            for bullet in entry.get("bullets") or []:
+                index[bullet["id"]] = Source(bullet["id"], "bullet", entry["id"], bullet["text"], techs)
+    for cert in prof.get("certifications") or []:
+        text = f"{cert.get('name', '')} {cert.get('issuer', '')}".strip()
+        index[cert["id"]] = Source(cert["id"], "certification", cert["id"], text)
+    return index
+
+
+def skill_keys(profile: Profile | dict | None) -> set[str]:
+    """Canonical keys of skills the profile confirms, including entry technologies."""
+    prof = _dump(profile)
+    keys = {canon(s["name"]) for s in prof.get("skills") or []}
+    for section in ("experience", "projects"):
+        for entry in prof.get(section) or []:
+            keys.update(canon(t) for t in entry.get("technologies") or [])
+    return keys
+
+
+def graduation_date(profile: Profile | dict | None) -> str | None:
+    dates = [e.get("end") for e in _dump(profile).get("education") or []]
+    dates = [d for d in dates if d and d != "present"]
+    return max(dates) if dates else None
