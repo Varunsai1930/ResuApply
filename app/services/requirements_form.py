@@ -89,11 +89,19 @@ def parse_form(items: Iterable[tuple[str, str]]) -> list[dict]:
 
 def to_rows(items: Iterable[Requirement | dict]) -> list[dict]:
     """Flat values for the editor, from saved requirements or proposed/submitted dicts."""
+    def text(value) -> str:
+        return "" if value is None else str(value)
+
+    def list_text(value, separator: str) -> str:
+        # Rejected model output may contain numbers, objects, or a bare string.
+        return separator.join(text(v) for v in value) if isinstance(value, list) else text(value)
+
     rows = []
     for index, item in enumerate(items):
         if isinstance(item, Requirement):
             item = item.model_dump(by_alias=True) | {"criterion": item.criterion_dict()}
-        crit = item.get("criterion") or {}
+        criterion = item.get("criterion")
+        crit = criterion if isinstance(criterion, dict) else {}
         sponsorship = crit.get("sponsorship_available")
         years = crit.get("years")
         rows.append({
@@ -104,17 +112,17 @@ def to_rows(items: Iterable[Requirement | dict]) -> list[dict]:
             "importance": item.get("importance") or "unspecified",
             "excerpt": item.get("excerpt") or "",
             "ctype": crit.get("type") or "",
-            "skills": ", ".join(crit.get("skills") or []),
+            "skills": list_text(crit.get("skills"), ", "),
             "match": crit.get("match") or "all",
             "level": crit.get("level") or "",
-            "fields": ", ".join(crit.get("fields") or []),
+            "fields": list_text(crit.get("fields"), ", "),
             "status": crit.get("status") or "any",
             "from": crit.get("from") or "",
             "to": crit.get("to") or "",
-            "locations": "; ".join(crit.get("locations") or []),
+            "locations": list_text(crit.get("locations"), "; "),
             "work_mode": crit.get("work_mode") or "",
             "country": crit.get("country") or "",
-            "sponsorship": {True: "yes", False: "no"}.get(sponsorship, sponsorship or ""),
+            "sponsorship": "yes" if sponsorship is True else "no" if sponsorship is False else text(sponsorship),
             "start_by": crit.get("start_by") or "",
             "start_from": crit.get("start_from") or "",
             "years": ("" if years is None else (f"{years:g}" if isinstance(years, (int, float)) else str(years))),

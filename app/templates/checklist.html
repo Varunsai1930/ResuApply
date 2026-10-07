@@ -37,7 +37,31 @@
   </ul>
   {% endif %}
   {% if r.stale_links %}
-    <p class="notice small">Linked items no longer in your profile: {{ r.stale_links | join(', ') }}. Remove them or link others.</p>
+    <p class="notice small">Linked items no longer in your profile: {{ r.stale_links | join(', ') }}. They do not count as evidence.</p>
+    {% for item_id in r.stale_links %}
+      <form method="post" action="/jobs/{{ job.id }}/requirements/{{ r.id }}/evidence/remove" class="inline-form">
+        <input type="hidden" name="source" value="{{ item_id }}">
+        <button type="submit" class="btn-small danger">Remove {{ item_id }}</button>
+      </form>
+    {% endfor %}
+  {% endif %}
+  {% if r.changed_evidence %}
+    <p class="notice small">Linked evidence changed or needs confirmation. <a href="/profile">Review your current profile</a> before reconfirming. These items do not count as evidence yet.</p>
+    <ul class="evidence">
+      {% for e in r.changed_evidence %}
+        <li>
+          <span class="id-badge">{{ e.id }}</span> <span class="evidence-text">{{ e.text }}</span>
+          <form method="post" action="/jobs/{{ job.id }}/requirements/{{ r.id }}/evidence" class="inline-form">
+            <input type="hidden" name="sources" value="{{ e.id }}">
+            <button type="submit" class="btn-small" aria-label="Reconfirm evidence {{ e.id }}">Reconfirm</button>
+          </form>
+          <form method="post" action="/jobs/{{ job.id }}/requirements/{{ r.id }}/evidence/remove" class="inline-form">
+            <input type="hidden" name="source" value="{{ e.id }}">
+            <button type="submit" class="btn-small danger" aria-label="Remove evidence {{ e.id }}">Remove</button>
+          </form>
+        </li>
+      {% endfor %}
+    </ul>
   {% endif %}
 
   {% set pending = suggestions.by_requirement.get(r.id, []) %}
@@ -161,7 +185,7 @@
       {% endif %}
     </div>
     {% if suggestions.out_of_date %}
-      <p class="hint">Earlier suggestions were made for an older version of this job or your profile, so they're hidden. Ask again for fresh ones.</p>
+      <p class="hint">Earlier suggestions used different requirements, shared content, model settings or prompt rules, so they're hidden. Ask again for fresh ones.</p>
     {% elif suggestions.run %}
       {% set waiting = suggestions.by_requirement.values() | map('length') | sum %}
       <p class="hint" id="suggestion-status">

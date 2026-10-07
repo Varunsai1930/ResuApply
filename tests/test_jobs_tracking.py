@@ -40,7 +40,10 @@ def test_location_and_url_are_optional(session):
     assert (job.location, job.url) == ("", "")
 
 
-@pytest.mark.parametrize("url", ["javascript:alert(1)", "jobs.example.com/x", "ftp://example.com/job"])
+@pytest.mark.parametrize("url", [
+    "javascript:alert(1)", "jobs.example.com/x", "ftp://example.com/job",
+    "https://[example.com", "https://[not-an-ip]/job", "https://example.com／job",
+])
 def test_url_must_be_http(url):
     with pytest.raises(job_service.JobInvalid) as exc:
         job_service.clean_input(**(SAMPLE_JOB | {"url": url}))

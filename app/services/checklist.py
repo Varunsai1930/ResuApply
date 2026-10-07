@@ -20,9 +20,10 @@ from ..models import Candidate, Job
 from ..schemas.profile import Profile
 from ..schemas.requirements import DEGREE_LEVELS, EvidenceLink, Override
 from . import profile as profile_service
-from .requirements import degree_level, excerpt_found, is_future, requirement
+from .countries import normalize_country
+from .requirements import degree_level, excerpt_found, requirement
 from .skills import canon
-from .text import date_key, norm_text
+from .text import content_hash, date_key, norm_text, today_key
 
 MET, UNMET, UNKNOWN = "met", "unmet", "unknown"
 STATUSES = (MET, UNMET, UNKNOWN)
@@ -51,6 +52,7 @@ class CheckResult:
     computed_status: str
     evidence: list[Evidence] = field(default_factory=list)
     stale_links: list[str] = field(default_factory=list)  # linked IDs no longer in the profile
+    changed_evidence: list[Evidence] = field(default_factory=list)  # needs confirmation against current content
     override: Override | None = None
     excerpt_found: bool = True  # False when the description was edited and no longer contains it
     has_criterion: bool = False
@@ -105,10 +107,20 @@ def _degree(crit: dict, prof: dict) -> tuple[str, str]:
         if level is None or level < needed:
             continue
         end = entry.get("end")
-        pursuing = end == "present" or is_future(end)
+        today = today_key()
+        start_latest = date_key(entry.get("start"), end_of_period=True)
+        end_earliest, end_latest = date_key(end), date_key(end, end_of_period=True)
+        # Every possible start must be in the past and every possible end in the
+        # future before partial dates can establish current enrollment.
+        pursuing = bool(
+            (end == "present" and (not entry.get("start") or (start_latest and start_latest <= today)))
+            or (start_latest and start_latest <= today and end_earliest and end_earliest > today)
+        )
+        if start_latest and start_latest > today:
+            continue  # planned or ambiguous enrollment is not a degree already held/pursued
         if crit["status"] == "pursuing" and not pursuing:
             continue
-        if crit["status"] == "completed" and (pursuing or not end):
+        if crit["status"] == "completed" and (end == "present" or not end_latest or end_latest > today):
             continue
         if not _field_matches(entry.get("field", ""), crit["fields"]):
             continue
@@ -125,14 +137,20 @@ def _graduation(crit: dict, prof: dict) -> tuple[str, str]:
         return UNKNOWN, "No graduation date in profile"
     # A partial date ("2026") spans a period; only a comparison that holds for the whole period counts.
     earliest, latest = date_key(grad), date_key(grad, end_of_period=True)
+    if earliest is None or latest is None:
+        return UNKNOWN, "Graduation date is not a valid calendar date"
     if crit.get("from"):
         start = date_key(crit["from"])
+        if start is None:
+            return UNKNOWN, "Graduation window is not a valid calendar date"
         if latest < start:
             return UNMET, f"Graduation {grad} is before {crit['from']}"
         if earliest < start:
             return UNKNOWN, f"Graduation {grad} is not precise enough to compare with {crit['from']}"
     if crit.get("to"):
         end = date_key(crit["to"], end_of_period=True)
+        if end is None:
+            return UNKNOWN, "Graduation window is not a valid calendar date"
         if earliest > end:
             return UNMET, f"Graduation {grad} is after {crit['to']}"
         if latest > end:
@@ -171,9 +189,20 @@ def _location(crit: dict, prof: dict) -> tuple[str, str]:
 
 
 def _authorization(crit: dict, prof: dict) -> tuple[str, str]:
-    record = next((a for a in prof.get("authorization") or [] if a["country"] == crit["country"]), None)
+    try:
+        country = normalize_country(crit["country"])
+    except ValueError:
+        return UNKNOWN, "Work authorization country is not recognized"
+    record = None
+    for item in prof.get("authorization") or []:
+        try:
+            if normalize_country(item["country"]) == country:
+                record = item
+                break
+        except ValueError:
+            continue  # unsupported legacy values cannot establish authorization
     if not record or record.get("authorized") is None:
-        return UNKNOWN, f"Work authorization for {crit['country']} is not recorded"
+        return UNKNOWN, f"Work authorization for {country} is not recorded"
     sponsor = crit.get("sponsorship_available")
     needs = record.get("requires_sponsorship")
     if record["authorized"]:
@@ -183,11 +212,11 @@ def _authorization(crit: dict, prof: dict) -> tuple[str, str]:
             return UNKNOWN, "Profile requires sponsorship; job does not say if it sponsors"
         if needs is None:
             return UNKNOWN, "Sponsorship need is not recorded"
-        return MET, f"Authorized to work in {crit['country']}"
+        return MET, f"Authorized to work in {country}"
     if sponsor is True:
         return MET, "Not yet authorized, but the job offers sponsorship"
     if sponsor is False:
-        return UNMET, f"Not authorized in {crit['country']} and the job offers no sponsorship"
+        return UNMET, f"Not authorized in {country} and the job offers no sponsorship"
     return UNKNOWN, "Not authorized; job does not say if it sponsors"
 
 
@@ -195,11 +224,16 @@ def _availability(crit: dict, prof: dict) -> tuple[str, str]:
     start = (prof.get("availability") or {}).get("start_date")
     if not start:
         return UNKNOWN, "No start date in profile"
+    earliest, latest = date_key(start), date_key(start, end_of_period=True)
+    if earliest is None or latest is None:
+        return UNKNOWN, "Start date is not a valid calendar date"
     if crit.get("start_by"):
         deadline = date_key(crit["start_by"], end_of_period=True)
-        if date_key(start) > deadline:
+        if deadline is None:
+            return UNKNOWN, "Availability deadline is not a valid calendar date"
+        if earliest > deadline:
             return UNMET, f"Available from {start}, after {crit['start_by']}"
-        if date_key(start, end_of_period=True) > deadline:
+        if latest > deadline:
             return UNKNOWN, f"Start date {start} is not precise enough to compare with {crit['start_by']}"
     return MET, f"Available from {start}"
 
@@ -214,16 +248,44 @@ CHECKS = {
 }
 
 
+def _source_hashes(profile: Profile | dict | None) -> dict[str, str]:
+    """Bind confirmations to source content, including its relevant entry context."""
+    prof = profile.model_dump() if isinstance(profile, Profile) else profile or {}
+    hashes = {}
+    if prof.get("summary"):
+        hashes["summary"] = content_hash({"summary": prof["summary"]})
+    for section in ("education", "experience", "projects"):
+        for entry in prof.get(section) or []:
+            hashes[entry["id"]] = content_hash({"section": section, "entry": entry})
+            context = {k: v for k, v in entry.items() if k != "bullets"}
+            for bullet in entry.get("bullets") or []:
+                hashes[bullet["id"]] = content_hash({"section": section, "entry": context, "bullet": bullet})
+    for cert in prof.get("certifications") or []:
+        hashes[cert["id"]] = content_hash({"certification": cert})
+    return hashes
+
+
+def confirmed_source_ids(link: EvidenceLink | None, profile: Profile | dict | None) -> list[str]:
+    """Current confirmed source IDs; legacy links require an explicit confirmation."""
+    if link is None:
+        return []
+    hashes = _source_hashes(profile)
+    return [i for i in link.sources if i in hashes and link.source_hashes.get(i) == hashes[i]]
+
+
 def evaluate(job: Job, profile: Profile | None) -> list[CheckResult]:
     """The checklist for a job against the current profile. Without a profile everything is Unknown."""
     prof = profile.model_dump() if profile else {}
     sources = profile_service.sources(prof)
+    hashes = _source_hashes(prof)
     results = []
     for req in job.requirements:
         link = job.evidence.get(req.id)
         linked = link.sources if link else []
-        evidence = [Evidence(i, sources[i].text) for i in linked if i in sources]
+        confirmed = [i for i in linked if i in hashes and link.source_hashes.get(i) == hashes[i]]
+        evidence = [Evidence(i, sources[i].text) for i in confirmed]
         stale = [i for i in linked if i not in sources]
+        changed = [Evidence(i, sources[i].text) for i in linked if i in sources and i not in confirmed]
         crit = req.criterion_dict()
         if not prof:
             status, basis = UNKNOWN, "No profile saved yet"
@@ -235,6 +297,8 @@ def evaluate(job: Job, profile: Profile | None) -> list[CheckResult]:
             status, basis = UNKNOWN, "No comparable criterion; needs confirmed evidence"
         if status == UNKNOWN and evidence:
             status, basis = MET, "You confirmed supporting evidence"
+        elif status == UNKNOWN and changed:
+            basis = "Linked evidence changed or needs confirmation; review and confirm the current content"
         computed = status
         override = job.overrides.get(req.id)
         if override:
@@ -243,6 +307,7 @@ def evaluate(job: Job, profile: Profile | None) -> list[CheckResult]:
         results.append(CheckResult(
             id=req.id, text=req.text, category=req.category, importance=req.importance, excerpt=req.excerpt,
             status=status, basis=basis, computed_status=computed, evidence=evidence, stale_links=stale,
+            changed_evidence=changed,
             override=override, excerpt_found=excerpt_found(job, req), has_criterion=crit is not None,
         ))
     return results
@@ -280,8 +345,11 @@ def link(session: Session, job: Job, candidate: Candidate | None, req_id: str, s
     current = job.evidence.get(req_id) or EvidenceLink()
     merged = list(dict.fromkeys([*current.sources, *source_ids]))
     rejected = [s for s in current.rejected if s not in source_ids]
+    hashes = _source_hashes(candidate.profile)
+    confirmed_hashes = current.source_hashes | {i: hashes[i] for i in source_ids}
     job.evidence = job.evidence | {req_id: EvidenceLink(
-        sources=merged, rejected=rejected, confirmed_at=utcnow(), profile_revision=candidate.revision,
+        sources=merged, source_hashes=confirmed_hashes, rejected=rejected,
+        confirmed_at=utcnow(), profile_revision=candidate.revision,
     )}
     job.updated_at = utcnow()
     session.commit()
@@ -296,7 +364,9 @@ def unlink(session: Session, job: Job, req_id: str, source_id: str) -> None:
     remaining = [s for s in current.sources if s != source_id]
     evidence = dict(job.evidence)
     if remaining or current.rejected:
-        evidence[req_id] = current.model_copy(update={"sources": remaining})
+        evidence[req_id] = current.model_copy(update={
+            "sources": remaining, "source_hashes": {k: v for k, v in current.source_hashes.items() if k != source_id},
+        })
     else:
         evidence.pop(req_id)
     job.evidence = evidence

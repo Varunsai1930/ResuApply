@@ -79,6 +79,43 @@ def test_authorization_unknown_stays_unknown(sample_profile):
     ]
 
 
+@pytest.mark.parametrize("country, code", [
+    ("United States", "US"), (" united states of america ", "US"), ("U.S.A.", "US"),
+    ("India", "IN"), ("Canada", "CA"), ("UK", "GB"), ("United Kingdom", "GB"),
+    ("Côte d’Ivoire", "CI"), ("Türkiye", "TR"), ("New Zealand", "NZ"),
+])
+def test_authorization_country_names_and_aliases_are_canonical(country, code, sample_profile):
+    sample_profile["authorization"] = [{"country": country, "authorized": True}]
+    assert normalize(sample_profile).profile.authorization[0].country == code
+
+
+def test_authorization_country_name_and_code_are_duplicates(sample_profile):
+    sample_profile["authorization"] = [{"country": "us"}, {"country": "United States"}]
+    with pytest.raises(ProfileInvalid) as exc:
+        normalize(sample_profile)
+    assert any("US is listed twice" in e.message for e in exc.value.errors)
+
+
+@pytest.mark.parametrize("country", ["Atlantis", "ZZ", 123, {}, ["US"]])
+def test_authorization_rejects_unrecognized_countries(country, sample_profile):
+    sample_profile["authorization"] = [{"country": country, "_form": "authorization-4"}]
+    with pytest.raises(ProfileInvalid) as exc:
+        normalize(sample_profile)
+    assert [e.field for e in exc.value.errors] == ["authorization-4-country"]
+
+
+def test_saving_legacy_country_names_canonicalizes_the_existing_profile(session, sample_profile):
+    candidate = save(session, sample_profile).candidate
+    legacy = candidate.profile.model_dump()
+    legacy["authorization"][0]["country"] = "UNITED STATES"
+    candidate.profile = candidate.profile.model_validate(legacy)
+    session.commit()
+    result = save(session, legacy, base_revision=1)
+    assert result.saved
+    assert result.candidate.profile.authorization[0].country == "US"
+    assert result.candidate.revision == 2
+
+
 def test_authorization_rejects_non_tristate_and_duplicates(sample_profile):
     sample_profile["authorization"] = [
         {"country": "US", "authorized": "maybe"},

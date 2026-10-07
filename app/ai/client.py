@@ -206,13 +206,22 @@ class OpenRouterClient:
 
 def _arguments(data: dict, tool_name: str) -> dict:
     """The tool call's arguments, or a JSON object the model put in its text instead."""
-    try:
-        message = data["choices"][0]["message"]
-    except (KeyError, IndexError, TypeError):
-        raise AIError("invalid", "The response had no message.") from None
+    choices = data.get("choices")
+    if not isinstance(choices, list) or not choices or not isinstance(choices[0], dict):
+        raise AIError("invalid", "The response had no message.")
+    message = choices[0].get("message")
+    if not isinstance(message, dict):
+        raise AIError("invalid", "The response message must be an object.")
+    calls = message.get("tool_calls")
+    if calls is None:
+        calls = []
+    if not isinstance(calls, list):
+        raise AIError("invalid", "The response tool_calls must be a list.")
     raw = None
-    for call in message.get("tool_calls") or []:
-        function = (call or {}).get("function") or {}
+    for call in calls:
+        if not isinstance(call, dict) or not isinstance(call.get("function"), dict):
+            raise AIError("invalid", "Each tool call must contain a function object.")
+        function = call["function"]
         if function.get("name") in (tool_name, None):
             raw = function.get("arguments")
             break
@@ -235,7 +244,11 @@ def _arguments(data: dict, tool_name: str) -> dict:
 
 
 def _usage(data: dict) -> dict:
-    usage = data.get("usage") or {}
+    usage = data.get("usage")
+    if usage is None:
+        return {}
+    if not isinstance(usage, dict):
+        raise AIError("invalid", "The response usage must be an object.")
     keep = ("prompt_tokens", "completion_tokens", "total_tokens", "cost")
     return {k: usage[k] for k in keep if isinstance(usage.get(k), (int, float)) and not isinstance(usage.get(k), bool)}
 

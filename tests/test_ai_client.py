@@ -66,6 +66,34 @@ def test_malformed_output_is_retried_once(fake_ai, ai_client):
     assert "did not call the return_thing tool" in fake_ai.bodies[1]["messages"][-1]["content"]
 
 
+@pytest.mark.parametrize("response", [
+    {"choices": None},
+    {"choices": [None]},
+    {"choices": [{"message": None}]},
+    {"choices": [{"message": "invalid"}]},
+    {"choices": [{"message": {"tool_calls": {"function": {}}}}]},
+    {"choices": [{"message": {"tool_calls": [None]}}]},
+    {"choices": [{"message": {"tool_calls": [{"function": "invalid"}]}}]},
+    tool_response("return_thing", {"value": 3}) | {"usage": [150]},
+    tool_response("return_thing", {"value": 3}) | {"usage": "invalid"},
+])
+def test_malformed_envelopes_get_a_corrective_retry(fake_ai, ai_client, response):
+    fake_ai.push(response, tool_response("return_thing", {"value": 5}))
+    result = ai_client.structured("test_op", MESSAGES, TOOL, positive)
+    assert (result.value, result.attempts) == (5, 2)
+    assert len(fake_ai.requests) == 2
+    assert "previous answer was rejected" in fake_ai.bodies[1]["messages"][-1]["content"]
+
+
+def test_repeated_malformed_envelopes_raise_an_ai_error(fake_ai, ai_client):
+    malformed = {"choices": [{"message": None}]}
+    fake_ai.push(malformed, malformed)
+    with pytest.raises(AIError) as exc:
+        ai_client.structured("test_op", MESSAGES, TOOL, positive)
+    assert exc.value.kind == "invalid"
+    assert len(fake_ai.requests) == 2
+
+
 def test_two_invalid_answers_raise_with_the_last_answer(fake_ai, ai_client):
     fake_ai.push(tool_response("return_thing", {"value": 0}), tool_response("return_thing", {"value": -5}))
     with pytest.raises(AIError) as exc:

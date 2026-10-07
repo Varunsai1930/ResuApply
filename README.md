@@ -88,6 +88,10 @@ RESUAPPLY_DATA_DIR=data/demo .venv/bin/python -m scripts.fake_ai_server
 - **Checklist:** Python compares each requirement with your profile and shows **Met**, **Unmet** or **Unknown** with the reason, grouped as sources, gaps and unknowns. A skill that isn't in your profile is Unknown unless you confirmed you lack it; anything that can't be compared stays Unknown until you link evidence. Gaps stay visible but never block an application.
 - **Evidence and overrides:** link profile bullets or entries as evidence yourself, or ask the AI model for suggestions and accept or reject each one. Suggestions change nothing until you accept them. You can override any status, and the override is always shown with your reason and the calculated status.
 
+Evidence confirmations apply to the source content you reviewed. If a linked source changes, the checklist asks you to review and reconfirm it before it counts as supporting evidence again. Evidence saved before content checks were added also needs one explicit reconfirmation; existing links remain available to review or remove. Unrelated contact edits keep unchanged evidence valid.
+
+Profile saves reject overlapping edits against an older revision. Dates support `YYYY`, `YYYY-MM` and valid `YYYY-MM-DD` calendar dates, with month lengths and leap years used in comparisons. Work-authorization country codes and recognized English country names are normalized to the same two-letter code.
+
 ## Project layout
 
 ```text

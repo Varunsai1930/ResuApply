@@ -23,6 +23,7 @@ from ..models import Job
 from ..schemas.requirements import (
     CATEGORIES, CRITERION_TYPES, DEGREE_LEVELS, IMPORTANCE, Requirement,
 )
+from .countries import normalize_country
 from .profile import FieldError
 from .text import date_key, is_valid_date, norm_text, today_key
 
@@ -48,7 +49,23 @@ def _str_list(crit: dict, name: str, label: str, errors: list[FieldError], field
     if not isinstance(value, list):
         errors.append(FieldError(f"{label}: {name} must be a list", field))
         return []
+    if any(not isinstance(v, str) for v in value):
+        errors.append(FieldError(f"{label}: {name} must contain only text", field))
     return [v.strip() for v in value if isinstance(v, str) and v.strip()]
+
+
+def _criterion_date(value, label: str, field: str | None, errors: list[FieldError]) -> str | None:
+    """Reject malformed AI date fields before constructing the stored Pydantic shape."""
+    if value is None or value == "":
+        return None
+    if isinstance(value, str):
+        value = value.strip()
+        if not value:
+            return None
+        if value != "present" and is_valid_date(value):
+            return value
+    errors.append(FieldError(f"{label} must be YYYY, YYYY-MM or YYYY-MM-DD", field))
+    return None
 
 
 def _validate_criterion(crit, label: str, item: dict, errors: list[FieldError]) -> dict | None:
@@ -79,13 +96,11 @@ def _validate_criterion(crit, label: str, item: dict, errors: list[FieldError]) 
             errors.append(FieldError(f"{label}: degree status must be any, completed or pursuing", _field(item, "status")))
         clean.update(level=level, fields=_str_list(crit, "fields", label, errors, _field(item, "fields")), status=status)
     elif kind == "graduation_window":
-        start, end = crit.get("from"), crit.get("to")
+        start = _criterion_date(crit.get("from"), f"{label}: graduation from date", _field(item, "from"), errors)
+        end = _criterion_date(crit.get("to"), f"{label}: graduation to date", _field(item, "to"), errors)
         if not start and not end:
             errors.append(FieldError(f"{label}: a graduation window needs a from and/or to date", _field(item, "from")))
-        for name, value in (("from", start), ("to", end)):
-            if value and (not is_valid_date(value) or value == "present"):
-                errors.append(FieldError(f"{label}: graduation {name} date must be YYYY, YYYY-MM or YYYY-MM-DD", _field(item, name)))
-        clean.update({"from": start or None, "to": end or None})
+        clean.update({"from": start, "to": end})
     elif kind == "location":
         mode = crit.get("work_mode") or None
         if mode not in (None, "remote", "hybrid", "onsite"):
@@ -95,22 +110,22 @@ def _validate_criterion(crit, label: str, item: dict, errors: list[FieldError]) 
             errors.append(FieldError(f"{label}: a location criterion needs locations and/or a work mode", _field(item, "locations")))
         clean.update(locations=locations, work_mode=mode)
     elif kind == "authorization":
-        country = str(crit.get("country") or "").strip().upper()
-        if not country:
-            errors.append(FieldError(f"{label}: authorization needs a country", _field(item, "country")))
+        try:
+            country = normalize_country(crit.get("country"))
+        except ValueError as exc:
+            errors.append(FieldError(f"{label}: {exc}", _field(item, "country")))
+            country = ""
         sponsorship = crit.get("sponsorship_available")
-        if sponsorship not in (True, False, None):
+        if sponsorship is not None and not isinstance(sponsorship, bool):
             errors.append(FieldError(f"{label}: sponsorship available must be yes, no or unknown", _field(item, "sponsorship")))
             sponsorship = None
         clean.update(country=country, sponsorship_available=sponsorship)
     elif kind == "availability":
-        start_by, start_from = crit.get("start_by"), crit.get("start_from")
+        start_by = _criterion_date(crit.get("start_by"), f"{label}: start-by", _field(item, "start_by"), errors)
+        start_from = _criterion_date(crit.get("start_from"), f"{label}: start-from", _field(item, "start_from"), errors)
         if not start_by and not start_from:
             errors.append(FieldError(f"{label}: availability needs a start-by and/or start-from date", _field(item, "start_by")))
-        for name, value in (("start_by", start_by), ("start_from", start_from)):
-            if value and (not is_valid_date(value) or value == "present"):
-                errors.append(FieldError(f"{label}: {name.replace('_', '-')} must be YYYY, YYYY-MM or YYYY-MM-DD", _field(item, name)))
-        clean.update(start_by=start_by or None, start_from=start_from or None)
+        clean.update(start_by=start_by, start_from=start_from)
     elif kind == "years_experience":
         years = crit.get("years")
         if isinstance(years, bool) or not isinstance(years, (int, float)) or years < 0:

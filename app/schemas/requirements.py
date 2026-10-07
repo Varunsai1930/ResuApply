@@ -96,6 +96,7 @@ class EvidenceLink(_Model):
     """Profile sources the user confirmed as evidence for one requirement."""
 
     sources: list[str] = Field(default_factory=list)
+    source_hashes: dict[str, str] = Field(default_factory=dict)  # content confirmed for each source ID
     rejected: list[str] = Field(default_factory=list)  # AI suggestions the user turned down
     confirmed_at: datetime | None = None
     profile_revision: int | None = None

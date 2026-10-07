@@ -136,8 +136,6 @@ class ExtractionOutcome:
 
 def extract_requirements(session: Session, client: OpenRouterClient, job: Job, force: bool = False) -> ExtractionOutcome:
     key = parse_job_key(job, client.model)
-    if not force and (run := find_run(session, key)):
-        return ExtractionOutcome(run.result["requirements"], run=run, from_cache=True)
 
     def validate(arguments: dict) -> list[dict]:
         items = _draft_items(ParsedJob.model_validate(arguments))
@@ -150,6 +148,8 @@ def extract_requirements(session: Session, client: OpenRouterClient, job: Job, f
         return items
 
     with exclusive(PARSE_JOB, job.id):
+        if not force and (run := find_run(session, key)):
+            return ExtractionOutcome(run.result["requirements"], run=run, from_cache=True)
         try:
             result = client.structured(PARSE_JOB, prompts.parse_job_messages(job_inputs(job)), prompts.PARSE_JOB_TOOL, validate)
         except AIError as exc:
@@ -168,11 +168,17 @@ def extract_requirements(session: Session, client: OpenRouterClient, job: Job, f
                 problems: list[FieldError] = []
             except RequirementsInvalid as invalid:
                 problems = invalid.errors
+            except ValueError:
+                # The final schema guard can reject a field after the rule checks.
+                # Keep that failure recoverable, with the proposal available to edit.
+                problems = [FieldError(message) for message in exc.problems]
+                if not problems:
+                    problems = [FieldError("The proposed requirements do not match the required format.")]
             return ExtractionOutcome(items, problems=problems)
-    run = _store(session, operation=PARSE_JOB, key=key, job=job, model=client.model,
-                 prompt_revision=prompts.PARSE_JOB_REVISION, input_revisions={"job": job.revision},
-                 result={"requirements": result.value}, usage=result.usage, attempts=result.attempts)
-    return ExtractionOutcome(result.value, run=run)
+        run = _store(session, operation=PARSE_JOB, key=key, job=job, model=client.model,
+                     prompt_revision=prompts.PARSE_JOB_REVISION, input_revisions={"job": job.revision},
+                     result={"requirements": result.value}, usage=result.usage, attempts=result.attempts)
+        return ExtractionOutcome(result.value, run=run)
 
 
 def cached_proposal(session: Session, job: Job, model: str) -> AIRun | None:
@@ -217,8 +223,6 @@ def suggest_evidence(session: Session, client: OpenRouterClient, settings: Setti
         raise NothingToDo("Every requirement is already Met, Unmet or overridden, so there is nothing to suggest.")
     inputs = {"context": context, "requirements": targets}
     key = cache_key(SUGGEST_EVIDENCE, prompts.SUGGEST_EVIDENCE_REVISION, client.model, inputs)
-    if not force and (run := find_run(session, key)):
-        return run
 
     allowed = outbound.source_ids(context)
     target_ids = {t["id"] for t in targets}
@@ -243,13 +247,21 @@ def suggest_evidence(session: Session, client: OpenRouterClient, settings: Setti
         return [s for s in merged.values() if s["source_ids"]]
 
     with exclusive(SUGGEST_EVIDENCE, job.id):
+        if not force and (run := find_run(session, key)):
+            if "targets" not in run.input_revisions:
+                # An older cached run with this exact key already has current inputs.
+                # Record its targets so it can pass the display freshness check too.
+                run.input_revisions = dict(run.input_revisions) | {"targets": targets}
+                session.commit()
+            return run
         result = client.structured(
             SUGGEST_EVIDENCE, prompts.suggest_evidence_messages(context, targets), prompts.SUGGEST_EVIDENCE_TOOL, validate,
         )
-    return _store(session, operation=SUGGEST_EVIDENCE, key=key, job=job, model=client.model,
-                  prompt_revision=prompts.SUGGEST_EVIDENCE_REVISION,
-                  input_revisions={"job": job.revision, "profile": candidate.revision, "outbound": state.context_hash},
-                  result={"suggestions": result.value}, usage=result.usage, attempts=result.attempts)
+        return _store(session, operation=SUGGEST_EVIDENCE, key=key, job=job, model=client.model,
+                      prompt_revision=prompts.SUGGEST_EVIDENCE_REVISION,
+                      input_revisions={"job": job.revision, "profile": candidate.revision,
+                                       "outbound": state.context_hash, "targets": targets},
+                      result={"suggestions": result.value}, usage=result.usage, attempts=result.attempts)
 
 
 @dataclass(frozen=True)
@@ -263,22 +275,63 @@ class SuggestedSource:
 class SuggestionView:
     by_requirement: dict[str, list[SuggestedSource]]
     run: AIRun | None
-    out_of_date: bool  # the latest suggestions were made for an older job or profile revision
+    out_of_date: bool  # the latest suggestions were made with different task inputs, model or prompt
 
 
-def current_suggestions(session: Session, job: Job, candidate: Candidate | None) -> SuggestionView:
-    """Suggestions still waiting for a decision, from the latest run made for the current job and profile."""
+def current_suggestions(session: Session, job: Job, candidate: Candidate | None, settings: Settings) -> SuggestionView:
+    """Pending suggestions whose sent inputs, model and prompt still match.
+
+    Decisions may remove targets without invalidating suggestions for the remaining
+    ones. Unrelated profile edits do not change the task inputs or invalidate a cache hit.
+    """
     run = latest_run(session, SUGGEST_EVIDENCE, job.id)
     if run is None or candidate is None:
         return SuggestionView({}, run, False)
-    revisions = run.input_revisions
-    if revisions.get("job") != job.revision or revisions.get("profile") != candidate.revision:
+    state = outbound.state(session, settings, candidate)
+    targets = evidence_targets(job, candidate)
+    context = state.context
+    context_hash = state.context_hash
+
+    def matches(candidate_run: AIRun) -> bool:
+        sent_targets = candidate_run.input_revisions.get("targets")
+        return (context is not None and isinstance(sent_targets, list)
+                and candidate_run.model == settings.openrouter_model
+                and candidate_run.prompt_revision == prompts.SUGGEST_EVIDENCE_REVISION
+                and candidate_run.input_revisions.get("outbound") == context_hash
+                and all(target in sent_targets for target in targets)
+                and candidate_run.cache_key == cache_key(
+                    SUGGEST_EVIDENCE, prompts.SUGGEST_EVIDENCE_REVISION, settings.openrouter_model,
+                    {"context": context, "requirements": sent_targets},
+                ))
+
+    # Reusing an older exact cache hit after reverting sharing/model choices must
+    # display that result, even when a newer run exists for different inputs.
+    exact = find_run(session, cache_key(
+        SUGGEST_EVIDENCE, prompts.SUGGEST_EVIDENCE_REVISION, settings.openrouter_model,
+        {"context": context, "requirements": targets},
+    )) if context is not None else None
+    matching = exact if exact is not None and matches(exact) else None
+    if matching is None and context is not None:
+        runs = session.scalars(
+            select(AIRun).where(AIRun.operation == SUGGEST_EVIDENCE, AIRun.job_id == job.id,
+                                AIRun.model == settings.openrouter_model,
+                                AIRun.prompt_revision == prompts.SUGGEST_EVIDENCE_REVISION)
+            .order_by(AIRun.created_at.desc(), AIRun.id.desc())
+        )
+        matching = next((candidate_run for candidate_run in runs if matches(candidate_run)), None)
+    if matching is None:
         return SuggestionView({}, run, True)
+    run = matching
     sources = profile_service.sources(candidate.profile)
+    target_ids = {target["id"] for target in targets}
     view: dict[str, list[SuggestedSource]] = {}
     for item in run.result.get("suggestions", []):
+        if item["requirement_id"] not in target_ids:
+            continue
         link = job.evidence.get(item["requirement_id"])
-        decided = set(link.sources + link.rejected) if link else set()
+        decided = set(checklist.confirmed_source_ids(link, candidate.profile))
+        if link:
+            decided.update(link.rejected)
         if job.overrides.get(item["requirement_id"]):
             continue
         pending = [

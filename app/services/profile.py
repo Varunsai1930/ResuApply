@@ -28,11 +28,13 @@ from dataclasses import dataclass, field
 from typing import Literal
 
 from sqlalchemy import select, update
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from ..db import utcnow
 from ..models import Application, Candidate
 from ..schemas.profile import Profile
+from .countries import normalize_country
 from .skills import canon, display
 from .text import is_valid_date, norm_text
 
@@ -380,9 +382,14 @@ def normalize(
         if not isinstance(raw, dict):
             errors.append(FieldError(f"Work authorization row {index + 1} must be an object"))
             continue
-        country = _clean_str(raw.get("country")).upper()
-        if not country:
+        raw_country = raw.get("country")
+        if raw_country in (None, "") or (isinstance(raw_country, str) and not raw_country.strip()):
             errors.append(FieldError(f"Work authorization row {index + 1} needs a country", _form_field(raw, "country")))
+            continue
+        try:
+            country = normalize_country(raw_country)
+        except ValueError as exc:
+            errors.append(FieldError(str(exc), _form_field(raw, "country")))
             continue
         if country in countries:
             errors.append(FieldError(f"Work authorization for {country} is listed twice", _form_field(raw, "country")))
@@ -601,25 +608,48 @@ def save(session: Session, data: dict, base_revision: int | None = None) -> Save
             f"The profile changed since you reviewed it (revision {base_revision} → {current_revision}). "
             "Review the changes again."
         )
-    result = review(session, data)
-    normalized = result.normalized
+    current = candidate.profile if candidate else None
+    normalized = normalize(data, current, candidate.id_counters if candidate else None)
+    changes = diff(current, normalized.profile)
     if candidate and candidate.profile == normalized.profile:
+        # A long-lived session may still hold an older profile in its identity map.
+        stored_revision = session.scalar(select(Candidate.revision).where(Candidate.id == candidate.id))
+        if stored_revision != current_revision:
+            session.rollback()
+            raise StaleReview("The profile changed since you reviewed it. Review the changes again.")
         return SaveResult(candidate, [], normalized.warnings, saved=False)
 
     now = utcnow()
     if candidate is None:
-        candidate = Candidate(profile=normalized.profile, revision=1, id_counters=normalized.id_counters, created_at=now, updated_at=now)
+        # A fixed singleton key makes simultaneous first saves conflict instead of
+        # silently creating two local candidates, both issuing the same source IDs.
+        candidate = Candidate(id=1, profile=normalized.profile, revision=1, id_counters=normalized.id_counters, created_at=now, updated_at=now)
         session.add(candidate)
-        session.flush()
+        try:
+            session.flush()
+        except IntegrityError:
+            session.rollback()
+            if get_candidate(session) is None:
+                raise
+            raise StaleReview("The profile changed since you reviewed it. Review the changes again.") from None
         # Jobs saved before the profile existed belong to this (only) candidate.
         session.execute(update(Application).where(Application.candidate_id.is_(None)).values(candidate_id=candidate.id))
     else:
-        candidate.profile = normalized.profile
-        candidate.id_counters = normalized.id_counters
-        candidate.revision += 1
-        candidate.updated_at = now
+        # Compare and update in the database; checking an ORM revision before an
+        # unconditional flush lets overlapping sessions overwrite each other's edits.
+        updated = session.execute(
+            update(Candidate)
+            .where(Candidate.id == candidate.id, Candidate.revision == current_revision)
+            .values(profile=normalized.profile, id_counters=normalized.id_counters,
+                    revision=current_revision + 1, updated_at=now)
+            .execution_options(synchronize_session=False)
+        )
+        if updated.rowcount != 1:
+            session.rollback()
+            raise StaleReview("The profile changed since you reviewed it. Review the changes again.")
     session.commit()
-    return SaveResult(candidate, result.changes, normalized.warnings, saved=True)
+    session.refresh(candidate)
+    return SaveResult(candidate, changes, normalized.warnings, saved=True)
 
 
 # ---------------------------------------------------------------- lookups

@@ -56,8 +56,12 @@ def clean_input(title: str, company: str, description: str, location: str = "", 
         if len(values[name]) > limit:
             errors[name] = f"Keep this under {limit:,} characters."
     if values["url"] and "url" not in errors:
-        parts = urlsplit(values["url"])
-        if parts.scheme not in ("http", "https") or not parts.netloc:
+        try:
+            parts = urlsplit(values["url"])
+            valid_url = parts.scheme in ("http", "https") and bool(parts.netloc)
+        except ValueError:
+            valid_url = False
+        if not valid_url:
             errors["url"] = "Enter a full link starting with http:// or https://, or leave it empty."
     if errors:
         raise JobInvalid(errors)

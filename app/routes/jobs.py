@@ -60,7 +60,7 @@ def _render_workspace(request: Request, session: Session, job: Job, msg: str = "
     candidate = get_candidate(session)
     results = checklist.evaluate(job, candidate.profile if candidate else None)
     groups = {status: [r for r in results if r.status == status] for status in checklist.STATUSES}
-    suggestions = operations.current_suggestions(session, job, candidate)
+    suggestions = operations.current_suggestions(session, job, candidate, settings)
     sharing = outbound.state(session, settings, candidate) if candidate else None
     return templates.TemplateResponse(
         request,

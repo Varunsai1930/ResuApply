@@ -7,6 +7,7 @@ import re
 import sqlite3
 from html import unescape
 
+import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import inspect
 
@@ -166,6 +167,41 @@ def test_extraction_problems_are_shown_for_correction(ai_app_client, fake_ai, sa
     assert response.status_code == 422
     assert "still has problems after one correction attempt" in response.text
     assert 'href="#req-0-excerpt"' in response.text
+
+
+@pytest.mark.parametrize("criterion, field", [
+    ({"type": "graduation_window", "from": 2026}, "from"),
+    ({"type": "skill", "skills": [1], "match": "all"}, "skills"),
+    ({"type": "degree", "level": "bachelor", "fields": [1]}, "fields"),
+    ({"type": "location", "locations": [1]}, "locations"),
+    ({"type": "authorization", "country": "US", "sponsorship_available": {}}, "sponsorship"),
+])
+def test_rejected_criterion_types_render_a_correction_form(
+    ai_app_client, fake_ai, sample_profile, criterion, field,
+):
+    client = ai_app_client
+    job_id = setup(client, sample_profile, requirements=False)
+    bad = copy.deepcopy(DEMO_REQUIREMENTS[:1])
+    bad[0]["criterion"] = criterion
+    fake_ai.push(*[tool_response("return_requirements", {"requirements": bad})] * 2)
+    response = client.post(f"/jobs/{job_id}/requirements/extract")
+    assert response.status_code == 422, response.text
+    assert "still has problems after one correction attempt" in response.text
+    assert f'name="req-0-{field}"' in response.text
+    assert len(fake_ai.requests) == 2
+    assert "No requirements yet" in client.get(f"/jobs/{job_id}").text
+
+
+def test_malformed_completion_envelope_is_a_friendly_http_error(ai_app_client, fake_ai, sample_profile):
+    client = ai_app_client
+    job_id = setup(client, sample_profile)
+    malformed = {"choices": [{"message": None}]}
+    fake_ai.push(malformed, malformed)
+    response = client.post(f"/jobs/{job_id}/requirements/extract")
+    assert response.status_code == 502
+    assert "response message must be an object" in response.text
+    assert '<span class="badge check-met">Met 4</span>' in response.text
+    assert len(fake_ai.requests) == 2
 
 
 def test_ai_errors_are_shown_and_work_is_kept(ai_app_client, fake_ai, sample_profile):

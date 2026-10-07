@@ -9,7 +9,8 @@ import hashlib
 import json
 import re
 import unicodedata
-from datetime import datetime, timezone
+from calendar import monthrange
+from datetime import date, datetime, timezone
 
 _QUOTES = {
     "‘": "'", "’": "'", "‚": "'", "‛": "'",
@@ -38,8 +39,14 @@ def is_valid_date(value) -> bool:
     match = _DATE_RE.match(str(value))
     if not match:
         return False
-    month = match.group(2)
-    return month is None or 1 <= int(month) <= 12
+    year = int(match.group(1))
+    month = int(match.group(2)) if match.group(2) else 1
+    day = int(match.group(3)) if match.group(3) else 1
+    try:
+        date(year, month, day)
+    except ValueError:
+        return False
+    return True
 
 
 def date_key(value, end_of_period: bool = False) -> tuple[int, int, int] | None:
@@ -49,11 +56,11 @@ def date_key(value, end_of_period: bool = False) -> tuple[int, int, int] | None:
     if value == "present":
         return today_key()
     match = _DATE_RE.match(str(value))
-    if not match:
+    if not match or not is_valid_date(value):
         return None
     year = int(match.group(1))
     month = int(match.group(2)) if match.group(2) else (12 if end_of_period else 1)
-    day = int(match.group(3)) if match.group(3) else (31 if end_of_period else 1)
+    day = int(match.group(3)) if match.group(3) else (monthrange(year, month)[1] if end_of_period else 1)
     return (year, month, day)
 
 
