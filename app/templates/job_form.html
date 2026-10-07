@@ -1,0 +1,59 @@
+{% extends "base.html" %}
+{% block title %}{{ 'Edit job' if job else 'Add job' }}{% endblock %}
+{% macro field_error(name) -%}
+  {% if errors.get(name) %}<small id="{{ name }}-error" class="field-error">{{ errors[name] }}</small>{% endif %}
+{%- endmacro %}
+{% macro attrs(name) -%}
+  {%- if errors.get(name) %} class="invalid" aria-invalid="true" aria-describedby="{{ name }}-error"{% endif -%}
+{%- endmacro %}
+{% block content %}
+<div class="page-head">
+  <h1>{{ 'Edit job details' if job else 'Add a job' }}</h1>
+  <p class="lead">
+    {% if job %}Changing the title, company, location or description increases the job revision (now {{ job.revision }}).
+    {% else %}Paste the full job description. It is saved exactly as pasted and is treated as information only.{% endif %}
+  </p>
+</div>
+
+{% if errors %}
+<div class="error-summary" role="alert" tabindex="-1" data-focus>
+  <h2>The job was not saved. Please fix these problems</h2>
+  <ul>{% for name, message in errors.items() %}<li><a href="#{{ name }}">{{ message }}</a></li>{% endfor %}</ul>
+</div>
+{% endif %}
+
+<form method="post" action="{{ '/jobs/%d/edit' % job.id if job else '/jobs' }}" class="card" data-guard novalidate>
+  <div class="grid">
+    <div class="field">
+      <label for="title">Job title <span class="req" aria-hidden="true">*</span></label>
+      <input id="title" name="title" value="{{ values.get('title', '') }}" required{{ attrs('title') }}>
+      {{ field_error('title') }}
+    </div>
+    <div class="field">
+      <label for="company">Company <span class="req" aria-hidden="true">*</span></label>
+      <input id="company" name="company" value="{{ values.get('company', '') }}" required{{ attrs('company') }}>
+      {{ field_error('company') }}
+    </div>
+    <div class="field">
+      <label for="location">Location</label>
+      <input id="location" name="location" value="{{ values.get('location', '') }}" placeholder="e.g. Austin, TX or Remote"{{ attrs('location') }}>
+      {{ field_error('location') }}
+    </div>
+    <div class="field">
+      <label for="url">Posting URL</label>
+      <input id="url" name="url" type="url" value="{{ values.get('url', '') }}" placeholder="https://…"{{ attrs('url') }}>
+      <small class="hint">Saved as a reference only. Nothing is fetched.</small>
+      {{ field_error('url') }}
+    </div>
+    <div class="field wide">
+      <label for="description">Job description <span class="req" aria-hidden="true">*</span></label>
+      <textarea id="description" name="description" rows="16" required{{ attrs('description') }}>{{ values.get('description', '') }}</textarea>
+      {{ field_error('description') }}
+    </div>
+  </div>
+  <div class="form-actions">
+    <button type="submit" class="btn-primary">{{ 'Save changes' if job else 'Save job' }}</button>
+    <a class="btn-link" href="{{ '/jobs/%d' % job.id if job else '/jobs' }}">Cancel</a>
+  </div>
+</form>
+{% endblock %}
