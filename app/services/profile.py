@@ -456,6 +456,19 @@ def _tri(value: bool | None) -> str:
     return {True: "yes", False: "no", None: "unknown"}[value]
 
 
+def _entry_summary(section: str, entry: dict) -> str:
+    """Every field of a new entry on one line, so it can be checked before saving."""
+    fields = [f for f in ENTRY_FIELDS[section] if f not in (NAME_FIELDS[section], "start", "end")]
+    parts = [entry[NAME_FIELDS[section]]]
+    parts += [f"GPA {entry[f]}" if f == "gpa" else entry[f] for f in fields if entry.get(f)]
+    if entry.get("start") or entry.get("end"):
+        parts.append(f"{entry.get('start') or '?'} – {entry.get('end') or '?'}")
+    if entry.get("technologies"):
+        parts.append(", ".join(entry["technologies"]))
+    count = len(entry["bullets"])
+    return " · ".join(parts) + f" ({count} bullet{'s' if count != 1 else ''})"
+
+
 def diff(old: Profile | dict | None, new: Profile | dict) -> list[Change]:
     """Field-level changes from the saved profile to the proposed one."""
     old, new = _dump(old), _dump(new)
@@ -488,11 +501,9 @@ def diff(old: Profile | dict | None, new: Profile | dict) -> list[Change]:
         old_entries = {e["id"]: e for e in old.get(section) or []}
         new_entries = {e["id"]: e for e in new.get(section) or []}
         for entry_id, entry in new_entries.items():
-            label = entry.get(NAME_FIELDS[section])
             before = old_entries.get(entry_id)
             if before is None:
-                count = len(entry["bullets"])
-                changes.append(Change("added", f"{section} {entry_id}", after=f"{label} ({count} bullet{'s' if count != 1 else ''})"))
+                changes.append(Change("added", f"{section} {entry_id}", after=_entry_summary(section, entry)))
                 for bullet in entry["bullets"]:
                     changes.append(Change("added", bullet["id"], after=bullet["text"]))
                 continue
@@ -531,7 +542,7 @@ def diff(old: Profile | dict | None, new: Profile | dict) -> list[Change]:
     for cert_id, cert in new_certs.items():
         before = old_certs.get(cert_id)
         if before is None:
-            changes.append(Change("added", f"certification {cert_id}", after=cert["name"]))
+            changes.append(Change("added", f"certification {cert_id}", after=" · ".join(v for v in (cert["name"], cert["issuer"], cert["date"]) if v)))
             continue
         for name in ("name", "issuer", "date"):
             compare(f"certifications.{cert_id}.{name}", before.get(name), cert.get(name))
