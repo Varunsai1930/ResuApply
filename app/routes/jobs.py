@@ -8,10 +8,11 @@ from fastapi import APIRouter, Depends, Form, HTTPException, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from sqlalchemy.orm import Session
 
+from ..ai import operations
 from ..db import get_session
 from ..models import Job
+from ..services import checklist, outbound, tracking
 from ..services import jobs as job_service
-from ..services import tracking
 from ..services.profile import get_candidate
 from ..templating import templates
 
@@ -34,18 +35,55 @@ def _render_job_form(request: Request, values: dict, errors: dict | None = None,
     )
 
 
+def _source_groups(candidate) -> list[dict]:
+    """Profile items the user can link as evidence, grouped by entry, in profile order."""
+    if candidate is None:
+        return []
+    prof = candidate.profile
+    groups = []
+    if prof.summary:
+        groups.append({"label": "Summary", "items": [("summary", prof.summary)]})
+    for title, entries, name in (("Experience", prof.experience, "organization"),
+                                 ("Projects", prof.projects, "name"),
+                                 ("Education", prof.education, "institution")):
+        for entry in entries:
+            label = f"{title}: {getattr(entry, name)}"
+            items = [(entry.id, f"The whole entry ({getattr(entry, name)})")] + [(b.id, b.text) for b in entry.bullets]
+            groups.append({"label": label, "items": items})
+    if prof.certifications:
+        groups.append({"label": "Certifications", "items": [(c.id, c.name) for c in prof.certifications]})
+    return groups
+
+
 def _render_workspace(request: Request, session: Session, job: Job, msg: str = "", status_code: int = 200, **forms):
+    settings = request.app.state.settings
+    candidate = get_candidate(session)
+    results = checklist.evaluate(job, candidate.profile if candidate else None)
+    groups = {status: [r for r in results if r.status == status] for status in checklist.STATUSES}
+    suggestions = operations.current_suggestions(session, job, candidate)
+    sharing = outbound.state(session, settings, candidate) if candidate else None
     return templates.TemplateResponse(
         request,
         "job_workspace.html",
         {
             "job": job,
             "application": job.application,
-            "candidate": get_candidate(session),
+            "candidate": candidate,
             "msg": msg,
             "today": date.today().isoformat(),
             "status_form": forms.get("status_form", {}),
             "note_form": forms.get("note_form", {}),
+            "check_error": forms.get("check_error"),
+            "ai_error": forms.get("ai_error"),
+            "ai_notice": forms.get("ai_notice"),
+            "results": results,
+            "result_groups": groups,
+            "counts": checklist.summary(results),
+            "suggestions": suggestions,
+            "source_groups": _source_groups(candidate),
+            "settings": settings,
+            "sharing": sharing,
+            "has_proposal": operations.cached_proposal(session, job, settings.openrouter_model) is not None,
             "active": "jobs",
         },
         status_code=status_code,
