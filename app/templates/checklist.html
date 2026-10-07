@@ -63,7 +63,7 @@
   </div>
   {% endif %}
 
-  {% if check_error and check_error.id == r.id %}<p class="field-error" role="alert">{{ check_error.message }}</p>{% endif %}
+  {% if check_error and check_error.id == r.id %}<p class="field-error" role="alert" tabindex="-1" data-focus>{{ check_error.message }}</p>{% endif %}
 
   <div class="check-actions">
     {% if source_groups %}
@@ -120,13 +120,16 @@
     {% if settings.ai_configured %}AI model: <code>{{ settings.openrouter_model }}</code> ({{ settings.openrouter_model_trust }}).
     {% else %}AI is off: add <code>OPENROUTER_API_KEY</code> to <code>.env</code> to use the AI buttons. Everything else works without it.{% endif %}
   </p>
-  {% if ai_error %}<p class="notice warn" role="alert">{{ ai_error }}</p>{% endif %}
-  {% if ai_notice %}<p class="notice" role="status">{{ ai_notice }}</p>{% endif %}
+  {% if ai_error %}<p class="notice warn" role="alert" tabindex="-1" data-focus>{{ ai_error }}</p>{% endif %}
+  {% if ai_notice %}<p class="notice" role="status" tabindex="-1" data-focus>{{ ai_notice }}</p>{% endif %}
 
   {% if settings.ai_configured %}
   <div class="ai-actions">
-    {% if has_proposal %}
+    {% if has_proposal and not job.requirements %}
       <a class="btn-secondary" href="/jobs/{{ job.id }}/requirements/edit?proposal=1">Review the AI proposal</a>
+      {{ ai_button('/jobs/%d/requirements/extract' % job.id, 'Ask the model again', force=true) }}
+    {% elif has_proposal %}
+      <a class="btn-link" href="/jobs/{{ job.id }}/requirements/edit?proposal=1">Start again from the AI proposal</a>
       {{ ai_button('/jobs/%d/requirements/extract' % job.id, 'Ask the model again', force=true) }}
     {% else %}
       {{ ai_button('/jobs/%d/requirements/extract' % job.id, 'Extract requirements with AI') }}
@@ -157,7 +160,16 @@
         <a class="btn-link" href="/profile/sharing?next=/jobs/{{ job.id }}">What's shared?</a>
       {% endif %}
     </div>
-    {% if suggestions.out_of_date %}<p class="hint">Earlier suggestions were made for an older version of this job or your profile, so they're hidden. Ask again for fresh ones.</p>{% endif %}
+    {% if suggestions.out_of_date %}
+      <p class="hint">Earlier suggestions were made for an older version of this job or your profile, so they're hidden. Ask again for fresh ones.</p>
+    {% elif suggestions.run %}
+      {% set waiting = suggestions.by_requirement.values() | map('length') | sum %}
+      <p class="hint" id="suggestion-status">
+        Suggestions from {{ suggestions.run.created_at | local_datetime }}:
+        {% if waiting %}{{ waiting }} waiting for your decision below.
+        {% else %}nothing waiting. Either you've decided on all of them, or the model found nothing in what you shared that supports the Unknown requirements.{% endif %}
+      </p>
+    {% endif %}
     {% endif %}
 
     {% for status, title, empty in [
