@@ -1,0 +1,120 @@
+{% extends "base.html" %}
+{% import "macros.html" as m with context %}
+{% block title %}Edit profile{% endblock %}
+{% block content %}
+<div class="page-head">
+  <h1>Edit profile</h1>
+  <p class="lead">Enter facts exactly as they are. Leave anything you don't know empty; it stays unknown. Nothing is saved until you review the changes.</p>
+</div>
+
+{% if message %}<p class="notice warn" role="alert">{{ message }}</p>{% endif %}
+{{ m.error_summary(errors, 'The profile was not saved. Please fix these problems') }}
+{% if warnings %}
+<div class="notice"><ul>{% for w in warnings %}<li>{{ w }}</li>{% endfor %}</ul></div>
+{% endif %}
+
+<form method="post" action="/profile/review" class="profile-form" data-guard novalidate>
+  <section class="card">
+    <h2>Contact</h2>
+    <div class="grid">
+      {{ m.input('contact-name', 'Full name', data.contact.get('name'), required=true, autocomplete='name') }}
+      {{ m.input('contact-email', 'Email', data.contact.get('email'), type='email', autocomplete='email') }}
+      {{ m.input('contact-phone', 'Phone', data.contact.get('phone'), type='tel', autocomplete='tel') }}
+      {{ m.input('contact-location', 'Location', data.contact.get('location'), placeholder='City, State') }}
+      {{ m.input('contact-links-linkedin', 'LinkedIn', data.contact.get('links', {}).get('linkedin'), placeholder='linkedin.com/in/you') }}
+      {{ m.input('contact-links-github', 'GitHub', data.contact.get('links', {}).get('github'), placeholder='github.com/you') }}
+      {{ m.input('contact-links-portfolio', 'Portfolio', data.contact.get('links', {}).get('portfolio')) }}
+    </div>
+  </section>
+
+  <section class="card">
+    <h2>Summary</h2>
+    {{ m.textarea('summary', 'Summary', data.get('summary'), rows=3, hint='Optional, in your own words.') }}
+  </section>
+
+  <section class="card">
+    <h2>Education</h2>
+    <p class="hint">Dates are YYYY, YYYY-MM or YYYY-MM-DD. Use the expected graduation date if you're still studying.</p>
+    <div id="education-list" class="entry-list">
+      {% for entry in data.get('education') or [] %}{{ m.education_entry(m.key_of(entry, loop.index0), entry) }}{% endfor %}
+    </div>
+    <button type="button" class="btn-secondary" data-add="tpl-education" data-target="education-list">+ Add education</button>
+  </section>
+
+  <section class="card">
+    <h2>Experience</h2>
+    <p class="hint">One accomplishment per bullet. Use "present" as the end date for a current role.</p>
+    <div id="experience-list" class="entry-list">
+      {% for entry in data.get('experience') or [] %}{{ m.experience_entry(m.key_of(entry, loop.index0), entry) }}{% endfor %}
+    </div>
+    <button type="button" class="btn-secondary" data-add="tpl-experience" data-target="experience-list">+ Add experience</button>
+  </section>
+
+  <section class="card">
+    <h2>Projects</h2>
+    <div id="projects-list" class="entry-list">
+      {% for entry in data.get('projects') or [] %}{{ m.project_entry(m.key_of(entry, loop.index0), entry) }}{% endfor %}
+    </div>
+    <button type="button" class="btn-secondary" data-add="tpl-projects" data-target="projects-list">+ Add project</button>
+  </section>
+
+  <section class="card">
+    <h2>Skills</h2>
+    {{ m.textarea('skills', 'Skills you have', data.get('skills') | skills_text, rows=4,
+        hint='One category per line, e.g. "Languages: Python, SQL". A line without a colon goes under "Skills".',
+        placeholder='Languages: Python, SQL
+Tools: Git, Docker') }}
+    {{ m.textarea('skills_absent', "Skills you've confirmed you don't have", (data.get('skills_absent') or []) | join(', '), rows=2,
+        hint='Comma-separated. Requirements for these show as Unmet instead of Unknown.') }}
+  </section>
+
+  <section class="card">
+    <h2>Certifications</h2>
+    <div id="certifications-list" class="row-list">
+      {% for cert in data.get('certifications') or [] %}{{ m.certification_row(m.key_of(cert, loop.index0), cert) }}{% endfor %}
+    </div>
+    <button type="button" class="btn-secondary" data-add="tpl-certification" data-target="certifications-list">+ Add certification</button>
+  </section>
+
+  <section class="card">
+    <h2>Work authorization</h2>
+    <p class="hint">One row per country. Leave a question as Unknown if you're not sure; it is never guessed.</p>
+    <div id="authorization-list" class="row-list">
+      {% for auth in data.get('authorization') or [] %}{{ m.authorization_row(m.key_of(auth, loop.index0), auth) }}{% endfor %}
+    </div>
+    <button type="button" class="btn-secondary" data-add="tpl-authorization" data-target="authorization-list">+ Add country</button>
+  </section>
+
+  <section class="card">
+    <h2>Preferences and availability</h2>
+    <div class="grid">
+      {{ m.textarea('preferences-roles', 'Roles you want', (data.preferences.get('roles') or []) | join('\n'), rows=2, hint='One per line', wide=false) }}
+      {{ m.textarea('preferences-locations', 'Preferred locations', (data.preferences.get('locations') or []) | join('\n'), rows=2, hint='One per line', wide=false) }}
+      <div class="field">
+        <label for="preferences-work_mode">Work mode</label>
+        {% set mode = data.preferences.get('work_mode') or '' %}
+        <select id="preferences-work_mode" name="preferences-work_mode"{{ m.invalid('preferences-work_mode') }}>
+          <option value="" {% if mode == '' %}selected{% endif %}>Not specified</option>
+          {% for value in ['any', 'remote', 'hybrid', 'onsite'] %}
+            <option value="{{ value }}" {% if mode == value %}selected{% endif %}>{{ value | capitalize }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      {{ m.input('availability-start_date', 'Available from', data.availability.get('start_date'), placeholder='YYYY-MM') }}
+      {{ m.textarea('availability-notes', 'Availability notes', data.availability.get('notes'), rows=2) }}
+    </div>
+  </section>
+
+  <div class="form-actions sticky">
+    <button type="submit" class="btn-primary">Review changes</button>
+    <a href="/profile" class="btn-link">Cancel</a>
+  </div>
+</form>
+
+<template id="tpl-education">{{ m.education_entry('__i__', {'bullets': []}) }}</template>
+<template id="tpl-experience">{{ m.experience_entry('__i__', {'bullets': [{}]}) }}</template>
+<template id="tpl-projects">{{ m.project_entry('__i__', {'bullets': [{}]}) }}</template>
+<template id="tpl-certification">{{ m.certification_row('__i__', {}) }}</template>
+<template id="tpl-authorization">{{ m.authorization_row('__i__', {}) }}</template>
+<template id="tpl-bullet">{{ m.bullet_row('__p__', '__i__', {}) }}</template>
+{% endblock %}
