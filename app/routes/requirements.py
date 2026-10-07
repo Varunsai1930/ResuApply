@@ -107,14 +107,14 @@ def suggest(request: Request, job_id: int, force: int = Form(0), session: Sessio
     if candidate is None:
         return _render_workspace(request, session, job, status_code=400, ai_error="Create your profile first.")
     try:
-        operations.suggest_evidence(session, client, request.app.state.settings, job, candidate, force=bool(force))
+        run = operations.suggest_evidence(session, client, request.app.state.settings, job, candidate, force=bool(force))
     except operations.ApprovalNeeded:
         return RedirectResponse(f"/profile/sharing?next={quote(f'/jobs/{job.id}')}", status_code=303)
     except operations.NothingToDo as exc:
         return _render_workspace(request, session, job, ai_notice=str(exc))
     except AIError as exc:
         return _ai_failed(request, session, job, exc)
-    return _back(job, "suggestions_ready")
+    return _back(job, "suggestions_ready" if run.result["suggestions"] else "suggestions_none")
 
 
 # ---------------------------------------------------------------- evidence and overrides
