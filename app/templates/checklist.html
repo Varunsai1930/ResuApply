@@ -1,0 +1,171 @@
+{# The Requirements section of the Job Workspace. Included with the workspace's context. #}
+{% import "macros.html" as m with context %}
+
+{% macro ai_button(action, label, force=false, disabled=false) -%}
+<form method="post" action="{{ action }}" class="inline-form" data-ai>
+  {% if force %}<input type="hidden" name="force" value="1">{% endif %}
+  <button type="submit" class="{{ 'btn-small' if force else 'btn-secondary' }}" {% if disabled %}disabled{% endif %}
+    data-busy-label="Working… this can take up to 90 seconds">{{ label }}</button>
+</form>
+{%- endmacro %}
+
+{% macro check_card(r) -%}
+<article class="check-card" id="req-{{ r.id }}">
+  <header class="check-head">
+    <span class="badge check-{{ r.status }}">{{ r.label }}</span>
+    <h4>{{ r.text }}</h4>
+    <span class="tag importance-{{ r.importance }}">{{ r.importance | capitalize }}</span>
+    <span class="id-badge">{{ r.id }}</span>
+  </header>
+  <blockquote class="excerpt"><span class="visually-hidden">From the description: </span>“{{ r.excerpt }}”</blockquote>
+  {% if not r.excerpt_found %}
+    <p class="field-error">This excerpt is no longer in the job description (it was edited). Review the requirements.</p>
+  {% endif %}
+  <p class="basis"><strong>Why:</strong> {{ r.basis }}</p>
+
+  {% if r.evidence %}
+  <ul class="evidence">
+    {% for e in r.evidence %}
+      <li>
+        <span class="id-badge">{{ e.id }}</span> <span class="evidence-text">{{ e.text }}</span>
+        <form method="post" action="/jobs/{{ job.id }}/requirements/{{ r.id }}/evidence/remove" class="inline-form">
+          <input type="hidden" name="source" value="{{ e.id }}">
+          <button type="submit" class="btn-small danger" aria-label="Remove evidence {{ e.id }}">Remove</button>
+        </form>
+      </li>
+    {% endfor %}
+  </ul>
+  {% endif %}
+  {% if r.stale_links %}
+    <p class="notice small">Linked items no longer in your profile: {{ r.stale_links | join(', ') }}. Remove them or link others.</p>
+  {% endif %}
+
+  {% set pending = suggestions.by_requirement.get(r.id, []) %}
+  {% if pending %}
+  <div class="suggestions">
+    <p class="sub-label">AI suggestions <span class="muted">(not evidence until you accept)</span></p>
+    {% for s in pending %}
+      <div class="suggestion">
+        <p><span class="id-badge">{{ s.id }}</span> {{ s.text }}</p>
+        {% if s.reason %}<p class="hint">Model's reason: {{ s.reason }}</p>{% endif %}
+        <div class="suggestion-actions">
+          <form method="post" action="/jobs/{{ job.id }}/requirements/{{ r.id }}/suggestions/accept" class="inline-form">
+            <input type="hidden" name="source" value="{{ s.id }}">
+            <button type="submit" class="btn-small">Accept</button>
+          </form>
+          <form method="post" action="/jobs/{{ job.id }}/requirements/{{ r.id }}/suggestions/reject" class="inline-form">
+            <input type="hidden" name="source" value="{{ s.id }}">
+            <button type="submit" class="btn-small danger">Reject</button>
+          </form>
+        </div>
+      </div>
+    {% endfor %}
+  </div>
+  {% endif %}
+
+  {% if check_error and check_error.id == r.id %}<p class="field-error" role="alert">{{ check_error.message }}</p>{% endif %}
+
+  <div class="check-actions">
+    {% if source_groups %}
+    <details>
+      <summary>Link evidence</summary>
+      <form method="post" action="/jobs/{{ job.id }}/requirements/{{ r.id }}/evidence" class="stack">
+        {% set linked = r.evidence | map(attribute='id') | list %}
+        {% for group in source_groups %}
+          <fieldset class="source-group">
+            <legend>{{ group.label }}</legend>
+            {% for item_id, text in group['items'] %}
+              <label class="check">
+                <input type="checkbox" name="sources" value="{{ item_id }}" {% if item_id in linked %}checked disabled{% endif %}>
+                <span class="id-badge">{{ item_id }}</span> {{ text }}
+              </label>
+            {% endfor %}
+          </fieldset>
+        {% endfor %}
+        <button type="submit" class="btn-secondary">Link selected</button>
+      </form>
+    </details>
+    {% endif %}
+    <details {% if check_error and check_error.id == r.id %}open{% endif %}>
+      <summary>{{ 'Change override' if r.override else 'Override status' }}</summary>
+      <form method="post" action="/jobs/{{ job.id }}/requirements/{{ r.id }}/override" class="stack">
+        <div class="field">
+          <label for="override-{{ r.id }}">Status</label>
+          <select id="override-{{ r.id }}" name="status">
+            {% for value, label in [('met', 'Met'), ('unmet', 'Unmet'), ('unknown', 'Unknown')] %}
+              <option value="{{ value }}" {% if r.override and r.override.status == value %}selected{% endif %}>{{ label }}</option>
+            {% endfor %}
+            {% if r.override %}<option value="clear">Clear override (use the calculated status)</option>{% endif %}
+          </select>
+        </div>
+        <div class="field">
+          <label for="reason-{{ r.id }}">Reason <span class="req" aria-hidden="true">*</span></label>
+          <textarea id="reason-{{ r.id }}" name="reason" rows="2" placeholder="Why the calculated status is wrong">{{ r.override.reason if r.override else '' }}</textarea>
+          <small class="hint">Overrides are always shown with your reason and the calculated status.</small>
+        </div>
+        <button type="submit" class="btn-secondary">Save override</button>
+      </form>
+    </details>
+  </div>
+</article>
+{%- endmacro %}
+
+<section class="card" id="requirements" aria-labelledby="requirements-title">
+  <div class="section-head">
+    <h2 id="requirements-title">Requirements</h2>
+    <a class="btn-secondary" href="/jobs/{{ job.id }}/requirements/edit">{{ 'Edit requirements' if job.requirements else 'Enter requirements' }}</a>
+  </div>
+
+  <p class="ai-status hint">
+    {% if settings.ai_configured %}AI model: <code>{{ settings.openrouter_model }}</code> ({{ settings.openrouter_model_trust }}).
+    {% else %}AI is off: add <code>OPENROUTER_API_KEY</code> to <code>.env</code> to use the AI buttons. Everything else works without it.{% endif %}
+  </p>
+  {% if ai_error %}<p class="notice warn" role="alert">{{ ai_error }}</p>{% endif %}
+  {% if ai_notice %}<p class="notice" role="status">{{ ai_notice }}</p>{% endif %}
+
+  {% if settings.ai_configured %}
+  <div class="ai-actions">
+    {% if has_proposal %}
+      <a class="btn-secondary" href="/jobs/{{ job.id }}/requirements/edit?proposal=1">Review the AI proposal</a>
+      {{ ai_button('/jobs/%d/requirements/extract' % job.id, 'Ask the model again', force=true) }}
+    {% else %}
+      {{ ai_button('/jobs/%d/requirements/extract' % job.id, 'Extract requirements with AI') }}
+    {% endif %}
+  </div>
+  <p class="hint">Extraction sends only the job's title, company, location and description. You review every requirement before it is saved.</p>
+  {% endif %}
+
+  {% if not job.requirements %}
+    <p class="muted">No requirements yet. {% if settings.ai_configured %}Extract them with AI or enter{% else %}Enter{% endif %} them yourself, each with the words from the description that state it.</p>
+  {% else %}
+    <p class="counts">
+      <span class="badge check-met">Met {{ counts.met }}</span>
+      <span class="badge check-unmet">Unmet {{ counts.unmet }}</span>
+      <span class="badge check-unknown">Unknown {{ counts.unknown }}</span>
+    </p>
+    {% if counts.required_unmet %}
+      <p class="hint">{{ counts.required_unmet }} required item{{ 's' if counts.required_unmet != 1 }} unmet. Gaps stay visible, but they never stop you from preparing an application.</p>
+    {% endif %}
+
+    {% if candidate and settings.ai_configured and counts.unknown %}
+    <div class="ai-actions">
+      {% if sharing and not sharing.ready %}
+        <a class="btn-secondary" href="/profile/sharing?next=/jobs/{{ job.id }}">Review what's shared, then suggest evidence</a>
+      {% else %}
+        {{ ai_button('/jobs/%d/evidence/suggest' % job.id, 'Suggest evidence with AI') }}
+        {% if suggestions.run and not suggestions.out_of_date %}{{ ai_button('/jobs/%d/evidence/suggest' % job.id, 'Ask again', force=true) }}{% endif %}
+        <a class="btn-link" href="/profile/sharing?next=/jobs/{{ job.id }}">What's shared?</a>
+      {% endif %}
+    </div>
+    {% if suggestions.out_of_date %}<p class="hint">Earlier suggestions were made for an older version of this job or your profile, so they're hidden. Ask again for fresh ones.</p>{% endif %}
+    {% endif %}
+
+    {% for status, title, empty in [
+        ('met', 'Met: your sources', 'Nothing is met yet.'),
+        ('unmet', 'Unmet: gaps', 'No gaps found.'),
+        ('unknown', 'Unknown: missing or not comparable', 'Nothing unknown.')] %}
+      <h3 class="group-title">{{ title }} <span class="muted">({{ result_groups[status] | length }})</span></h3>
+      {% for r in result_groups[status] %}{{ check_card(r) }}{% else %}<p class="muted">{{ empty }}</p>{% endfor %}
+    {% endfor %}
+  {% endif %}
+</section>
