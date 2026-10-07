@@ -7,8 +7,6 @@ tests can point it at a temporary database.
 from __future__ import annotations
 
 from contextlib import asynccontextmanager
-from pathlib import Path
-
 from fastapi import FastAPI, Request
 from fastapi.responses import RedirectResponse
 from fastapi.staticfiles import StaticFiles
@@ -20,9 +18,7 @@ from .config import ALLOWED_HOSTS, Settings, get_settings
 from .db import init_db, make_engine, make_session_factory
 from .routes import jobs, profile
 from .security import SameOriginMiddleware
-from .templating import templates
-
-STATIC_DIR = Path(__file__).parent / "static"
+from .templating import STATIC_DIR, templates
 
 
 def create_app(settings: Settings | None = None) -> FastAPI:
@@ -48,7 +44,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(profile.router)
     app.include_router(jobs.router)
 
-    @app.get("/", include_in_schema=False)
+    @app.api_route("/", methods=["GET", "HEAD"], include_in_schema=False)
     def home():
         return RedirectResponse("/jobs", status_code=303)
 
