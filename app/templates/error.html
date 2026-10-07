@@ -1,0 +1,9 @@
+{% extends "base.html" %}
+{% block title %}{{ 'Not found' if status_code == 404 else 'Error' }}{% endblock %}
+{% block content %}
+<div class="empty card">
+  <h1>{{ 'Not found' if status_code == 404 else 'Something went wrong' }}</h1>
+  <p>{{ detail }}</p>
+  <p><a href="/jobs">Back to jobs</a> · <a href="/profile">Profile</a></p>
+</div>
+{% endblock %}
