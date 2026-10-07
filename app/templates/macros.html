@@ -48,7 +48,7 @@
   <input type="hidden" name="{{ name }}-id" value="{{ bullet.get('id', '') }}">
   <label class="visually-hidden" for="{{ name }}-text">Bullet</label>
   <textarea id="{{ name }}-text" name="{{ name }}-text" rows="2" placeholder="One accomplishment, in your own words"{{ invalid(name ~ '-text') }}>{{ bullet.get('text', '') }}</textarea>
-  {% if bullet.get('id') %}<span class="id-badge" title="Stable bullet ID">{{ bullet.id }}</span>{% endif %}
+  {% if bullet.get('id') %}<span class="id-badge" title="Stable bullet ID">{{ bullet.id }}</span>{% else %}<span class="id-badge new" title="Gets an ID when saved">new</span>{% endif %}
   <button type="button" class="btn-icon" data-remove aria-label="Remove bullet">✕</button>
 </div>
 {%- endmacro %}
@@ -67,7 +67,7 @@
 
 {% macro entry_head(prefix, entry, title) -%}
 <div class="entry-head">
-  <h3>{{ title }}{% if entry.get('id') %} <span class="id-badge" title="Stable entry ID">{{ entry.id }}</span>{% endif %}</h3>
+  <h3>{{ title }} {% if entry.get('id') %}<span class="id-badge" title="Stable entry ID">{{ entry.id }}</span>{% else %}<span class="id-badge new" title="Gets an ID when saved">new</span>{% endif %}</h3>
   <button type="button" class="btn-small danger" data-remove>Remove</button>
   <input type="hidden" name="{{ prefix }}-id" value="{{ entry.get('id', '') }}">
 </div>
