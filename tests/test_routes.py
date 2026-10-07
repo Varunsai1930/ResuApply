@@ -80,9 +80,17 @@ def test_main_pages_render(client):
         assert 'name="viewport"' in response.text
 
 
-def test_static_files_are_served(client):
-    assert client.get("/static/style.css").status_code == 200
-    assert client.get("/static/forms.js").status_code == 200
+def test_static_files_are_served_with_version_strings(client):
+    page = client.get("/jobs").text
+    css = re.search(r'href="(/static/style\.css\?v=\d+)"', page)
+    js = re.search(r'src="(/static/forms\.js\?v=\d+)"', page)
+    assert css and js
+    assert client.get(css.group(1)).status_code == 200
+    assert client.get(js.group(1)).status_code == 200
+
+
+def test_head_request_on_root(client):
+    assert client.head("/", follow_redirects=False).status_code == 303
 
 
 def test_missing_job_is_a_friendly_404(client):
