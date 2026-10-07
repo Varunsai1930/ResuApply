@@ -13,7 +13,7 @@ from typing import Any
 
 from fastapi import Request
 from pydantic import TypeAdapter
-from sqlalchemy import JSON, DateTime, Engine, create_engine, event
+from sqlalchemy import JSON, DateTime, Engine, create_engine, event, inspect, text
 from sqlalchemy.orm import DeclarativeBase, Session, sessionmaker
 from sqlalchemy.types import TypeDecorator
 
@@ -61,7 +61,7 @@ class PydanticJSON(TypeDecorator):
     def process_bind_param(self, value, dialect):
         if value is None:
             return None
-        return self.adapter.dump_python(self.adapter.validate_python(value), mode="json")
+        return self.adapter.dump_python(self.adapter.validate_python(value), mode="json", by_alias=True)
 
     def process_result_value(self, value, dialect):
         return None if value is None else self.adapter.validate_python(value)
@@ -87,10 +87,36 @@ def make_session_factory(engine: Engine) -> sessionmaker[Session]:
 
 
 def init_db(engine: Engine) -> None:
-    """Create any missing tables. No migration tool is used yet."""
+    """Create missing tables and add missing columns. No migration tool is used yet."""
     from . import models  # noqa: F401  (registers the tables on Base.metadata)
 
     Base.metadata.create_all(engine)
+    _add_missing_columns(engine)
+
+
+def _add_missing_columns(engine: Engine) -> None:
+    """Additive upgrade for databases made by an earlier milestone.
+
+    Only adds columns that declare a server default, so existing rows stay valid.
+    Columns are never renamed, retyped or dropped here.
+    """
+    inspector = inspect(engine)
+    with engine.begin() as conn:
+        for table in Base.metadata.sorted_tables:
+            existing = {c["name"] for c in inspector.get_columns(table.name)}
+            for column in table.columns:
+                if column.name in existing:
+                    continue
+                if column.server_default is None:
+                    raise RuntimeError(f"Cannot add column {table.name}.{column.name} without a server default")
+                ddl = column.type.compile(engine.dialect)
+                default = column.server_default.arg
+                conn.execute(text(f'ALTER TABLE "{table.name}" ADD COLUMN "{column.name}" {ddl} NOT NULL DEFAULT {default}'))
+
+
+def get_ai_client(request: Request):
+    """FastAPI dependency: the shared OpenRouter client."""
+    return request.app.state.ai_client
 
 
 def get_session(request: Request) -> Iterator[Session]:
