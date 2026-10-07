@@ -22,6 +22,16 @@ MESSAGES = {
     "job_unchanged": "Nothing changed in the job details.",
     "status_changed": "Tracking status updated.",
     "note_added": "Note added.",
+    "requirements_saved": "Requirements saved. The checklist below is calculated from your profile.",
+    "requirements_unchanged": "Nothing changed in the requirements.",
+    "suggestions_ready": "Evidence suggestions are ready. Accept or reject each one; nothing changes until you do.",
+    "evidence_linked": "Evidence linked.",
+    "evidence_removed": "Evidence removed.",
+    "suggestion_rejected": "Suggestion rejected. It won't be offered again.",
+    "override_saved": "Override saved with your reason.",
+    "override_cleared": "Override cleared. The calculated status applies again.",
+    "sharing_approved": "Saved what may be sent to the AI model.",
+    "sharing_withdrawn": "Approval withdrawn. You'll be asked again before candidate content is sent.",
 }
 
 
