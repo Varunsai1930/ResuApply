@@ -261,3 +261,38 @@ def test_milestone_1_database_is_upgraded_in_place(settings):
         assert (job.title, job.requirement_counter, job.requirements, job.evidence) == ("Intern", 0, [], {})
     init_db(engine)  # running the upgrade again is harmless
     engine.dispose()
+
+
+# ---------------------------------------------------------------- found in the browser pass
+
+def test_empty_suggestions_say_so(ai_app_client, fake_ai, sample_profile):
+    client = ai_app_client
+    job_id = setup(client, sample_profile)
+    preview = client.get("/profile/sharing").text
+    client.post("/profile/sharing", data={"base_hash": re.search(r'name="base_hash" value="([^"]+)"', preview).group(1),
+                                          "include": re.findall(r'name="include" value="([^"]+)" checked', preview)})
+    fake_ai.push(tool_response("return_evidence_suggestions", {"suggestions": [
+        {"requirement_id": "r4", "source_ids": [], "reason": "Nothing fits"}]}))
+    response = client.post(f"/jobs/{job_id}/evidence/suggest", follow_redirects=False)
+    assert response.headers["location"].endswith("msg=suggestions_none#requirements")
+    page = client.get(response.headers["location"]).text
+    assert "The model found nothing in what you shared" in page
+    assert "nothing waiting" in page
+
+
+def test_saved_requirements_demote_the_proposal_link(ai_app_client, fake_ai, sample_profile):
+    client = ai_app_client
+    job_id = setup(client, sample_profile, requirements=False)
+    fake_ai.push(tool_response("return_requirements", {"requirements": DEMO_REQUIREMENTS}))
+    client.post(f"/jobs/{job_id}/requirements/extract")
+    assert "Review the AI proposal" in client.get(f"/jobs/{job_id}").text
+    client.post(f"/jobs/{job_id}/requirements", data=requirement_form(DEMO_REQUIREMENTS))
+    page = client.get(f"/jobs/{job_id}").text
+    assert "Review the AI proposal" not in page and "Start again from the AI proposal" in page
+
+
+def test_errors_far_down_the_page_take_focus(client, sample_profile):
+    job_id = setup(client, sample_profile)
+    response = client.post(f"/jobs/{job_id}/requirements/r5/override", data={"status": "met", "reason": ""})
+    assert '<p class="field-error" role="alert" tabindex="-1" data-focus>An override needs a reason.</p>' in response.text
+    assert response.text.count("data-focus") == 1
