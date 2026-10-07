@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}ResuApply{% endblock %} · ResuApply</title>
+  <link rel="stylesheet" href="{{ url_for('static', path='style.css') }}">
+  <script src="{{ url_for('static', path='forms.js') }}" defer></script>
+</head>
+<body>
+  <a class="skip-link" href="#main">Skip to content</a>
+  <header class="site-header">
+    <div class="wrap header-inner">
+      <a class="brand" href="/jobs">ResuApply</a>
+      <nav aria-label="Main">
+        <a href="/profile" {% if active == 'profile' %}aria-current="page"{% endif %}>Profile</a>
+        <a href="/jobs" {% if active == 'jobs' %}aria-current="page"{% endif %}>Jobs</a>
+      </nav>
+    </div>
+  </header>
+  <main id="main" class="wrap">
+    {% if msg and MESSAGES.get(msg) %}
+      <p class="flash" role="status">{{ MESSAGES[msg] }}</p>
+    {% endif %}
+    {% block content %}{% endblock %}
+  </main>
+  <footer class="wrap site-footer">
+    Local only · runs on 127.0.0.1 · your data stays in <code>data/</code>
+  </footer>
+</body>
+</html>
