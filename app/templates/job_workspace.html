@@ -91,10 +91,7 @@
     <p class="notice">Requirement checks and tailoring will use your profile. <a href="/profile/edit">Create your profile</a> first.</p>
     {% endif %}
 
-    <section class="card placeholder" aria-labelledby="requirements-title">
-      <h2 id="requirements-title">Requirements <span class="soon">Milestone 2</span></h2>
-      <p>Requirements extracted from the description, each with a verbatim excerpt, and a checklist of Met, Unmet or Unknown with the evidence behind each result.</p>
-    </section>
+    {% include "checklist.html" %}
     <section class="card placeholder" aria-labelledby="resume-title">
       <h2 id="resume-title">Resume <span class="soon">Milestone 3a</span></h2>
       <p>Tailored resume proposals built only from your profile, shown side by side with the original bullets, then printed to PDF.</p>
