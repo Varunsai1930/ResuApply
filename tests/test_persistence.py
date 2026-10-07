@@ -18,7 +18,9 @@ def test_database_lives_in_the_data_folder_with_all_tables(settings):
     assert settings.database_path.exists()
     assert settings.database_path.parent == settings.resolved_data_dir
     engine = make_engine(settings.database_url)
-    assert set(inspect(engine).get_table_names()) == {"candidates", "jobs", "applications", "answer_bank"}
+    assert set(inspect(engine).get_table_names()) == {
+        "candidates", "jobs", "applications", "answer_bank", "ai_runs", "outbound_approvals",
+    }
     engine.dispose()
 
 
