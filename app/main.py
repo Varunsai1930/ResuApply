@@ -1,0 +1,65 @@
+"""FastAPI application factory.
+
+Run with ``python -m app`` (binds to 127.0.0.1). ``create_app`` takes explicit settings so
+tests can point it at a temporary database.
+"""
+
+from __future__ import annotations
+
+from contextlib import asynccontextmanager
+from pathlib import Path
+
+from fastapi import FastAPI, Request
+from fastapi.responses import RedirectResponse
+from fastapi.staticfiles import StaticFiles
+from starlette.exceptions import HTTPException as StarletteHTTPException
+from starlette.middleware.trustedhost import TrustedHostMiddleware
+
+from . import __version__
+from .config import ALLOWED_HOSTS, Settings, get_settings
+from .db import init_db, make_engine, make_session_factory
+from .routes import jobs, profile
+from .security import SameOriginMiddleware
+from .templating import templates
+
+STATIC_DIR = Path(__file__).parent / "static"
+
+
+def create_app(settings: Settings | None = None) -> FastAPI:
+    settings = settings or get_settings()
+
+    @asynccontextmanager
+    async def lifespan(app: FastAPI):
+        settings.resolved_data_dir.mkdir(parents=True, exist_ok=True)
+        engine = make_engine(settings.database_url)
+        init_db(engine)
+        app.state.engine = engine
+        app.state.session_factory = make_session_factory(engine)
+        try:
+            yield
+        finally:
+            engine.dispose()
+
+    app = FastAPI(title="ResuApply", version=__version__, lifespan=lifespan, docs_url=None, redoc_url=None, openapi_url=None)
+    app.state.settings = settings
+    app.add_middleware(SameOriginMiddleware)
+    app.add_middleware(TrustedHostMiddleware, allowed_hosts=ALLOWED_HOSTS)
+    app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
+    app.include_router(profile.router)
+    app.include_router(jobs.router)
+
+    @app.get("/", include_in_schema=False)
+    def home():
+        return RedirectResponse("/jobs", status_code=303)
+
+    @app.exception_handler(StarletteHTTPException)
+    async def http_error(request: Request, exc: StarletteHTTPException):
+        return templates.TemplateResponse(
+            request, "error.html", {"status_code": exc.status_code, "detail": exc.detail, "active": None},
+            status_code=exc.status_code,
+        )
+
+    return app
+
+
+app = create_app()
