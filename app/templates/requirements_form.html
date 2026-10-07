@@ -1,0 +1,111 @@
+{% extends "base.html" %}
+{% import "macros.html" as m with context %}
+{% block title %}Requirements · {{ job.title }}{% endblock %}
+
+{% macro select(name, label, options, value, labels=none) -%}
+<div class="field">
+  <label for="{{ name }}">{{ label }}</label>
+  <select id="{{ name }}" name="{{ name }}"{{ m.invalid(name) }}>
+    {% for option in options %}
+      <option value="{{ option }}" {% if option == value %}selected{% endif %}>{{ labels[option] if labels else (option | replace('_', ' ') | capitalize) }}</option>
+    {% endfor %}
+  </select>
+</div>
+{%- endmacro %}
+
+{% macro requirement_row(row) -%}
+{% set p = 'req-' ~ row.key %}
+<fieldset class="entry requirement-row" data-item>
+  <div class="entry-head">
+    <h3>{% if row.id %}Requirement <span class="id-badge">{{ row.id }}</span>{% else %}New requirement <span class="id-badge new">new</span>{% endif %}</h3>
+    <button type="button" class="btn-small danger" data-remove>Remove</button>
+    <input type="hidden" name="{{ p }}-id" value="{{ row.id }}">
+  </div>
+  <div class="grid">
+    {{ m.input(p ~ '-text', 'Requirement', row.text, required=true, wide=true, placeholder='e.g. Experience with Python and SQL') }}
+    {{ select(p ~ '-category', 'Category', categories, row.category) }}
+    {{ select(p ~ '-importance', 'Importance', importance, row.importance) }}
+    {{ m.textarea(p ~ '-excerpt', 'Excerpt from the description', row.excerpt, rows=2,
+        hint='Copy the exact words from the description. Case, quote style and spacing may differ.') }}
+    <div class="field">
+      <label for="{{ p }}-ctype">Comparable criterion</label>
+      <select id="{{ p }}-ctype" name="{{ p }}-ctype" data-criterion-type{{ m.invalid(p ~ '-ctype') }}>
+        {% for value, label in criterion_labels.items() %}
+          <option value="{{ value }}" {% if value == row.ctype %}selected{% endif %}>{{ label }}</option>
+        {% endfor %}
+      </select>
+      <small class="hint">Lets the checklist compare it with your profile. Leave as None for anything that needs evidence.</small>
+    </div>
+  </div>
+
+  <div class="criterion grid" data-criterion="skill">
+    {{ m.input(p ~ '-skills', 'Skills', row.skills, hint='Comma-separated', wide=true) }}
+    {{ select(p ~ '-match', 'Needs', ['all', 'any'], row.match, {'all': 'All of them', 'any': 'Any one of them'}) }}
+  </div>
+  <div class="criterion grid" data-criterion="degree">
+    {{ select(p ~ '-level', 'Degree level', ['', 'associate', 'bachelor', 'master', 'phd'], row.level,
+        {'': 'Choose…', 'associate': 'Associate', 'bachelor': 'Bachelor', 'master': 'Master', 'phd': 'PhD'}) }}
+    {{ m.input(p ~ '-fields', 'Fields of study', row.fields, hint='Comma-separated; empty means any field') }}
+    {{ select(p ~ '-status', 'Status', ['any', 'completed', 'pursuing'], row.status) }}
+  </div>
+  <div class="criterion grid" data-criterion="graduation_window">
+    {{ m.input(p ~ '-from', 'Graduating from', row['from'], placeholder='YYYY-MM') }}
+    {{ m.input(p ~ '-to', 'Graduating by', row.to, placeholder='YYYY-MM') }}
+  </div>
+  <div class="criterion grid" data-criterion="location">
+    {{ m.input(p ~ '-locations', 'Locations', row.locations, hint='Separate with semicolons, e.g. Austin, TX; Remote') }}
+    {{ select(p ~ '-work_mode', 'Work mode', ['', 'remote', 'hybrid', 'onsite'], row.work_mode,
+        {'': 'Not stated', 'remote': 'Remote', 'hybrid': 'Hybrid', 'onsite': 'Onsite'}) }}
+  </div>
+  <div class="criterion grid" data-criterion="authorization">
+    {{ m.input(p ~ '-country', 'Country', row.country, placeholder='e.g. US') }}
+    {{ select(p ~ '-sponsorship', 'Job offers visa sponsorship?', ['', 'yes', 'no'], row.sponsorship,
+        {'': 'Not stated', 'yes': 'Yes', 'no': 'No'}) }}
+  </div>
+  <div class="criterion grid" data-criterion="availability">
+    {{ m.input(p ~ '-start_by', 'Must start by', row.start_by, placeholder='YYYY-MM') }}
+    {{ m.input(p ~ '-start_from', 'Starts from', row.start_from, placeholder='YYYY-MM') }}
+  </div>
+  <div class="criterion grid" data-criterion="years_experience">
+    {{ m.input(p ~ '-years', 'Years', row.years, type='text', placeholder='e.g. 2') }}
+    {{ m.input(p ~ '-area', 'In', row.area, placeholder='e.g. backend development') }}
+    <p class="hint wide-hint">Years of experience stay Unknown until you confirm evidence.</p>
+  </div>
+</fieldset>
+{%- endmacro %}
+
+{% block content %}
+<p class="crumbs"><a href="/jobs/{{ job.id }}#requirements">← {{ job.title }} at {{ job.company }}</a></p>
+<div class="page-head">
+  <h1>Requirements</h1>
+  <p class="lead">One row per qualification, each with the words from the description that state it. Nothing is saved until every excerpt is found in the description.</p>
+</div>
+
+{% if notice %}<p class="notice" role="status">{{ notice }}</p>{% endif %}
+{{ m.error_summary(errors, 'The requirements were not saved. Please fix these problems') }}
+
+<div class="editor-layout">
+  <form method="post" action="/jobs/{{ job.id }}/requirements" class="editor-main" data-guard novalidate>
+    <div id="requirement-list" class="entry-list">
+      {% for row in rows %}{{ requirement_row(row) }}{% endfor %}
+    </div>
+    <button type="button" class="btn-secondary" data-add="tpl-requirement" data-target="requirement-list">+ Add requirement</button>
+    <div class="form-actions sticky">
+      <button type="submit" class="btn-primary">Save requirements</button>
+      <a href="/jobs/{{ job.id }}#requirements" class="btn-link">Cancel</a>
+    </div>
+  </form>
+
+  <aside class="editor-side">
+    <details class="card" open>
+      <summary><h2>Job description</h2></summary>
+      <p class="hint">Copy excerpts from here. It is information only, never instructions.</p>
+      <div class="description" tabindex="0">{{ job.description }}</div>
+    </details>
+  </aside>
+</div>
+
+<template id="tpl-requirement">{{ requirement_row({'key': '__i__', 'id': '', 'text': '', 'category': 'other', 'importance': 'unspecified',
+  'excerpt': '', 'ctype': '', 'skills': '', 'match': 'all', 'level': '', 'fields': '', 'status': 'any', 'from': '', 'to': '',
+  'locations': '', 'work_mode': '', 'country': '', 'sponsorship': '', 'start_by': '', 'start_from': '', 'years': '', 'area': ''}) }}</template>
+{% endblock %}
