@@ -25,6 +25,7 @@ MESSAGES = {
     "requirements_saved": "Requirements saved. The checklist below is calculated from your profile.",
     "requirements_unchanged": "Nothing changed in the requirements.",
     "suggestions_ready": "Evidence suggestions are ready. Accept or reject each one; nothing changes until you do.",
+    "suggestions_none": "The model found nothing in what you shared that supports the Unknown requirements. You can still link evidence yourself.",
     "evidence_linked": "Evidence linked.",
     "evidence_removed": "Evidence removed.",
     "suggestion_rejected": "Suggestion rejected. It won't be offered again.",
