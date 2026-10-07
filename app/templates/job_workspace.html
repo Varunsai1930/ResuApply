@@ -26,7 +26,7 @@
       </dl>
       <p class="hint">Review state shows whether the application package is ready. It stays Draft until package review arrives; approving a package never marks a job Applied. You record what you did.</p>
 
-      {% if status_form.get('error') %}<p class="field-error" role="alert">{{ status_form.error }}</p>{% endif %}
+      {% if status_form.get('error') %}<p class="field-error" role="alert" tabindex="-1" data-focus>{{ status_form.error }}</p>{% endif %}
       <form method="post" action="/jobs/{{ job.id }}/status" class="stack">
         <div class="field">
           <label for="status">New status</label>
@@ -66,7 +66,7 @@
         <div class="field">
           <label for="note-text">Add a note</label>
           <textarea id="note-text" name="text" rows="3"{% if note_form.get('error') %} class="invalid" aria-invalid="true" aria-describedby="note-error"{% endif %}>{{ note_form.get('text', '') }}</textarea>
-          {% if note_form.get('error') %}<small id="note-error" class="field-error">{{ note_form.error }}</small>{% endif %}
+          {% if note_form.get('error') %}<small id="note-error" class="field-error" tabindex="-1" data-focus>{{ note_form.error }}</small>{% endif %}
         </div>
         <button type="submit" class="btn-secondary">Add note</button>
       </form>
