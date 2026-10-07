@@ -1,0 +1,168 @@
+{# Form helpers. Import with context so `error_fields` is visible. #}
+
+{% macro invalid(name) -%}
+  {%- if error_fields and name in error_fields %} class="invalid" aria-invalid="true"{% endif -%}
+{%- endmacro %}
+
+{% macro input(name, label, value='', type='text', hint='', placeholder='', required=false, autocomplete='', wide=false) -%}
+<div class="field{% if wide %} wide{% endif %}">
+  <label for="{{ name }}">{{ label }}{% if required %} <span class="req" aria-hidden="true">*</span>{% endif %}</label>
+  <input id="{{ name }}" name="{{ name }}" type="{{ type }}" value="{{ value or '' }}"
+    {%- if placeholder %} placeholder="{{ placeholder }}"{% endif %}
+    {%- if required %} required{% endif %}
+    {%- if autocomplete %} autocomplete="{{ autocomplete }}"{% endif %}
+    {%- if hint %} aria-describedby="{{ name }}-hint"{% endif %}{{ invalid(name) }}>
+  {% if hint %}<small id="{{ name }}-hint" class="hint">{{ hint }}</small>{% endif %}
+</div>
+{%- endmacro %}
+
+{% macro textarea(name, label, value='', rows=3, hint='', placeholder='', wide=true) -%}
+<div class="field{% if wide %} wide{% endif %}">
+  <label for="{{ name }}">{{ label }}</label>
+  <textarea id="{{ name }}" name="{{ name }}" rows="{{ rows }}"
+    {%- if placeholder %} placeholder="{{ placeholder }}"{% endif %}
+    {%- if hint %} aria-describedby="{{ name }}-hint"{% endif %}{{ invalid(name) }}>{{ value or '' }}</textarea>
+  {% if hint %}<small id="{{ name }}-hint" class="hint">{{ hint }}</small>{% endif %}
+</div>
+{%- endmacro %}
+
+{% macro tristate_select(name, label, value) -%}
+<div class="field">
+  <label for="{{ name }}">{{ label }}</label>
+  <select id="{{ name }}" name="{{ name }}"{{ invalid(name) }}>
+    {% set current = value | tristate %}
+    <option value="" {% if current == '' %}selected{% endif %}>Unknown</option>
+    <option value="yes" {% if current == 'yes' %}selected{% endif %}>Yes</option>
+    <option value="no" {% if current == 'no' %}selected{% endif %}>No</option>
+  </select>
+</div>
+{%- endmacro %}
+
+{% macro key_of(item, fallback) -%}
+  {{- item.get('_form').rsplit('-', 1)[1] if item.get('_form') else fallback -}}
+{%- endmacro %}
+
+{% macro bullet_row(prefix, key, bullet) -%}
+{% set name = prefix ~ '-bullets-' ~ key %}
+<div class="bullet-row" data-item>
+  <input type="hidden" name="{{ name }}-id" value="{{ bullet.get('id', '') }}">
+  <label class="visually-hidden" for="{{ name }}-text">Bullet</label>
+  <textarea id="{{ name }}-text" name="{{ name }}-text" rows="2" placeholder="One accomplishment, in your own words"{{ invalid(name ~ '-text') }}>{{ bullet.get('text', '') }}</textarea>
+  {% if bullet.get('id') %}<span class="id-badge" title="Stable bullet ID">{{ bullet.id }}</span>{% endif %}
+  <button type="button" class="btn-icon" data-remove aria-label="Remove bullet">✕</button>
+</div>
+{%- endmacro %}
+
+{% macro bullets(prefix, entry) -%}
+<div class="bullets">
+  <p class="sub-label">Bullets</p>
+  <div id="{{ prefix }}-bullets" class="bullet-list">
+    {% for bullet in entry.get('bullets') or [] %}
+      {{ bullet_row(prefix, key_of(bullet, loop.index0), bullet) }}
+    {% endfor %}
+  </div>
+  <button type="button" class="btn-small" data-add="tpl-bullet" data-target="{{ prefix }}-bullets" data-prefix="{{ prefix }}">+ Add bullet</button>
+</div>
+{%- endmacro %}
+
+{% macro entry_head(prefix, entry, title) -%}
+<div class="entry-head">
+  <h3>{{ title }}{% if entry.get('id') %} <span class="id-badge" title="Stable entry ID">{{ entry.id }}</span>{% endif %}</h3>
+  <button type="button" class="btn-small danger" data-remove>Remove</button>
+  <input type="hidden" name="{{ prefix }}-id" value="{{ entry.get('id', '') }}">
+</div>
+{%- endmacro %}
+
+{% macro education_entry(key, entry) -%}
+{% set p = 'education-' ~ key %}
+<fieldset class="entry" data-item>
+  {{ entry_head(p, entry, entry.get('institution') or 'Education') }}
+  <div class="grid">
+    {{ input(p ~ '-institution', 'Institution', entry.get('institution'), required=true) }}
+    {{ input(p ~ '-degree', 'Degree', entry.get('degree'), placeholder='e.g. B.S.') }}
+    {{ input(p ~ '-field', 'Field of study', entry.get('field'), placeholder='e.g. Computer Science') }}
+    {{ input(p ~ '-gpa', 'GPA', entry.get('gpa'), hint='Optional') }}
+    {{ input(p ~ '-start', 'Start', entry.get('start'), placeholder='YYYY-MM') }}
+    {{ input(p ~ '-end', 'End or expected graduation', entry.get('end'), placeholder='YYYY-MM') }}
+  </div>
+  {{ bullets(p, entry) }}
+</fieldset>
+{%- endmacro %}
+
+{% macro experience_entry(key, entry) -%}
+{% set p = 'experience-' ~ key %}
+<fieldset class="entry" data-item>
+  {{ entry_head(p, entry, entry.get('organization') or 'Experience') }}
+  <div class="grid">
+    {{ input(p ~ '-organization', 'Organization', entry.get('organization'), required=true) }}
+    {{ input(p ~ '-title', 'Title', entry.get('title')) }}
+    {{ input(p ~ '-location', 'Location', entry.get('location')) }}
+    {{ input(p ~ '-start', 'Start', entry.get('start'), placeholder='YYYY-MM') }}
+    {{ input(p ~ '-end', 'End', entry.get('end'), placeholder='YYYY-MM or present') }}
+    {{ input(p ~ '-technologies', 'Technologies', (entry.get('technologies') or []) | join(', '), hint='Comma-separated, e.g. Python, Flask, PostgreSQL', wide=true) }}
+  </div>
+  {{ bullets(p, entry) }}
+</fieldset>
+{%- endmacro %}
+
+{% macro project_entry(key, entry) -%}
+{% set p = 'projects-' ~ key %}
+<fieldset class="entry" data-item>
+  {{ entry_head(p, entry, entry.get('name') or 'Project') }}
+  <div class="grid">
+    {{ input(p ~ '-name', 'Project name', entry.get('name'), required=true) }}
+    {{ input(p ~ '-role', 'Your role', entry.get('role')) }}
+    {{ input(p ~ '-link', 'Link', entry.get('link'), placeholder='github.com/you/project') }}
+    {{ input(p ~ '-start', 'Start', entry.get('start'), placeholder='YYYY-MM') }}
+    {{ input(p ~ '-end', 'End', entry.get('end'), placeholder='YYYY-MM or present') }}
+    {{ input(p ~ '-technologies', 'Technologies', (entry.get('technologies') or []) | join(', '), hint='Comma-separated', wide=true) }}
+  </div>
+  {{ bullets(p, entry) }}
+</fieldset>
+{%- endmacro %}
+
+{% macro certification_row(key, cert) -%}
+{% set p = 'certifications-' ~ key %}
+<div class="row-item" data-item>
+  <input type="hidden" name="{{ p }}-id" value="{{ cert.get('id', '') }}">
+  <div class="grid">
+    {{ input(p ~ '-name', 'Certification', cert.get('name')) }}
+    {{ input(p ~ '-issuer', 'Issuer', cert.get('issuer')) }}
+    {{ input(p ~ '-date', 'Date', cert.get('date'), placeholder='YYYY-MM') }}
+  </div>
+  <button type="button" class="btn-small danger" data-remove>Remove</button>
+</div>
+{%- endmacro %}
+
+{% macro authorization_row(key, auth) -%}
+{% set p = 'authorization-' ~ key %}
+<div class="row-item" data-item>
+  <div class="grid">
+    {{ input(p ~ '-country', 'Country', auth.get('country'), placeholder='e.g. US', hint='Country code or name') }}
+    {{ tristate_select(p ~ '-authorized', 'Authorized to work there?', auth.get('authorized')) }}
+    {{ tristate_select(p ~ '-requires_sponsorship', 'Needs visa sponsorship?', auth.get('requires_sponsorship')) }}
+  </div>
+  <button type="button" class="btn-small danger" data-remove>Remove</button>
+</div>
+{%- endmacro %}
+
+{% macro error_summary(errors, title='Please fix these problems') -%}
+{% if errors %}
+<div class="error-summary" role="alert" tabindex="-1" data-focus>
+  <h2>{{ title }}</h2>
+  <ul>
+    {% for e in errors %}
+      <li>{% if e.field %}<a href="#{{ e.field }}">{{ e.message }}</a>{% else %}{{ e.message }}{% endif %}</li>
+    {% endfor %}
+  </ul>
+</div>
+{% endif %}
+{%- endmacro %}
+
+{% macro status_badge(status) -%}
+<span class="badge status-{{ status.value }}">{{ status.label }}</span>
+{%- endmacro %}
+
+{% macro review_badge(state) -%}
+<span class="badge review-{{ state.value }}">{{ state.label }}</span>
+{%- endmacro %}
