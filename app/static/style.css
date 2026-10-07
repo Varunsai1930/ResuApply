@@ -247,6 +247,64 @@ del { color: var(--danger); }
 .notes li { padding: 10px 0; border-top: 1px solid var(--border); }
 .notes p { margin: 4px 0 0; white-space: pre-wrap; overflow-wrap: anywhere; }
 
+/* Requirements checklist */
+.section-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 8px; }
+.section-head h2 { margin: 0; }
+.ai-actions { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin: 8px 0; }
+.inline-form { display: inline; margin: 0; }
+button[disabled] { opacity: 0.6; cursor: progress; }
+.counts { display: flex; gap: 8px; flex-wrap: wrap; margin: 12px 0 4px; }
+.check-met { background: var(--ok-soft); color: var(--ok); border-color: var(--ok); }
+.check-unmet { background: var(--danger-soft); color: var(--danger); border-color: var(--danger); }
+.check-unknown { background: var(--warn-soft); border-color: var(--warn-border); }
+.group-title { margin-top: 24px; border-bottom: 1px solid var(--border); padding-bottom: 6px; }
+.check-card { border: 1px solid var(--border); border-radius: var(--radius); padding: 14px 16px; margin: 10px 0; scroll-margin-top: 72px; }
+.check-head { display: flex; flex-wrap: wrap; gap: 6px 10px; align-items: center; }
+.check-head h4 { margin: 0; font-size: 1rem; flex: 1 1 200px; overflow-wrap: anywhere; }
+.importance-required { background: var(--danger-soft); color: var(--danger); }
+.importance-unspecified { background: var(--bg); color: var(--muted); }
+.excerpt { margin: 10px 0; padding: 6px 12px; border-left: 3px solid var(--border); color: var(--muted); font-style: italic; overflow-wrap: anywhere; }
+.basis { margin: 6px 0; overflow-wrap: anywhere; }
+.evidence { list-style: none; margin: 8px 0; padding: 0; }
+.evidence li { display: flex; flex-wrap: wrap; gap: 8px; align-items: baseline; padding: 6px 0; border-top: 1px dashed var(--border); }
+.evidence-text { flex: 1 1 200px; overflow-wrap: anywhere; }
+.suggestions { background: var(--accent-soft); border-radius: 8px; padding: 8px 12px; margin: 8px 0; }
+.suggestions .sub-label { margin-top: 4px; }
+.suggestion { border-top: 1px solid var(--border); padding: 6px 0; }
+.suggestion p { margin: 4px 0; overflow-wrap: anywhere; }
+.suggestion-actions { display: flex; gap: 8px; }
+.check-actions { display: flex; flex-direction: column; gap: 6px; margin-top: 8px; }
+.check-actions summary { cursor: pointer; color: var(--accent); font-weight: 500; }
+.source-group { border: 1px solid var(--border); border-radius: 8px; padding: 8px 12px; margin: 0; min-width: 0; }
+.source-group legend { font-weight: 600; font-size: 0.9rem; padding: 0 4px; }
+label.check { display: flex; gap: 8px; align-items: flex-start; font-weight: 400; margin: 6px 0; overflow-wrap: anywhere; }
+label.check input { width: auto; min-height: 0; margin-top: 4px; flex-shrink: 0; }
+.notice.small { font-size: 0.9rem; padding: 8px 12px; }
+
+/* Requirements editor */
+.editor-layout { display: grid; grid-template-columns: minmax(0, 1fr); gap: 0 20px; }
+.editor-side details summary { cursor: pointer; list-style: none; }
+.editor-side details summary h2 { display: inline; }
+.criterion { margin-top: 12px; padding-top: 12px; border-top: 1px dashed var(--border); }
+.criterion[hidden] { display: none; }
+.wide-hint { grid-column: 1 / -1; margin: 0; }
+
+/* Sharing preview */
+.plain-list { margin: 0; padding-left: 20px; }
+.share-entry { margin-bottom: 12px; }
+.share-item { margin: 8px 0 8px 26px; }
+.share-item textarea { margin-top: 4px; }
+.withdraw { margin: 0 0 16px; }
+details.card summary { cursor: pointer; }
+details.card summary h2 { display: inline; }
+.payload { white-space: pre-wrap; overflow-wrap: anywhere; font-size: 0.82rem; background: var(--bg); padding: 12px; border-radius: 8px; max-height: 60vh; overflow: auto; }
+
+@media (min-width: 1000px) {
+  .editor-layout { grid-template-columns: minmax(0, 1fr) 380px; }
+  .editor-side { position: sticky; top: 16px; align-self: start; }
+  .editor-side .description { max-height: 75vh; }
+}
+
 @media (min-width: 900px) {
   .workspace { grid-template-columns: minmax(0, 1fr) 340px; grid-template-areas: "main side"; }
   .workspace-main { grid-area: main; }
