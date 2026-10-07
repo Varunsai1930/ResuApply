@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+{% block title %}Review profile changes{% endblock %}
+{% block content %}
+<div class="page-head">
+  <h1>Review changes</h1>
+  {% if result.is_new %}
+    <p class="lead">This creates your profile as revision 1. Check every fact below, then save.</p>
+  {% elif result.changes %}
+    <p class="lead">These changes will be saved as revision {{ result.base_revision + 1 }}. Entries and bullets keep their IDs; new ones get new IDs.</p>
+  {% else %}
+    <p class="lead">Nothing changed, so there is nothing to save. The profile stays at revision {{ result.base_revision }}.</p>
+  {% endif %}
+</div>
+
+{% if result.normalized.warnings %}
+<div class="notice"><ul>{% for w in result.normalized.warnings %}<li>{{ w }}</li>{% endfor %}</ul></div>
+{% endif %}
+
+{% if result.changes %}
+<section class="card">
+  <h2>{{ result.changes | length }} change{{ 's' if result.changes | length != 1 }}</h2>
+  <ul class="diff">
+    {% for c in result.changes %}
+      <li class="diff-{{ c.kind }}">
+        <span class="diff-kind">{{ {'added': 'Added', 'changed': 'Changed', 'removed': 'Removed'}[c.kind] }}</span>
+        <code class="diff-path">{{ c.path }}</code>
+        {% if c.kind == 'changed' %}
+          <span class="diff-values"><del>{{ c.before }}</del> <span aria-hidden="true">→</span><span class="visually-hidden">to</span> <ins>{{ c.after }}</ins></span>
+        {% elif c.kind == 'added' %}
+          <span class="diff-values"><ins>{{ c.after }}</ins></span>
+        {% else %}
+          <span class="diff-values"><del>{{ c.before }}</del></span>
+        {% endif %}
+      </li>
+    {% endfor %}
+  </ul>
+</section>
+{% endif %}
+
+<div class="form-actions">
+  {% if result.has_changes %}
+  <form method="post" action="/profile/save">
+    <input type="hidden" name="payload" value="{{ payload }}">
+    <input type="hidden" name="base_revision" value="{{ result.base_revision }}">
+    <button type="submit" class="btn-primary">Save profile</button>
+  </form>
+  {% endif %}
+  <form method="post" action="/profile/edit">
+    <input type="hidden" name="payload" value="{{ payload }}">
+    <button type="submit" class="btn-secondary">Back to editing</button>
+  </form>
+  {% if not result.has_changes %}<a class="btn-link" href="/profile">Back to profile</a>{% endif %}
+</div>
+{% endblock %}
