@@ -1,0 +1,126 @@
+{% extends "base.html" %}
+{% block title %}AI sharing preview{% endblock %}
+
+{% macro include_box(item_id, label) -%}
+<label class="check">
+  <input type="checkbox" name="include" value="{{ item_id }}" {% if item_id not in choices.excluded %}checked{% endif %}>
+  {{ label }}
+</label>
+{%- endmacro %}
+
+{% macro text_box(item_id, text) -%}
+<label class="visually-hidden" for="text-{{ item_id }}">Text sent for {{ item_id }}</label>
+<textarea id="text-{{ item_id }}" name="text-{{ item_id }}" rows="2">{{ choices.edits.get(item_id, text) }}</textarea>
+{%- endmacro %}
+
+{% block content %}
+{% if next_url %}<p class="crumbs"><a href="{{ next_url }}#requirements">← Back to the job</a></p>{% endif %}
+<div class="page-head">
+  <h1>What the AI model may see</h1>
+  <p class="lead">AI features send a reduced copy of your career history to <strong>{{ settings.openrouter_model }}</strong> through OpenRouter. Review it, leave out anything confidential or identifying, and reword items if you like. Your saved profile is never changed here.</p>
+</div>
+
+{% if error %}<p class="notice warn" role="alert">{{ error }}</p>{% endif %}
+
+{% if not candidate %}
+<div class="empty card">
+  <h2>No profile yet</h2>
+  <p>Create your profile first; then you can choose what may be shared.</p>
+  <a class="btn-primary" href="/profile/edit">Create profile</a>
+</div>
+{% else %}
+
+<section class="card">
+  <h2>Status</h2>
+  {% if state.approval_current %}
+    <p><span class="badge check-met">Approved</span> on {{ state.approval.approved_at | local_datetime }} (profile revision {{ state.approval.profile_revision }}). It stays in use until your profile changes what would be sent.</p>
+  {% elif state.approval_stale %}
+    <p><span class="badge check-unknown">Needs review</span> Your profile changed since you last approved. Your earlier choices are filled in below; check them and approve again.</p>
+  {% elif state.required %}
+    <p><span class="badge check-unknown">Not approved yet</span> The configured model is marked <strong>free</strong> (<code>OPENROUTER_MODEL_TRUST=free</code>): free providers may log or train on what they receive, so nothing about you is sent until you approve it here.</p>
+  {% else %}
+    <p>The configured model is marked <strong>trusted</strong>, so this review is optional. Without changes, everything below is sent as shown.</p>
+  {% endif %}
+  <p class="hint">Removing and rewording is best effort: it only covers what you notice and change. If you need stronger privacy, use a model whose data terms you trust. Requirements and job text are sent too; they are not about you.</p>
+</section>
+
+<section class="card">
+  <h2>Never sent</h2>
+  <ul class="plain-list">
+    {% for item in always_removed %}<li>{{ item }}</li>{% endfor %}
+  </ul>
+</section>
+
+<form method="post" action="/profile/sharing" data-guard>
+  <input type="hidden" name="base_hash" value="{{ state.base_hash }}">
+  <input type="hidden" name="next" value="{{ next_url }}">
+  {% set base = state.base %}
+
+  {% if base.summary %}
+  <section class="card share-section">
+    <h2>Summary</h2>
+    <div class="share-item">
+      {{ include_box('summary', 'Send my summary') }}
+      {{ text_box('summary', base.summary.text) }}
+    </div>
+  </section>
+  {% endif %}
+
+  {% for section, title, name in [('experience', 'Experience', 'organization'), ('projects', 'Projects', 'name'), ('education', 'Education', 'institution')] %}
+  {% if base[section] %}
+  <section class="card share-section">
+    <h2>{{ title }}</h2>
+    {% for entry in base[section] %}
+      <fieldset class="entry share-entry">
+        <legend class="visually-hidden">{{ entry[name] }}</legend>
+        {{ include_box(entry.id, entry[name]) }}
+        <p class="meta">
+          {% if section == 'education' %}{{ [entry.degree, entry.field] | select | join(', ') }}{% else %}{{ entry.title or entry.role }}{% endif %}
+          {% if entry.start or entry.end %} · {{ entry.start or '?' }} – {{ entry.end or '?' }}{% endif %}
+          {% if entry.technologies %} · {{ entry.technologies | join(', ') }}{% endif %}
+          <span class="id-badge">{{ entry.id }}</span>
+        </p>
+        {% for bullet in entry.bullets %}
+          <div class="share-item">
+            {{ include_box(bullet.id, bullet.id) }}
+            {{ text_box(bullet.id, bullet.text) }}
+          </div>
+        {% endfor %}
+      </fieldset>
+    {% endfor %}
+  </section>
+  {% endif %}
+  {% endfor %}
+
+  {% if base.certifications or base.skills %}
+  <section class="card share-section">
+    <h2>Certifications and skills</h2>
+    {% for cert in base.certifications %}
+      <div class="share-item">{{ include_box(cert.id, cert.name ~ (' · ' ~ cert.issuer if cert.issuer else '')) }}</div>
+    {% endfor %}
+    {% if base.skills %}
+      <div class="share-item">{{ include_box('skills', 'Skills list: ' ~ (base.skills | join(', '))) }}</div>
+    {% endif %}
+  </section>
+  {% endif %}
+
+  <div class="form-actions sticky">
+    <button type="submit" class="btn-primary">Approve what is checked</button>
+    {% if next_url %}<a class="btn-link" href="{{ next_url }}#requirements">Cancel</a>{% endif %}
+  </div>
+</form>
+
+{% if state.approval %}
+<form method="post" action="/profile/sharing/withdraw" class="withdraw">
+  <button type="submit" class="btn-small danger">Withdraw approval</button>
+</form>
+{% endif %}
+
+{% if state.context is not none %}
+<details class="card">
+  <summary><h2>Exactly what is sent now</h2></summary>
+  <pre class="payload">{{ state.context | tojson(indent=2) }}</pre>
+</details>
+{% endif %}
+{% endif %}
+{% endblock %}
