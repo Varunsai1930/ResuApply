@@ -276,6 +276,11 @@ def test_diff_for_a_new_profile_lists_additions_only(sample_profile):
     paths = [c.path for c in changes]
     assert "contact.name" in paths and "experience exp-1" in paths and "exp-1-b1" in paths
     assert "contact.links.portfolio" not in paths  # empty fields are not listed
+    entry = next(c for c in changes if c.path == "experience exp-1")
+    assert entry.after == (
+        "Sample Analytics · Software Engineering Intern · Remote · 2024-06 – 2024-08"
+        " · Python, Flask, PostgreSQL (3 bullets)"
+    )
 
 
 def test_diff_reports_field_level_changes(session, sample_profile):
