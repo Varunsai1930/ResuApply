@@ -140,6 +140,8 @@ input:focus, textarea:focus, select:focus, button:focus-visible, a:focus-visible
   border-color: var(--accent);
 }
 .invalid { border: 2px solid var(--danger) !important; background: var(--danger-soft); }
+/* Error-summary links jump to a field; keep its label and the header in view. */
+input, textarea, select, section[id] { scroll-margin-top: 72px; }
 .stack { display: flex; flex-direction: column; gap: 12px; margin: 12px 0 8px; }
 
 .entry-list, .row-list { display: flex; flex-direction: column; gap: 12px; margin-bottom: 12px; }
@@ -149,8 +151,11 @@ input:focus, textarea:focus, select:focus, button:focus-visible, a:focus-visible
 .row-item { display: flex; gap: 12px; align-items: flex-end; border-bottom: 1px dashed var(--border); padding-bottom: 12px; }
 .row-item .grid { flex: 1; }
 .bullet-list { display: flex; flex-direction: column; gap: 8px; margin-bottom: 8px; }
-.bullet-row { display: grid; grid-template-columns: 1fr auto auto; gap: 8px; align-items: start; }
-.bullet-row textarea { min-height: 42px; }
+.bullet-row { display: grid; grid-template-columns: 1fr 80px auto; grid-template-areas: "text badge remove"; gap: 8px; align-items: start; }
+.bullet-row textarea { grid-area: text; min-height: 42px; }
+.bullet-row .id-badge.new { font-style: italic; }
+.id-badge { grid-area: badge; justify-self: start; margin-top: 10px; }
+.bullet-row .btn-icon { grid-area: remove; }
 
 /* Buttons */
 button, .btn-primary, .btn-secondary, .btn-link, .btn-small { font: inherit; cursor: pointer; text-decoration: none; }
@@ -175,6 +180,7 @@ button, .btn-primary, .btn-secondary, .btn-link, .btn-small { font: inherit; cur
 }
 
 /* Badges and tags */
+.id-badge.new { font-style: italic; }
 .id-badge {
   display: inline-block; font: 500 0.75rem ui-monospace, SFMono-Regular, Menlo, monospace;
   color: var(--muted); background: var(--bg); border: 1px solid var(--border);
@@ -255,6 +261,11 @@ del { color: var(--danger); }
   .row-item { flex-direction: column; align-items: stretch; }
   .facts { grid-template-columns: 1fr; gap: 0; }
   .facts dt { margin-top: 8px; font-size: 0.85rem; }
+  .facts.compact { grid-template-columns: max-content 1fr; gap: 6px 16px; }
+  .facts.compact dt { margin-top: 0; }
+  .bullet-row { grid-template-columns: 1fr auto; grid-template-areas: "badge remove" "text text"; }
+  .bullet-row .id-badge { margin-top: 0; align-self: center; }
+  .bullet-row textarea { min-height: 70px; }
   .tracker thead { display: none; }
   .tracker, .tracker tbody, .tracker tr, .tracker td { display: block; width: 100%; }
   .tracker tr { border-bottom: 1px solid var(--border); padding: 8px 0; }
