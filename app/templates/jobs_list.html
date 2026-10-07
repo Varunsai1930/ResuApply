@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+{% import "macros.html" as m with context %}
+{% block title %}Jobs{% endblock %}
+{% block content %}
+<div class="page-head with-actions">
+  <div>
+    <h1>Jobs</h1>
+    <p class="meta">{{ jobs | length }} saved job{{ 's' if jobs | length != 1 }}</p>
+  </div>
+  <a class="btn-primary" href="/jobs/new">Add job</a>
+</div>
+
+{% if not candidate %}
+<p class="notice">You haven't created a profile yet. You can save jobs now; <a href="/profile/edit">create your profile</a> before preparing an application.</p>
+{% endif %}
+
+{% if jobs %}
+<table class="tracker">
+  <thead>
+    <tr><th scope="col">Job</th><th scope="col">Location</th><th scope="col">Review</th><th scope="col">Status</th><th scope="col">Since</th><th scope="col">Added</th></tr>
+  </thead>
+  <tbody>
+  {% for job in jobs %}
+    {% set app = job.application %}
+    {% set last = app.status_history[-1] if app.status_history else none %}
+    <tr>
+      <td data-label="Job"><a class="job-link" href="/jobs/{{ job.id }}">{{ job.title }}</a><span class="company">{{ job.company }}</span></td>
+      <td data-label="Location">{{ job.location or '—' }}</td>
+      <td data-label="Review">{{ m.review_badge(app.review) }}</td>
+      <td data-label="Status">{{ m.status_badge(app.status) }}</td>
+      <td data-label="Since">{{ last.on.isoformat() if last else '—' }}</td>
+      <td data-label="Added">{{ job.created_at | local_datetime }}</td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% else %}
+<div class="empty card">
+  <h2>No jobs yet</h2>
+  <p>Add a job by pasting its description. You'll track its status here.</p>
+  <a class="btn-primary" href="/jobs/new">Add your first job</a>
+</div>
+{% endif %}
+{% endblock %}
