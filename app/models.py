@@ -1,8 +1,9 @@
-"""Database tables: candidates, jobs, applications and answer_bank (PLAN.md §3).
+"""Database tables: candidates, jobs, applications and answer_bank (PLAN.md §3),
+plus ai_runs (validated AI results and their metadata) and outbound_approvals (what the
+user approved for sending to the model).
 
-Columns for later milestones (requirements, proposals, answers, snapshots) exist now so
-the schema stays stable, but Milestone 1 only reads and writes the profile, job details
-and tracking columns. Their JSON shapes are tightened when those features land.
+Columns for later milestones (proposals, answers, snapshots) exist already; their JSON
+shapes are tightened when those features land.
 """
 
 from __future__ import annotations
@@ -15,6 +16,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from .db import Base, PydanticJSON, UTCDateTime, utcnow
 from .schemas.profile import Profile
+from .schemas.requirements import EvidenceLink, Override, Requirement
 from .schemas.tracking import Note, ReviewState, StatusEvent, TrackingStatus
 
 JSONList = list[dict[str, Any]]
@@ -46,9 +48,12 @@ class Job(Base):
     # The pasted description, kept verbatim. It is untrusted data: shown and quoted, never obeyed.
     description: Mapped[str] = mapped_column(Text)
     revision: Mapped[int] = mapped_column(Integer, default=1)
-    requirements: Mapped[JSONList] = mapped_column(PydanticJSON(JSONList), default=list)
-    evidence: Mapped[JSONDict] = mapped_column(PydanticJSON(JSONDict), default=dict)
-    overrides: Mapped[JSONDict] = mapped_column(PydanticJSON(JSONDict), default=dict)
+    requirements: Mapped[list[Requirement]] = mapped_column(PydanticJSON(list[Requirement]), default=list)
+    # Highest requirement number ever issued ("r7" -> 7), so deleted requirement IDs are never reused.
+    requirement_counter: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
+    # requirement ID -> evidence the user confirmed; requirement ID -> manual status with a reason
+    evidence: Mapped[dict[str, EvidenceLink]] = mapped_column(PydanticJSON(dict[str, EvidenceLink]), default=dict)
+    overrides: Mapped[dict[str, Override]] = mapped_column(PydanticJSON(dict[str, Override]), default=dict)
     questions: Mapped[JSONList] = mapped_column(PydanticJSON(JSONList), default=list)
     created_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utcnow)
     updated_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utcnow)
@@ -102,3 +107,43 @@ class AnswerBankEntry(Base):
     source_job_id: Mapped[int | None] = mapped_column(ForeignKey("jobs.id", ondelete="SET NULL"), nullable=True)
     created_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utcnow)
     updated_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utcnow)
+
+
+class AIRun(Base):
+    """A validated AI result, reused while its inputs, model and prompt revision are unchanged.
+
+    Only results that passed local validation are stored. Prompts and raw responses are not.
+    """
+
+    __tablename__ = "ai_runs"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    operation: Mapped[str] = mapped_column(String(40))
+    cache_key: Mapped[str] = mapped_column(String(64), unique=True)
+    job_id: Mapped[int | None] = mapped_column(ForeignKey("jobs.id", ondelete="CASCADE"), nullable=True, index=True)
+    model: Mapped[str] = mapped_column(String(200))
+    prompt_revision: Mapped[str] = mapped_column(String(40))
+    # e.g. {"job": 3, "profile": 5, "outbound": "a1b2..."}: what the result was built from
+    input_revisions: Mapped[JSONDict] = mapped_column(PydanticJSON(JSONDict), default=dict)
+    result: Mapped[JSONDict] = mapped_column(PydanticJSON(JSONDict))
+    usage: Mapped[JSONDict] = mapped_column(PydanticJSON(JSONDict), default=dict)
+    attempts: Mapped[int] = mapped_column(Integer, default=1)
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utcnow)
+
+
+class OutboundApproval(Base):
+    """The user's approval of the career content that may be sent to the model.
+
+    ``base_hash`` identifies the reduced context the user reviewed. When the profile changes
+    so that the reduced context differs, the approval no longer applies and is asked for again.
+    """
+
+    __tablename__ = "outbound_approvals"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    candidate_id: Mapped[int] = mapped_column(ForeignKey("candidates.id", ondelete="CASCADE"), unique=True)
+    base_hash: Mapped[str] = mapped_column(String(32))
+    excluded: Mapped[list[str]] = mapped_column(PydanticJSON(list[str]), default=list)
+    edits: Mapped[dict[str, str]] = mapped_column(PydanticJSON(dict[str, str]), default=dict)
+    profile_revision: Mapped[int] = mapped_column(Integer)
+    approved_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utcnow)
