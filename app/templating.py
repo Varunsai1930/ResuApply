@@ -11,6 +11,7 @@ from .schemas.tracking import ReviewState, TrackingStatus
 from .services.profile_form import skills_text
 
 TEMPLATE_DIR = Path(__file__).parent / "templates"
+STATIC_DIR = Path(__file__).parent / "static"
 
 # Confirmation messages shown after a redirect (?msg=code). Only known codes are shown.
 MESSAGES = {
@@ -22,6 +23,15 @@ MESSAGES = {
     "status_changed": "Tracking status updated.",
     "note_added": "Note added.",
 }
+
+
+def asset(path: str) -> str:
+    """URL of a static file with its modification time appended, so browsers fetch new versions."""
+    try:
+        version = int((STATIC_DIR / path).stat().st_mtime)
+    except OSError:
+        version = 0
+    return f"/static/{path}?v={version}"
 
 
 def local_datetime(value: datetime | None) -> str:
@@ -50,6 +60,7 @@ templates.env.filters.update(
     tristate_label=tristate_label,
 )
 templates.env.globals.update(
+    asset=asset,
     TrackingStatus=TrackingStatus,
     ReviewState=ReviewState,
     MESSAGES=MESSAGES,
