@@ -11,9 +11,11 @@ from sqlalchemy.orm import Session
 from ..ai import operations
 from ..db import get_session
 from ..models import Job
-from ..services import checklist, outbound, tracking
+from ..schemas.tracking import TrackingStatus
+from ..services import checklist, outbound, package, question_rows, tracking
 from ..services import jobs as job_service
 from ..services.profile import get_candidate
+from ..services.questions import CATEGORIES, CATEGORY_LABELS, UNKNOWN
 from ..templating import templates
 
 router = APIRouter(prefix="/jobs")
@@ -64,6 +66,9 @@ def _render_workspace(request: Request, session: Session, job: Job, msg: str = "
     groups = {status: [r for r in results if r.status == status] for status in checklist.STATUSES}
     suggestions = operations.current_suggestions(session, job, candidate, settings)
     sharing = outbound.state(session, settings, candidate) if candidate else None
+    application = job.application
+    review = package.sync_review_state(session, job, application, candidate)
+    blockers, warnings = package.check(job, application, candidate)
     return templates.TemplateResponse(
         request,
         "job_workspace.html",
@@ -88,6 +93,18 @@ def _render_workspace(request: Request, session: Session, job: Job, msg: str = "
             "resume_state": presentation_state(session, settings, job, candidate),
             "resume_error": forms.get("resume_error"),
             "resume_notice": forms.get("resume_notice"),
+            "question_rows": question_rows.rows(session, job, application, candidate) if candidate else [],
+            "draft_count": question_rows.draft_count(job, application),
+            "pending_drafts": bool(application.answer_drafts),
+            "question_error": forms.get("question_error"),
+            "question_form": forms.get("question_form") or {},
+            "questions_notice": forms.get("questions_notice"),
+            "question_categories": [(c, CATEGORY_LABELS[c]) for c in CATEGORIES if c != UNKNOWN],
+            "review": review,
+            "blockers": blockers,
+            "warnings": warnings,
+            "package_error": forms.get("package_error"),
+            "snapshots": list(reversed(application.submitted_snapshots)),
             "has_proposal": operations.cached_proposal(session, job, settings.openrouter_model) is not None,
             "active": "jobs",
         },
@@ -97,11 +114,11 @@ def _render_workspace(request: Request, session: Session, job: Job, msg: str = "
 
 @router.get("", response_class=HTMLResponse)
 def list_jobs(request: Request, session: Session = Depends(get_session)):
-    return templates.TemplateResponse(
-        request,
-        "jobs_list.html",
-        {"jobs": job_service.list_all(session), "candidate": get_candidate(session), "active": "jobs"},
-    )
+    candidate = get_candidate(session)
+    jobs = job_service.list_all(session)
+    for job in jobs:  # the stored review state is refreshed so the list shows Stale as soon as inputs change
+        package.sync_review_state(session, job, job.application, candidate)
+    return templates.TemplateResponse(request, "jobs_list.html", {"jobs": jobs, "candidate": candidate, "active": "jobs"})
 
 
 @router.get("/new", response_class=HTMLResponse)
@@ -168,20 +185,32 @@ def change_status(
     status: str = Form(""),
     on: str = Form(""),
     note: str = Form(""),
+    snapshot: str = Form(""),
     session: Session = Depends(get_session),
 ):
     job = _job_or_404(session, job_id)
-    form = {"status": status, "on": on, "note": note}
+    form = {"status": status, "on": on, "note": note, "snapshot": bool(snapshot)}
+    # The checkbox only matters when recording Applied; any other status is a plain status change.
+    save_package = bool(snapshot) and status.strip().lower() == TrackingStatus.APPLIED.value
     try:
         try:
             on_date = date.fromisoformat(on) if on.strip() else None
         except ValueError:
             raise tracking.TrackingError("Enter the date as YYYY-MM-DD.", "on") from None
-        tracking.change_status(session, job.application, status, on_date, note)
+        if save_package:
+            package.record_applied(session, job, get_candidate(session), on_date, note)
+        else:
+            tracking.change_status(session, job.application, status, on_date, note)
     except tracking.TrackingError as exc:
+        session.rollback()
         form["error"], form["error_field"] = str(exc), exc.field
         return _render_workspace(request, session, job, status_code=422, status_form=form)
-    return RedirectResponse(f"/jobs/{job.id}?msg=status_changed#tracking", status_code=303)
+    except package.PackageError as exc:
+        session.rollback()
+        form["error"], form["error_field"] = str(exc), "snapshot"
+        return _render_workspace(request, session, job, status_code=409, status_form=form)
+    msg = "status_recorded" if save_package else "status_changed"
+    return RedirectResponse(f"/jobs/{job.id}?msg={msg}#tracking", status_code=303)
 
 
 @router.post("/{job_id}/notes")
