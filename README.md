@@ -2,7 +2,7 @@
 
 A local job application copilot web app. It turns your verified profile and a pasted job description into an evidence checklist, a tailored resume, reviewed answers and an application record, **without inventing anything**.
 
-> **Status:** Milestones 1 (Foundation), 2 (Assessment), and the implementation of 3a (Tailoring) are built: profile, jobs, tracker, requirements, evidence, source-backed resume proposals, explicit acceptance and A4 print export. Resume tailoring has passed mocked-provider and browser checks; live OpenRouter validation remains pending until a key is configured. Questions, package approval and submitted snapshots come in 3b; see [PLAN.md](PLAN.md). The same workflow is already available as an agent skill for Claude Code and Codex: [ResuSkill](https://github.com/Varunsai1930/ResuSkill).
+> **Status:** Milestones 1 (Foundation), 2 (Assessment), 3a (Tailoring) and 3b (Complete V1) are built: profile, jobs, tracker, requirements, evidence, source-backed resume proposals, A4 print export, questions and answers, the answer bank, package approval and submitted snapshots. AI features have passed mocked-provider and browser checks; live OpenRouter validation remains pending until a key is configured. V2 (PDF/DOCX import, Greenhouse) is not started; see [PLAN.md](PLAN.md). The same workflow is already available as an agent skill for Claude Code and Codex: [ResuSkill](https://github.com/Varunsai1930/ResuSkill).
 
 ```text
 Create profile → Add job → Review requirements
@@ -87,18 +87,40 @@ Review the original sources and proposed wording side by side, then choose **Acc
 
 **Print / save PDF** opens the fixed, single-column template of the accepted resume. Choose **Print / save PDF** again, select A4, and turn off browser headers and footers. Long profiles continue onto more pages. Both a one-page profile and a nine-page synthetic profile were checked in Chrome for content retention and unclipped output.
 
-Regenerating creates a separate proposal and leaves the accepted resume available for printing. Profile or job changes mark old proposals and accepted resumes stale; create and accept a fresh proposal before printing. Resume acceptance leaves tracking unchanged. Whole-package approval, questions, answer reuse and immutable submitted snapshots remain part of Milestone 3b.
+Regenerating creates a separate proposal and leaves the accepted resume available for printing. Profile or job changes mark old proposals and accepted resumes stale; create and accept a fresh proposal before printing. Resume acceptance leaves tracking unchanged.
+
+### Answer questions, approve and record what you submitted
+
+Open a job's **Questions** section and add the questions from the employer's form, one at a time, with **Required** (ticked by default) and an optional length limit in characters or words. Each question is sorted by fixed keyword rules into a category, shown beside it:
+
+- **Factual** (name, email, school, graduation date and similar): filled from your profile every time and labelled **From profile**. If the profile has no value, the row links to **Profile** to add it; you can also answer it yourself.
+- **Sensitive-factual** (work authorization, sponsorship): the profile value is shown but nothing is filled in until you press **Confirm this answer**. Until then the label is **User input required**. If the profile value changes later, you confirm again.
+- **Sensitive** (gender, race, disability, salary, consent and similar): you write the answer yourself, or choose **Skip this optional question** when it is optional. These are never drafted by the AI model and never saved to the answer bank.
+- **Open-ended** (why do you want this role, describe a project): write an answer, or choose **Draft open answers with AI**. Drafts use the same approved, reduced context as tailoring, cite the profile items they are built from, and are checked against your profile and the question's length limit. A draft is labelled **AI draft (pending review)** and is not an answer until you press **Accept draft** (or **Discard draft**); accepting checks it again against your current profile.
+- **Unrecognized**: shown as **Confirm category** until you choose one with **Set category**. The app refuses changes that would let it answer a question it must not (for example, a sensitive question becoming factual). **Change category** and **Remove question** are under each row; removing a question never reuses its ID.
+
+Labels you will see on a question: **From profile**, **AI draft**, **User answer**, **Missing information**, **User input required**, **Skipped (optional)**, **Confirm category** and **AI draft (pending review)**.
+
+**Answer bank.** After you accept an answer to a non-sensitive question, **Save to answer bank** keeps it. The **Answers** page lists everything saved, with the job it came from, and **Delete from answer bank** removes an entry. When a similar question appears on another job, **Start from a saved answer** shows the saved text; **Use as starting point** only fills the answer box, and you still press **Save my answer**. Values filled from your profile are not saved to the bank.
+
+**Review and approve.** The **Review** section shows the package's state: **Draft** (not approved, or changed since), **Approved**, or **Stale** (your profile or the job changed after you approved it). It lists what blocks approval (no accepted resume, a resume that no longer matches the profile, a required question without an accepted answer, an unresolved sensitive or unrecognized question) and what is only worth a look (an optional question left unanswered, drafts waiting for review, no requirements reviewed). **Approve package** appears when nothing blocks it. Approval covers only the accepted resume and the questions entered in the workspace, not any other questions on the employer's form, and it never marks the job Applied. Editing the resume, a question or an answer clears the approval.
+
+**Record what you submitted.** Submit the application yourself on the employer's site. Then, under **Tracking**, choose **Applied**; while the package is Approved, **Save the approved package as what I submitted** is ticked by default. Recording it saves a **submitted package**: the job details and description, the resume exactly as rendered, the answers and the profile and job revisions, listed under **Submitted packages** in the history. Open one to see it as submitted, including **Open the resume as submitted** for a print view of the frozen resume. Later changes to your profile or the job never alter it, though they mark the unsubmitted package Stale. Choose Applied with the box unticked, or without an approved package, to record a plain status change.
 
 ## What's included
 
 - **Profile:** a guided form for contact details, links, summary, education, experience, projects (with bullets and technologies), skills, skills you've confirmed you lack, certifications, preferences, availability and per-country work authorization (yes / no / unknown). Every save goes through a **Review changes** step that lists each added, changed or removed fact. Entries, bullets and certifications get stable IDs (`exp-1`, `exp-1-b2`, `cert-1`) that survive edits, and deleted IDs are never reused. The revision increases only when something really changed. The validation and ID rules are ported from ResuSkill.
 - **Jobs:** manual entry with title, company and pasted description (required), plus location and URL (optional). The description is stored exactly as pasted and is only ever shown as text. Changing the title, company, location or description increases the job revision.
-- **Tracker:** every job with its review state (Draft until package review arrives) and tracking status (Saved, Applied, Assessment, Interview, Rejected, Offer, Withdrawn), a dated status history and notes. Only you change the status; approval never sets Applied.
-- **Job Workspace:** the job's details and description, tracking and notes, the requirements checklist and resume workflow, with marked placeholders for Questions and Review.
+- **Tracker:** every job with its review state (Draft, Approved or Stale, recalculated whenever the list is opened) and tracking status (Saved, Applied, Assessment, Interview, Rejected, Offer, Withdrawn), a dated status history and notes. Only you change the status; approval never sets Applied.
+- **Job Workspace:** the job's details and description, tracking and notes, the requirements checklist and resume workflow, questions and answers, review and approval, and any submitted packages.
 - **Requirements:** enter them yourself or have the AI model propose them; either way you review and correct each one before saving. Every requirement quotes words from the description, and if any excerpt can't be found there, nothing is saved. Each can have a comparable criterion (skills, degree, graduation window, location/work mode, work authorization, start date, years of experience). Requirement IDs (`r1`, `r2` …) stay stable across edits and are never reused.
 - **Checklist:** Python compares each requirement with your profile and shows **Met**, **Unmet** or **Unknown** with the reason, grouped as sources, gaps and unknowns. A skill that isn't in your profile is Unknown unless you confirmed you lack it; anything that can't be compared stays Unknown until you link evidence. Gaps stay visible but never block an application.
 - **Evidence and overrides:** link profile bullets or entries as evidence yourself, or ask the AI model for suggestions and accept or reject each one. Suggestions change nothing until you accept them. You can override any status, and the override is always shown with your reason and the calculated status.
 - **Resume:** manual or AI proposals, original/proposed comparisons with source IDs, claim checks, separate accepted content, stale-input checks and browser Save as PDF. Regeneration and provider failures preserve accepted work.
+- **Questions and answers:** categories by fixed rules, profile-backed answers, your own answers, and AI drafts only for open-ended questions, each reviewed and accepted by you. Sensitive questions are never drafted or banked.
+- **Answer bank:** the **Answers** page, with similar-question suggestions that only fill the answer box.
+- **Review and approval:** Draft, Approved or Stale, listed blockers and warnings, and an explicit **Approve package** step that never sets Applied.
+- **Submitted packages:** the approved package frozen when you record Applied, viewable (including its resume) after any later profile or job edit.
 
 Evidence confirmations apply to the source content you reviewed. If a linked source changes, the checklist asks you to review and reconfirm it before it counts as supporting evidence again. Evidence saved before content checks were added also needs one explicit reconfirmation; existing links remain available to review or remove. Unrelated contact edits keep unchanged evidence valid.
 
@@ -113,10 +135,11 @@ app/
   db.py           SQLAlchemy engine, sessions, Pydantic-validated JSON columns
   models.py       candidates, jobs, applications, answer_bank
   schemas/        Pydantic shapes for profile, resume and tracking JSON
-  ai/             OpenRouter client, prompts, requirements, evidence and resume tailoring
+  ai/             OpenRouter client, prompts, requirements, evidence, resume tailoring and answer drafts
   services/       Rules ported from ResuSkill (profile, requirements, checklist, claims),
-                  outbound context, resume proposals/acceptance, form parsing, jobs, tracking
-  routes/         Profile, jobs and resume pages
+                  outbound context, resume proposals/acceptance, questions and answers, package approval and snapshots,
+                  form parsing, jobs, tracking
+  routes/         Profile, jobs, resume, questions, package/snapshot and answer bank pages
   templates/      Jinja2 pages
   static/         CSS and a small amount of JavaScript
 scripts/          Live OpenRouter smoke test and a fake-AI dev server
