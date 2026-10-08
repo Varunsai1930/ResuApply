@@ -196,7 +196,7 @@ def propose(session: Session, job: Job, candidate: Candidate, data, model: str =
     with session.no_autoflush:
         result = session.execute(update(Application).where(
             Application.job_id == job.id, *_revision_guard(job, candidate, expected_profile_revision, expected_job_revision),
-        ).values(current_proposal=record, review_state=ReviewState.DRAFT.value, updated_at=utcnow()).execution_options(synchronize_session=False))
+        ).values(current_proposal=record, updated_at=utcnow()).execution_options(synchronize_session=False))
     if result.rowcount != 1:
         session.rollback()
         raise ResumeError("The profile or job changed while the resume was being prepared. Generate a fresh proposal.")
@@ -227,8 +227,8 @@ def accept(session: Session, job: Job, candidate: Candidate, proposal_token: str
         result = session.execute(update(Application).where(
             Application.job_id == job.id, Application.current_proposal == record,
             *_revision_guard(job, candidate, record.profile_revision, record.job_revision),
-        ).values(accepted_package=package, candidate_id=candidate.id, review_state=ReviewState.DRAFT.value,
-                 updated_at=utcnow()).execution_options(synchronize_session=False))
+        ).values(accepted_package=package, candidate_id=candidate.id, approval=None,
+                 review_state=ReviewState.DRAFT.value, updated_at=utcnow()).execution_options(synchronize_session=False))
     if result.rowcount != 1:
         session.rollback()
         raise ResumeError("The proposal, profile or job changed since you reviewed it. Review a fresh proposal before accepting.")
