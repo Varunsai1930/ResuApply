@@ -19,3 +19,12 @@ def test_first_name_filter():
 
     assert first_name("Jordan Example") == "Jordan"
     assert first_name("  ") == "there" and first_name(None) == "there"
+
+
+def test_favicon_is_linked_and_served(client):
+    page = client.get("/jobs").text
+    assert 'rel="icon" href="/static/favicon.svg?v=' in page
+    redirect = client.get("/favicon.ico", follow_redirects=False)
+    assert redirect.status_code == 301 and redirect.headers["location"] == "/static/favicon.svg"
+    icon = client.get("/static/favicon.svg")
+    assert icon.status_code == 200 and icon.headers["content-type"].startswith("image/svg+xml")
