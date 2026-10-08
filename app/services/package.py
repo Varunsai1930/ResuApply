@@ -120,6 +120,12 @@ def check(job: Job, application: Application, candidate: Candidate | None) -> tu
             blockers.append(f"{name} ({item.label}): this required question has no accepted answer.")
         else:
             warnings.append(f"{name} ({item.label}): this optional question is unanswered.")
+    if candidate is not None:
+        for item in items:
+            problems = answer_service.answer_problems(job, item.question, item.answer, candidate.profile)
+            if problems:
+                blockers.append(f'"{_short(item.question.text)}": the AI-drafted answer is no longer supported by '
+                                f"your profile ({'; '.join(problems)}). Edit it, or draft and accept it again.")
     pending = [f'"{_short(a.question.text)}"' for a in items if a.label == answer_service.LABELS["pending"]]
     if pending:
         warnings.append(f"AI answer drafts waiting for your review: {', '.join(pending)}.")
