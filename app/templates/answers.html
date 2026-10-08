@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+{% import "macros.html" as m with context %}
+{% block title %}Answer bank{% endblock %}
+{% block content %}
+<div class="page-head">
+  <h1>Answer bank</h1>
+  <p class="meta">{{ entries | length }} saved answer{{ 's' if entries | length != 1 }}</p>
+  <p class="lead">Answers you accepted and chose to keep. When a new question looks similar, they are offered as a starting point; you still review and save each one yourself.</p>
+</div>
+
+{% if entries %}
+<section class="card" aria-label="Saved answers">
+  <div class="question-list">
+    {% for e in entries %}
+    <article class="question-row" id="bank-{{ e.entry.id }}">
+      <header class="question-head"><h4>{{ e.entry.question }}</h4><span class="tag">{{ e.category }}</span></header>
+      <div class="answer-text">{{ e.entry.answer }}</div>
+      <p class="hint">
+        {% if e.job %}From <a href="/jobs/{{ e.job.id }}#questions">{{ e.job.title }} at {{ e.job.company }}</a>{% else %}From a job that was removed{% endif %}
+        · saved {{ e.entry.created_at | local_datetime }}
+      </p>
+      <form method="post" action="/answers/{{ e.entry.id }}/delete" class="inline-form">
+        <button type="submit" class="btn-small danger" aria-label="Delete saved answer to: {{ e.entry.question }}">Delete from answer bank</button>
+      </form>
+    </article>
+    {% endfor %}
+  </div>
+</section>
+{% else %}
+<div class="empty card">
+  <h2>No saved answers yet</h2>
+  <p>In a job's Questions section, choose Save to answer bank on an answer you accepted. Only accepted answers to non-sensitive questions can be saved: sensitive answers and values filled from your profile never are.</p>
+  <a class="btn-secondary" href="/jobs">Back to jobs</a>
+</div>
+{% endif %}
+{% endblock %}
