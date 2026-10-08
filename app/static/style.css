@@ -149,7 +149,8 @@ nav a[aria-current="page"] { color: var(--ink); border-bottom-color: var(--ink);
 }
 .local-badge::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: var(--met); }
 
-main { padding-top: 32px; padding-bottom: 56px; }
+/* main also has .wrap, whose padding shorthand would otherwise zero these out. */
+main.wrap { padding-top: 40px; padding-bottom: 64px; }
 .site-footer { border-top: 1px solid var(--rule); color: var(--ink-3); font-size: 0.8rem; }
 .site-footer .wrap { padding-top: 16px; padding-bottom: 28px; }
 
@@ -185,6 +186,17 @@ main { padding-top: 32px; padding-bottom: 56px; }
 .empty { padding: 32px 28px; }
 .empty h1, .empty h2 { margin-bottom: 8px; }
 .empty p { max-width: 60ch; color: var(--ink-2); margin: 0 0 20px; }
+
+/* Greeting at the top of the home page. */
+.greeting { margin: 0 0 6px; color: var(--ink-3); font-size: 0.95rem; }
+.greeting-card {
+  display: flex; align-items: center; justify-content: space-between; gap: 16px 32px; flex-wrap: wrap;
+  background: var(--surface); border: 1px solid var(--rule); border-left: 3px solid var(--accent);
+  border-radius: var(--radius); padding: 22px 28px; margin-bottom: 32px;
+}
+.greeting-card > div { flex: 1 1 360px; }
+.greeting-card h2 { margin: 0 0 6px; font-size: 1.35rem; }
+.greeting-card p { margin: 0; color: var(--ink-2); max-width: 64ch; }
 
 /* ------------------------------------------------------------------ messages */
 
@@ -606,7 +618,7 @@ details.card[open] summary::after { content: " −"; }
   .header-inner { gap: 20px; }
   nav { gap: 18px; }
   .local-badge span { display: none; }
-  main { padding-top: 22px; }
+  main.wrap { padding-top: 28px; padding-bottom: 48px; }
   h1 { font-size: 1.55rem; }
   h2 { font-size: 1.15rem; }
   .card { padding: 18px 16px; border-radius: var(--radius-sm); }
@@ -641,6 +653,8 @@ details.card[open] summary::after { content: " −"; }
   .form-actions form { flex: 1; display: flex; }
   .form-actions form button { flex: 1; }
   .share-item, .share-entry .meta { margin-left: 0; }
+  .greeting-card { padding: 18px 16px; }
+  .greeting-card .btn-primary { width: 100%; }
   .doc { padding: 0 16px; border-radius: var(--radius-sm); }
   .doc-section { grid-template-columns: 1fr; padding: 20px 0; }
   .doc-section > h2 { margin-bottom: 12px; }
