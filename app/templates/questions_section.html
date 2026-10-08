@@ -1,0 +1,236 @@
+{# The Questions section of the Job Workspace. Included with the workspace's context. #}
+{% import "macros.html" as m with context %}
+
+{% set hints = {
+  'factual': 'Filled in from your profile every time, so it follows your profile edits.',
+  'sensitive_factual': 'Sensitive. Nothing is filled in until you confirm the value from your profile.',
+  'sensitive': 'Sensitive. You answer this yourself. ResuApply never drafts it and never saves it to the answer bank.',
+  'open': 'Open-ended. Write it yourself, or review an AI draft built from your profile.',
+  'unknown': "ResuApply couldn't tell what this asks, so it can't be answered yet. Choose a category.",
+} %}
+{% set unit_words = {'chars': 'characters', 'words': 'words'} %}
+
+{% macro error_block(err) -%}
+<div class="notice warn" role="alert" tabindex="-1" data-focus>
+  <p>{{ err.message }}</p>
+  {% if err.details %}<ul>{% for d in err.details %}<li>{{ d }}</li>{% endfor %}</ul>{% endif %}
+</div>
+{%- endmacro %}
+
+{% macro sources_list(cited) -%}
+<ul class="evidence">
+  {% for sid, text in cited %}
+    <li><span class="id-badge">{{ sid }}</span> <span class="evidence-text">{{ text }}</span></li>
+  {% endfor %}
+</ul>
+{%- endmacro %}
+
+{% macro answer_form(row, err) -%}
+{% set q = row.item.question %}
+{% set a = row.item.answer %}
+{% set current = a.text if (a and not a.skipped and a.origin in ['user', 'bank']) else '' %}
+{% set text = err.text if (err and err.text is not none) else current %}
+<form method="post" action="/jobs/{{ job.id }}/questions/{{ q.id }}/answer" class="stack answer-form">
+  <input type="hidden" name="origin" value="user">
+  <input type="hidden" name="bank_id" value="">
+  <div class="field">
+    <label for="answer-{{ q.id }}">Your answer</label>
+    <textarea id="answer-{{ q.id }}" name="text" rows="4"{% if q.limit %} aria-describedby="limit-{{ q.id }}"{% endif %}{% if err and err.text is not none %} class="invalid" aria-invalid="true"{% endif %}>{{ text }}</textarea>
+    {% if q.limit %}<small id="limit-{{ q.id }}" class="hint" data-counter-for="answer-{{ q.id }}" data-limit="{{ q.limit }}" data-unit="{{ q.limit_unit }}">Limit: {{ '{:,}'.format(q.limit) }} {{ unit_words[q.limit_unit] }}.</small>{% endif %}
+  </div>
+  {% if row.suggestions %}
+  <details class="bank-suggestions">
+    <summary>Start from a saved answer ({{ row.suggestions | length }})</summary>
+    <p class="hint">These come from your answer bank. Using one only fills the box above; nothing is saved until you press Save my answer.</p>
+    {% for s in row.suggestions %}
+      <div class="suggestion" data-bank-id="{{ s.entry.id }}">
+        <p class="hint">Saved for: {{ s.entry.question }}</p>
+        <p class="answer-text bank-text">{{ s.entry.answer }}</p>
+        <button type="button" class="btn-small" data-use-answer hidden>Use as starting point</button>
+      </div>
+    {% endfor %}
+  </details>
+  {% endif %}
+  <div><button type="submit" class="btn-secondary">Save my answer</button></div>
+</form>
+{%- endmacro %}
+
+{% macro question_row(row) -%}
+{% set item = row.item %}
+{% set q = item.question %}
+{% set err = question_error if (question_error and question_error.id == q.id) else none %}
+{% set pending = item.draft is not none and 'pending' in item.label %}
+{% set answered = item.answer is not none and not item.answer.skipped %}
+{% set own_answer = answered and item.answer.origin in ['user', 'bank'] %}
+{% set tone = 'tag' if (item.skipped or pending) else ('badge check-met' if item.resolved else 'badge check-unknown') %}
+<article class="question-row" id="question-{{ q.id }}">
+  <header class="question-head">
+    <h4>{{ q.text }}</h4>
+    <span class="id-badge">{{ q.id }}</span>
+  </header>
+  <div class="tags">
+    <span class="tag importance-{{ 'required' if q.required else 'preferred' }}">{{ 'Required' if q.required else 'Optional' }}</span>
+    {% if q.limit %}<span class="tag">Limit {{ '{:,}'.format(q.limit) }} {{ unit_words[q.limit_unit] }}</span>{% endif %}
+    <span class="tag">{{ row.category_label }}</span>
+    <span class="{{ tone }}">{{ item.label }}</span>
+  </div>
+  <p class="hint question-hint">{{ hints[q.category] }}</p>
+  {% if err %}{{ error_block(err) }}{% endif %}
+
+  {# What the question currently shows #}
+  {% if item.resolved and not item.skipped and item.text %}
+    <div class="answer-text">{{ item.text }}</div>
+    {% if row.cited %}<p class="sub-label">Built from your profile</p>{{ sources_list(row.cited) }}{% endif %}
+  {% elif q.category in ['factual', 'sensitive_factual'] and item.value %}
+    <p class="answer-line"><span class="muted">Profile value:</span> <strong>{{ item.value }}</strong></p>
+  {% elif q.category in ['factual', 'sensitive_factual'] %}
+    <p class="notice small">Your profile has no value for this. <a href="/profile/edit">Add it to your profile</a>{% if q.category == 'factual' and q.required %}, or answer it yourself{% endif %}.</p>
+  {% endif %}
+  {% if row.confirmation_outdated %}
+    <p class="notice small">Your profile value changed after you confirmed it. Confirm the new value, or the question stays unresolved.</p>
+  {% endif %}
+
+  {% if pending %}
+  <div class="suggestions">
+    <p class="sub-label">AI draft <span class="muted">(not an answer until you accept it)</span></p>
+    <div class="suggestion">
+      <div class="answer-text">{{ item.draft.text }}</div>
+      {% if row.cited %}<p class="hint">Built from these parts of your profile:</p>{{ sources_list(row.cited) }}{% endif %}
+      {% if row.draft_outdated %}<p class="hint">Drafted before your latest profile edit. Accepting checks it against the current profile again.</p>{% endif %}
+      <div class="suggestion-actions">
+        <form method="post" action="/jobs/{{ job.id }}/questions/{{ q.id }}/draft/accept" class="inline-form">
+          <button type="submit" class="btn-small">Accept draft</button>
+        </form>
+        <form method="post" action="/jobs/{{ job.id }}/questions/{{ q.id }}/draft/discard" class="inline-form">
+          <button type="submit" class="btn-small danger">Discard draft</button>
+        </form>
+      </div>
+    </div>
+  </div>
+  {% endif %}
+
+  {# Actions for this kind of question #}
+  {% if q.category == 'unknown' %}
+    <form method="post" action="/jobs/{{ job.id }}/questions/{{ q.id }}/category" class="stack category-form">
+      <div class="field">
+        <label for="category-{{ q.id }}">This question is</label>
+        <select id="category-{{ q.id }}" name="category">
+          {% for value, label in question_categories %}<option value="{{ value }}">{{ label }}</option>{% endfor %}
+        </select>
+      </div>
+      <div><button type="submit" class="btn-secondary">Set category</button></div>
+    </form>
+  {% elif q.category in ['sensitive', 'open'] %}
+    {% if own_answer or item.skipped %}
+      <div class="check-actions"><details {% if err and err.text is not none %}open{% endif %}><summary>{{ 'Answer it instead' if item.skipped else 'Change answer' }}</summary>{{ answer_form(row, err) }}</details></div>
+    {% else %}
+      {{ answer_form(row, err) }}
+    {% endif %}
+  {% elif q.category in ['factual', 'sensitive_factual'] %}
+    {% if item.value and not (item.resolved and item.origin == 'profile') %}
+      <form method="post" action="/jobs/{{ job.id }}/questions/{{ q.id }}/confirm" class="inline-form">
+        <button type="submit" class="btn-secondary">{{ 'Confirm this answer' if q.category == 'sensitive_factual' else 'Use the profile value' }}</button>
+      </form>
+    {% endif %}
+    <div class="check-actions"><details {% if (err and err.text is not none) or (not item.value and q.required and not own_answer) %}open{% endif %}><summary>{{ 'Change my answer' if own_answer else 'Answer it myself instead' }}</summary>{{ answer_form(row, err) }}</details></div>
+  {% endif %}
+
+  <div class="question-actions">
+    {% if row.can_bank %}
+      <form method="post" action="/jobs/{{ job.id }}/questions/{{ q.id }}/bank" class="inline-form">
+        <button type="submit" class="btn-small">Save to answer bank</button>
+      </form>
+    {% endif %}
+    {% if not q.required and q.category != 'unknown' and not item.resolved %}
+      <form method="post" action="/jobs/{{ job.id }}/questions/{{ q.id }}/skip" class="inline-form">
+        <button type="submit" class="btn-small">Skip this optional question</button>
+      </form>
+    {% endif %}
+  </div>
+
+  <div class="check-actions">
+    {% if q.category != 'unknown' %}
+    <details>
+      <summary>Change category</summary>
+      <form method="post" action="/jobs/{{ job.id }}/questions/{{ q.id }}/category" class="stack category-form">
+        <div class="field">
+          <label for="recategory-{{ q.id }}">This question is</label>
+          <select id="recategory-{{ q.id }}" name="category">
+            {% for value, label in question_categories %}<option value="{{ value }}" {% if value == q.category %}selected{% endif %}>{{ label }}</option>{% endfor %}
+          </select>
+          <small class="hint">Changing the category removes this question's answer and draft. A question detected as sensitive can only stay sensitive.</small>
+        </div>
+        <div><button type="submit" class="btn-secondary">Save category</button></div>
+      </form>
+    </details>
+    {% endif %}
+    <details>
+      <summary>Remove question</summary>
+      <form method="post" action="/jobs/{{ job.id }}/questions/{{ q.id }}/remove" class="stack">
+        <p class="hint">Removes the question with its answer and draft. Its ID ({{ q.id }}) is never reused.</p>
+        <div><button type="submit" class="btn-small danger">Remove question</button></div>
+      </form>
+    </details>
+  </div>
+</article>
+{%- endmacro %}
+
+<section class="card" id="questions" aria-labelledby="questions-title">
+  <h2 id="questions-title">Questions</h2>
+  <p class="hint">Enter the questions from the employer's application form. Each is answered from your profile, by you, or as a source-backed AI draft you review. Approval later covers only the questions entered here.</p>
+
+  {% if not candidate %}
+    <p class="notice"><a href="/profile/edit">Create your profile</a> before adding questions. Answers are filled in and checked against it.</p>
+  {% else %}
+    {% if question_error and not question_error.id %}{{ error_block(question_error) }}{% endif %}
+    {% if questions_notice %}<p class="notice" role="status" tabindex="-1" data-focus>{{ questions_notice }}</p>{% endif %}
+
+    <details class="add-question" {% if not question_rows or (question_error and not question_error.id and question_form) %}open{% endif %}>
+      <summary>Add a question</summary>
+      <form method="post" action="/jobs/{{ job.id }}/questions" class="stack">
+        <div class="field">
+          <label for="question-text">Question, as the employer wrote it</label>
+          <textarea id="question-text" name="text" rows="2" placeholder="e.g. Why do you want to work here?">{{ question_form.get('text', '') }}</textarea>
+        </div>
+        <label class="check"><input type="checkbox" name="required" value="1" {% if question_form.get('required', true) %}checked{% endif %}> Required</label>
+        <div class="grid">
+          <div class="field">
+            <label for="question-limit">Length limit <span class="muted">(optional)</span></label>
+            <input id="question-limit" name="limit" type="number" min="1" inputmode="numeric" value="{{ question_form.get('limit', '') }}" placeholder="e.g. 300">
+          </div>
+          <div class="field">
+            <label for="question-unit">Counted in</label>
+            <select id="question-unit" name="limit_unit">
+              <option value="chars" {% if question_form.get('limit_unit', 'chars') == 'chars' %}selected{% endif %}>Characters</option>
+              <option value="words" {% if question_form.get('limit_unit') == 'words' %}selected{% endif %}>Words</option>
+            </select>
+          </div>
+        </div>
+        <div><button type="submit" class="btn-secondary">Add question</button></div>
+      </form>
+    </details>
+
+    {% if draft_count and settings.ai_configured %}
+    <div class="ai-actions">
+      {% if sharing and not sharing.ready %}
+        <a class="btn-secondary" href="/profile/sharing?next=/jobs/{{ job.id }}">Review what's shared, then draft answers</a>
+      {% else %}
+        <form method="post" action="/jobs/{{ job.id }}/questions/draft" class="inline-form" data-ai>
+          {% if pending_drafts %}<input type="hidden" name="force" value="1">{% endif %}
+          <button type="submit" class="btn-secondary" data-busy-label="Drafting… this can take up to 90 seconds">Draft open answers with AI</button>
+        </form>
+        <a class="btn-link" href="/profile/sharing?next=/jobs/{{ job.id }}">What's shared?</a>
+      {% endif %}
+    </div>
+    <p class="hint">Drafts are proposals for open-ended questions only. Sensitive questions are never drafted.</p>
+    {% endif %}
+
+    {% if question_rows %}
+      <div class="question-list">
+        {% for row in question_rows %}{{ question_row(row) }}{% endfor %}
+      </div>
+    {% else %}
+      <p class="muted">No questions yet. If the application form has none, you can approve the package without any.</p>
+    {% endif %}
+  {% endif %}
+</section>
