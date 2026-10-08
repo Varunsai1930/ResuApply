@@ -21,7 +21,7 @@
       <h2>Tracking</h2>
       <dl class="facts compact">
         <dt>Status</dt><dd>{{ m.status_badge(application.status) }}</dd>
-        <dt>Review</dt><dd>{{ m.review_badge(application.review) }}</dd>
+        <dt>Review</dt><dd>{{ m.review_badge(review) }}</dd>
         {% if application.applied_on %}<dt>Applied on</dt><dd>{{ application.applied_on.isoformat() }}</dd>{% endif %}
       </dl>
       <p class="hint">Review is whether the package is ready. Status is what you did; approving a package never marks a job Applied.</p>
@@ -45,6 +45,12 @@
           <label for="status-note">Note <span class="muted">(optional)</span></label>
           <input id="status-note" name="note" value="{{ status_form.get('note', '') }}" placeholder="e.g. Applied through the company site">
         </div>
+        {% if review == ReviewState.APPROVED and application.status != TrackingStatus.APPLIED %}
+        <div class="field" data-when-status="applied">
+          <label class="check"><input type="checkbox" name="snapshot" value="1" {% if status_form.get('snapshot', true) %}checked{% endif %}> Save the approved package as what I submitted</label>
+          <small class="hint">Used only when you choose Applied. It keeps the resume, answers and job details exactly as approved, even if you edit your profile later.</small>
+        </div>
+        {% endif %}
         <button type="submit" class="btn-primary">Update status</button>
       </form>
 
@@ -58,6 +64,15 @@
           </li>
         {% endfor %}
       </ol>
+
+      {% if snapshots %}
+      <h3>Submitted packages</h3>
+      <ul class="plain-list snapshot-list">
+        {% for s in snapshots %}
+          <li><a href="/jobs/{{ job.id }}/snapshots/{{ s.id }}">Submitted {{ s.submitted_on.isoformat() }}</a> <span class="muted">(recorded {{ s.recorded_at | local_datetime }})</span></li>
+        {% endfor %}
+      </ul>
+      {% endif %}
     </section>
 
     <section class="card" id="notes">
@@ -93,14 +108,8 @@
 
     {% include "checklist.html" %}
     {% include "resume_section.html" %}
-    <section class="card placeholder" aria-labelledby="questions-title">
-      <h2 id="questions-title">Questions <span class="soon">Milestone 3b</span></h2>
-      <p>The application's questions, answered from your profile, by you, or as source-backed drafts you review.</p>
-    </section>
-    <section class="card placeholder" aria-labelledby="review-title">
-      <h2 id="review-title">Review <span class="soon">Milestone 3b</span></h2>
-      <p>Approve the complete package before you submit it yourself on the employer's site.</p>
-    </section>
+    {% include "questions_section.html" %}
+    {% include "review_section.html" %}
   </div>
 </div>
 {% endblock %}
