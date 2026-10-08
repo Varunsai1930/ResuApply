@@ -97,8 +97,8 @@ def init_db(engine: Engine) -> None:
 def _add_missing_columns(engine: Engine) -> None:
     """Additive upgrade for databases made by an earlier milestone.
 
-    Only adds columns that declare a server default, so existing rows stay valid.
-    Columns are never renamed, retyped or dropped here.
+    Only adds nullable columns or columns that declare a server default, so existing rows stay
+    valid. Columns are never renamed, retyped or dropped here.
     """
     inspector = inspect(engine)
     with engine.begin() as conn:
@@ -107,11 +107,16 @@ def _add_missing_columns(engine: Engine) -> None:
             for column in table.columns:
                 if column.name in existing:
                     continue
-                if column.server_default is None:
-                    raise RuntimeError(f"Cannot add column {table.name}.{column.name} without a server default")
                 ddl = column.type.compile(engine.dialect)
-                default = column.server_default.arg
-                conn.execute(text(f'ALTER TABLE "{table.name}" ADD COLUMN "{column.name}" {ddl} NOT NULL DEFAULT {default}'))
+                if column.server_default is not None:
+                    default = column.server_default.arg
+                    if isinstance(default, str) and not default.lstrip("-").isdigit():
+                        default = "'" + default.replace("'", "''") + "'"
+                    conn.execute(text(f'ALTER TABLE "{table.name}" ADD COLUMN "{column.name}" {ddl} NOT NULL DEFAULT {default}'))
+                elif column.nullable:
+                    conn.execute(text(f'ALTER TABLE "{table.name}" ADD COLUMN "{column.name}" {ddl}'))
+                else:
+                    raise RuntimeError(f"Cannot add column {table.name}.{column.name} without a server default")
 
 
 def get_ai_client(request: Request):
