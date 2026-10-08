@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{ rendered.contact.name }} · Resume</title>
+  <link rel="stylesheet" href="{{ asset('resume.css') }}">
+  <script src="{{ asset('resume.js') }}" defer></script>
+</head>
+<body class="resume-print-page">
+  <div class="resume-print-controls">
+    <a href="/jobs/{{ job.id }}#resume">← Job workspace</a>
+    <h1>Accepted resume</h1>
+    <p>Choose Print, then Save as PDF. Use A4 paper and disable the browser's headers and footers.</p>
+    <button type="button" data-print-resume>Print / save PDF</button>
+  </div>
+  <main class="resume-document" aria-label="Accepted resume">
+    <header class="resume-header">
+      <h1>{{ rendered.contact.name }}</h1>
+      <p class="resume-contact">
+        {% if rendered.contact.email %}<span>{{ rendered.contact.email }}</span>{% endif %}
+        {% if rendered.contact.phone %}<span>{{ rendered.contact.phone }}</span>{% endif %}
+        {% if rendered.contact.location %}<span>{{ rendered.contact.location }}</span>{% endif %}
+      </p>
+      {% for label, value in rendered.contact.links.items() %}{% if value %}<p class="resume-link">{{ value }}</p>{% endif %}{% endfor %}
+    </header>
+    {% if rendered.summary %}<section class="resume-block"><h2>Summary</h2><p>{{ rendered.summary.text }}</p></section>{% endif %}
+    {% for title, entries in [('Experience', rendered.experience), ('Projects', rendered.projects)] %}
+      {% if entries %}<section class="resume-block">
+        <h2>{{ title }}</h2>
+        {% for entry in entries %}<article class="resume-entry">
+          <header class="resume-entry-head">
+            <h3>{% if title == 'Experience' %}{{ entry.title }}{% if entry.title %} — {% endif %}{{ entry.organization }}{% else %}{{ entry.name }}{% if entry.role %} — {{ entry.role }}{% endif %}{% endif %}</h3>
+            {% if entry.location %}<p>{{ entry.location }}</p>{% endif %}
+            {% if entry.start or entry.end %}<p>{{ entry.start }}{% if entry.start and entry.end %} – {% endif %}{{ entry.end | capitalize if entry.end == 'present' else entry.end }}</p>{% endif %}
+            {% if entry.link %}<p class="resume-link">{{ entry.link }}</p>{% endif %}
+          </header>
+          {% if entry.bullets %}<ul>{% for bullet in entry.bullets %}<li>{{ bullet.text }}</li>{% endfor %}</ul>{% endif %}
+        </article>{% endfor %}
+      </section>{% endif %}
+    {% endfor %}
+    {% if rendered.education %}<section class="resume-block">
+      <h2>Education</h2>
+      {% for entry in rendered.education %}<article class="resume-entry">
+        <header class="resume-entry-head"><h3>{{ entry.institution }}</h3></header>
+        <p>{{ entry.degree }}{% if entry.field %}, {{ entry.field }}{% endif %}</p>
+        {% if entry.start or entry.end %}<p>{{ entry.start }}{% if entry.start and entry.end %} – {% endif %}{{ entry.end | capitalize if entry.end == 'present' else entry.end }}</p>{% endif %}
+        {% if entry.gpa %}<p>GPA: {{ entry.gpa }}</p>{% endif %}
+        {% if entry.bullets %}<ul>{% for bullet in entry.bullets %}<li>{{ bullet.text }}</li>{% endfor %}</ul>{% endif %}
+      </article>{% endfor %}
+    </section>{% endif %}
+    {% if rendered.skills %}<section class="resume-block"><h2>Skills</h2><p>{{ rendered.skills | join(', ') }}</p></section>{% endif %}
+    {% if rendered.certifications %}<section class="resume-block">
+      <h2>Certifications</h2>
+      <ul>{% for entry in rendered.certifications %}<li>{{ entry.name }}{% if entry.issuer %} — {{ entry.issuer }}{% endif %}{% if entry.date %} ({{ entry.date }}){% endif %}</li>{% endfor %}</ul>
+    </section>{% endif %}
+  </main>
+</body>
+</html>
