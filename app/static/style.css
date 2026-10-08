@@ -466,13 +466,6 @@ del { color: var(--unmet); text-decoration-thickness: 1px; }
   padding: 16px 18px; max-height: 60vh; overflow-y: auto;
   font-size: 0.92rem; line-height: 1.6; color: var(--ink-2);
 }
-.placeholder { background: transparent; border-style: dashed; border-color: var(--rule-strong); padding-top: 18px; padding-bottom: 18px; }
-.placeholder h2 { font-size: 1.05rem; margin-bottom: 4px; color: var(--ink-2); display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
-.placeholder p { color: var(--ink-3); margin: 0; font-size: 0.9rem; }
-.soon {
-  font-family: var(--font-ui); font-size: 0.7rem; font-weight: 600; letter-spacing: 0.05em; text-transform: uppercase;
-  color: var(--ink-3); border: 1px solid var(--rule-strong); border-radius: 3px; padding: 1px 6px;
-}
 
 .timeline, .notes { list-style: none; margin: 0; padding: 0; }
 .timeline { position: relative; margin-top: 4px; }
@@ -552,6 +545,55 @@ del { color: var(--unmet); text-decoration-thickness: 1px; }
 .source-group legend { font-weight: 600; font-size: 0.84rem; padding: 0 4px; }
 label.check { display: flex; gap: 10px; align-items: flex-start; font-weight: 400; font-size: 0.9rem; margin: 6px 0 8px; overflow-wrap: anywhere; color: var(--ink); }
 label.check input { width: 16px; height: 16px; margin: 3px 0 0; flex-shrink: 0; }
+
+/* ------------------------------------------------------------------ questions, review and submitted packages */
+
+.question-list { margin-top: 18px; }
+.question-row { padding: 18px 0; border-bottom: 1px solid var(--rule); }
+.question-row:first-child { padding-top: 0; }
+.question-row:last-child { border-bottom: 0; padding-bottom: 0; }
+.question-head { display: flex; flex-wrap: wrap; gap: 6px 12px; align-items: baseline; justify-content: space-between; }
+.question-head h4 { flex: 1 1 260px; font-size: 0.98rem; line-height: 1.45; overflow-wrap: anywhere; }
+.question-row .tags { align-items: center; }
+.question-hint { margin: 0 0 10px; }
+.answer-text {
+  white-space: pre-wrap; overflow-wrap: anywhere;
+  background: var(--well); border: 1px solid var(--rule); border-radius: var(--radius-sm);
+  padding: 10px 14px; margin: 8px 0; font-size: 0.93rem; line-height: 1.55; color: var(--ink);
+}
+.suggestion .answer-text { background: var(--surface); }
+.answer-line { margin: 8px 0; overflow-wrap: anywhere; }
+.question-row .notice { margin: 10px 0; }
+.question-row .notice p { margin: 0; }
+.question-row .notice ul { margin-top: 6px; }
+.question-row .stack { max-width: 640px; margin: 10px 0 6px; }
+.question-row .category-form { max-width: 320px; }
+.question-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+.question-actions:empty { display: none; }
+.question-row .check-actions { margin-top: 6px; }
+.add-question { margin: 14px 0 6px; }
+.add-question summary, .bank-suggestions summary {
+  cursor: pointer; color: var(--accent); font-size: 0.9rem; font-weight: 500;
+  list-style: none; display: inline-flex; align-items: center; gap: 6px;
+}
+.add-question summary::-webkit-details-marker, .bank-suggestions summary::-webkit-details-marker { display: none; }
+.add-question summary::before, .bank-suggestions summary::before { content: "+"; font-family: var(--font-mono); color: var(--ink-3); }
+.add-question[open] > summary::before, .bank-suggestions[open] > summary::before { content: "−"; }
+.card > .hint + .btn-secondary, #review > .hint { margin-top: 10px; margin-bottom: 14px; }
+#review > .hint { margin-top: 0; }
+.add-question .stack { max-width: 640px; }
+.bank-suggestions { margin: 2px 0; }
+.bank-suggestions .suggestion { padding: 10px 0 2px; border-top: 1px solid var(--rule); margin-top: 10px; }
+.btn-small[hidden], .field[hidden] { display: none; }
+.over-limit { color: var(--unmet); font-weight: 500; }
+
+.review-list li { overflow-wrap: anywhere; }
+.snapshot-list { list-style: none; padding-left: 0; }
+.frozen-note {
+  margin: 0 0 20px; padding: 11px 16px; font-size: 0.92rem;
+  background: var(--accent-wash); border: 1px solid var(--rule); border-left: 3px solid var(--accent);
+  border-radius: var(--radius-sm);
+}
 
 /* ------------------------------------------------------------------ requirements editor */
 
