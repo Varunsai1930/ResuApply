@@ -50,6 +50,12 @@ def local_datetime(value: datetime | None) -> str:
     return value.astimezone().strftime("%Y-%m-%d %H:%M") if value else ""
 
 
+def first_name(full_name: str | None) -> str:
+    """The first word of a name, for greetings. Falls back to "there"."""
+    parts = (full_name or "").split()
+    return parts[0] if parts else "there"
+
+
 def tristate(value) -> str:
     """Form value for a yes/no/unknown fact: True -> "yes", False -> "no", None -> ""."""
     if value is True:
@@ -65,6 +71,7 @@ def tristate_label(value: bool | None) -> str:
 
 templates = Jinja2Templates(directory=TEMPLATE_DIR)
 templates.env.filters.update(
+    first_name=first_name,
     local_datetime=local_datetime,
     skills_text=skills_text,
     tristate=tristate,
