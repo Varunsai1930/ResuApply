@@ -13,9 +13,10 @@
     <div class="wrap header-inner">
       <a class="brand" href="/jobs">ResuApply</a>
       <nav aria-label="Main">
-        <a href="/profile" {% if active == 'profile' %}aria-current="page"{% endif %}>Profile</a>
         <a href="/jobs" {% if active == 'jobs' %}aria-current="page"{% endif %}>Jobs</a>
+        <a href="/profile" {% if active == 'profile' %}aria-current="page"{% endif %}>Profile</a>
       </nav>
+      <span class="local-badge" title="ResuApply runs only on this computer (127.0.0.1)"><span>Local only</span></span>
     </div>
   </header>
   <main id="main" class="wrap">
@@ -24,8 +25,8 @@
     {% endif %}
     {% block content %}{% endblock %}
   </main>
-  <footer class="wrap site-footer">
-    Local only · runs on 127.0.0.1 · your data stays in <code>data/</code>
+  <footer class="site-footer">
+    <div class="wrap">Runs on 127.0.0.1. Your data stays in <code>data/</code> on this computer; only content you approve is sent to the AI model.</div>
   </footer>
 </body>
 </html>
