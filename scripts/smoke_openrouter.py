@@ -5,7 +5,7 @@ Run it after adding OPENROUTER_API_KEY to .env:
     .venv/bin/python -m scripts.smoke_openrouter
 
 It uses a throwaway database in a temporary folder (your data/ is untouched), sends a
-fictional job and a fictional candidate to the configured model, and checks that both AI
+fictional job and a fictional candidate to the configured model, and checks that all AI
 operations return results that pass local validation. The key is never printed.
 """
 
@@ -17,12 +17,14 @@ import tempfile
 from pathlib import Path
 
 from app.ai import operations
+from app.ai import resume as resume_ai
 from app.ai.client import AIError, OpenRouterClient
 from app.config import get_settings
 from app.db import init_db, make_engine, make_session_factory
 from app.services import checklist, outbound
 from app.services import jobs as job_service
 from app.services import profile as profile_service
+from app.services import resume as resume_service
 from app.services.requirements import RequirementsInvalid, set_requirements
 from tests.synthetic import DEMO_JOB, SAMPLE_PROFILE
 
@@ -74,15 +76,30 @@ def main() -> int:
                 run = operations.suggest_evidence(session, client, settings, job, candidate)
             except operations.NothingToDo as exc:
                 print(f"   Skipped: {exc}")
-                return 0
+                run = None
             except AIError as exc:
                 print(f"   FAILED ({exc.kind}): {exc.message}")
                 return 1
-            print(f"   {run.attempts} attempt(s), usage {run.usage}")
-            for item in run.result["suggestions"]:
-                print(f"   - {item['requirement_id']}: {', '.join(item['source_ids'])}  ({item['reason']})")
+            if run is not None:
+                print(f"   {run.attempts} attempt(s), usage {run.usage}")
+                for item in run.result["suggestions"]:
+                    print(f"   - {item['requirement_id']}: {', '.join(item['source_ids'])}  ({item['reason']})")
             counts = checklist.summary(checklist.evaluate(job, candidate.profile))
             print(f"\nChecklist (before accepting suggestions): {counts}")
+
+            print("\n3. tailor_resume (source-backed proposal, using the approved fictional context)")
+            original_profile = candidate.profile.model_dump()
+            try:
+                record = resume_ai.tailor_resume(session, client, settings, job, candidate)
+                resume_service.accept(session, job, candidate, resume_service.proposal_token(record))
+            except (AIError, resume_service.ResumeError) as exc:
+                print(f"   FAILED: {exc}")
+                return 1
+            if candidate.profile.model_dump() != original_profile or candidate.revision != 1:
+                print("   FAILED: the profile changed")
+                return 1
+            print(f"   {len(record.resume.experience)} experience entries, {len(record.resume.projects)} projects")
+            print("   Claims validated; the fictional resume was accepted locally.")
         engine.dispose()
     client.close()
     print("\nSmoke test passed.")
