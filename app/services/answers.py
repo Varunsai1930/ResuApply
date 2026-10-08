@@ -374,17 +374,25 @@ which who whom why will with would you your
 SIMILARITY_THRESHOLD = 0.3
 
 
+def bank_block(question: Question, answer: Answer | None) -> str | None:
+    """Why this question's answer can't be saved to the answer bank, or None when it can."""
+    if (question.category in q_rules.SENSITIVE_CATEGORIES
+            or question.detected_category in q_rules.SENSITIVE_CATEGORIES):
+        return "Answers to sensitive questions are never saved to the answer bank."
+    if answer is None or answer.skipped or not answer.text.strip():
+        return f"{question.id} has no accepted answer to save."
+    if answer.origin == "profile":
+        return "Profile values are filled in from your profile every time; they aren't saved to the bank."
+    return None
+
+
 def save_to_bank(session: Session, job: Job, application: Application, qid: str) -> AnswerBankEntry:
     """Save an accepted answer to a non-sensitive question for reuse. Sensitive answers are refused."""
     question = _find(job, qid)
-    if (question.category in q_rules.SENSITIVE_CATEGORIES
-            or question.detected_category in q_rules.SENSITIVE_CATEGORIES):
-        raise AnswerError("Answers to sensitive questions are never saved to the answer bank.")
     answer = _answer_for(application, qid)
-    if answer is None or answer.skipped or not answer.text.strip():
-        raise AnswerError(f"{qid} has no accepted answer to save.")
-    if answer.origin == "profile":
-        raise AnswerError("Profile values are filled in from your profile every time; they aren't saved to the bank.")
+    blocked = bank_block(question, answer)
+    if blocked:
+        raise AnswerError(blocked)
     now = utcnow()
     for entry in bank_entries(session):
         if norm_text(entry.question) == norm_text(question.text) and norm_text(entry.answer) == norm_text(answer.text):
