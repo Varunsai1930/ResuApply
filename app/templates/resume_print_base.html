@@ -1,0 +1,20 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{ name }} · Resume</title>
+  <link rel="icon" href="{{ asset('favicon.svg') }}" type="image/svg+xml">
+  <link rel="stylesheet" href="{{ asset('resume.css') }}">
+  <script src="{{ asset('resume.js') }}" defer></script>
+</head>
+<body class="resume-print-page">
+  <div class="resume-print-controls">
+    <a href="{% block back_href %}{% endblock %}">{% block back_label %}← Job workspace{% endblock %}</a>
+    <h1>{% block heading %}{% endblock %}</h1>
+    <p>{% block note %}Choose Print, then Save as PDF. Use A4 paper and disable the browser's headers and footers.{% endblock %}</p>
+    <button type="button" data-print-resume>Print / save PDF</button>
+  </div>
+{% block document %}{% endblock %}
+</body>
+</html>

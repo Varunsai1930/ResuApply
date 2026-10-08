@@ -1,20 +1,5 @@
-<!doctype html>
-<html lang="en">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>{{ rendered.contact.name }} · Resume</title>
-  <link rel="icon" href="{{ asset('favicon.svg') }}" type="image/svg+xml">
-  <link rel="stylesheet" href="{{ asset('resume.css') }}">
-  <script src="{{ asset('resume.js') }}" defer></script>
-</head>
-<body class="resume-print-page">
-  <div class="resume-print-controls">
-    <a href="/jobs/{{ job.id }}#resume">← Job workspace</a>
-    <h1>Accepted resume</h1>
-    <p>Choose Print, then Save as PDF. Use A4 paper and disable the browser's headers and footers.</p>
-    <button type="button" data-print-resume>Print / save PDF</button>
-  </div>
-{% include "_resume_document.html" %}
-</body>
-</html>
+{% extends "resume_print_base.html" %}
+{% set name = rendered.contact.name %}
+{% block back_href %}/jobs/{{ job.id }}#resume{% endblock %}
+{% block heading %}Accepted resume{% endblock %}
+{% block document %}{% include "_resume_document.html" %}{% endblock %}
