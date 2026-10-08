@@ -17,7 +17,7 @@ from . import __version__
 from .config import ALLOWED_HOSTS, Settings, get_settings
 from .ai.client import OpenRouterClient
 from .db import init_db, make_engine, make_session_factory
-from .routes import jobs, profile, requirements, sharing
+from .routes import jobs, profile, requirements, resume, sharing
 from .security import SameOriginMiddleware
 from .templating import STATIC_DIR, templates
 
@@ -50,6 +50,7 @@ def create_app(settings: Settings | None = None, ai_transport: httpx.BaseTranspo
     app.include_router(profile.router)
     app.include_router(jobs.router)
     app.include_router(requirements.router)
+    app.include_router(resume.router)
 
     @app.api_route("/", methods=["GET", "HEAD"], include_in_schema=False)
     def home():
