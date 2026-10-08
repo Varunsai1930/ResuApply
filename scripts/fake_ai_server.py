@@ -6,6 +6,7 @@ Nothing leaves your machine. The stand-in is deliberately simple and not a model
 - parse_job turns each "- " bullet line of the description into a requirement
   (excerpt = the line, no criterion);
 - suggest_evidence suggests bullets that share a longer word with the requirement.
+- tailor_resume selects the shared entries and keeps their original bullet text.
 Use a separate data folder (RESUAPPLY_DATA_DIR) if you don't want test data in data/.
 """
 
@@ -51,11 +52,26 @@ def _suggest(user: str) -> dict:
     return {"suggestions": out}
 
 
+def _tailor(user: str) -> dict:
+    context = json.loads(user.split("<candidate_content>", 1)[1].split("</candidate_content>", 1)[0])
+    return {
+        "summary": {"text": context["summary"]["text"], "sources": ["summary"]} if context.get("summary") else None,
+        "experience": [{"entry": e["id"], "bullets": [{"text": b["text"], "sources": [b["id"]]}
+                         for b in e["bullets"]]} for e in context["experience"]],
+        "projects": [{"entry": e["id"], "bullets": [{"text": b["text"], "sources": [b["id"]]}
+                       for b in e["bullets"]]} for e in context["projects"]],
+        "education": [e["id"] for e in context["education"]],
+        "certifications": [c["id"] for c in context["certifications"]],
+        "skills": list(context["skills"]),
+    }
+
+
 def _handle(request: httpx.Request) -> httpx.Response:
     body = json.loads(request.content)
     tool = body["tools"][0]["function"]["name"]
     user = body["messages"][1]["content"]
-    args = _parse_job(user) if tool == "return_requirements" else _suggest(user)
+    handlers = {"return_requirements": _parse_job, "return_evidence_suggestions": _suggest, "return_resume": _tailor}
+    args = handlers[tool](user)
     return httpx.Response(200, json={"choices": [{"message": {"tool_calls": [
         {"id": "fake", "type": "function", "function": {"name": tool, "arguments": json.dumps(args)}}]}}],
         "usage": {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0}})
