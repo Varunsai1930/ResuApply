@@ -2,6 +2,17 @@
 {% import "macros.html" as m with context %}
 {% block title %}Jobs{% endblock %}
 {% block content %}
+{% if candidate %}
+<p class="greeting">Hello, {{ candidate.profile.contact.name | first_name }}.</p>
+{% else %}
+<section class="greeting-card" aria-labelledby="greeting-title">
+  <div>
+    <h2 id="greeting-title">Hello there.</h2>
+    <p>Create your profile so every requirement check and resume is tailored to you. It holds the facts each application is built from, and only you can change it.</p>
+  </div>
+  <a class="btn-primary" href="/profile/edit">Create your profile</a>
+</section>
+{% endif %}
 <div class="page-head with-actions">
   <div>
     <h1>Jobs</h1>
@@ -9,10 +20,6 @@
   </div>
   <a class="btn-primary" href="/jobs/new">Add job</a>
 </div>
-
-{% if not candidate %}
-<p class="notice">You haven't created a profile yet. You can save jobs now; <a href="/profile/edit">create your profile</a> before preparing an application.</p>
-{% endif %}
 
 {% if jobs %}
 <ul class="summary-strip" aria-label="Jobs by status">
