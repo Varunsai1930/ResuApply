@@ -1,0 +1,9 @@
+{# The resume exactly as it was when the user recorded Applied. #}
+{% extends "resume_print_base.html" %}
+{% set name = snapshot.resume.contact.name %}
+{% block back_href %}/jobs/{{ job.id }}/snapshots/{{ snapshot.id }}{% endblock %}
+{% block back_label %}← Submitted package{% endblock %}
+{% block heading %}Resume as submitted{% endblock %}
+{% block note %}Frozen when you recorded Applied on {{ snapshot.submitted_on.isoformat() }}. Choose Print, then Save as PDF. Use A4 paper and disable the browser's headers and footers.{% endblock %}
+{# resume_html was rendered by the app's own escaping template from the stored profile, never from request input. #}
+{% block document %}{{ snapshot.resume_html | safe }}{% endblock %}

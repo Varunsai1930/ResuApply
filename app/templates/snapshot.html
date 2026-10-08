@@ -1,0 +1,64 @@
+{% extends "base.html" %}
+{% import "macros.html" as m with context %}
+{% block title %}Submitted package · {{ snapshot.job.title }}{% endblock %}
+{% block content %}
+<p class="crumbs"><a href="/jobs/{{ job.id }}#tracking">← Job workspace</a></p>
+<div class="page-head">
+  <p class="eyebrow">{{ snapshot.job.company }}{% if snapshot.job.location %} · {{ snapshot.job.location }}{% endif %}</p>
+  <h1>Submitted package</h1>
+  <p class="meta">
+    {{ snapshot.job.title }} · submitted {{ snapshot.submitted_on.isoformat() }} · recorded {{ snapshot.recorded_at | local_datetime }}
+    · profile revision {{ snapshot.profile_revision }} · job revision {{ snapshot.job_revision }}
+  </p>
+</div>
+
+<p class="frozen-note">Frozen when you recorded Applied. Later changes to your profile or this job don't affect it.</p>
+
+<section class="card" aria-labelledby="snap-resume-title">
+  <h2 id="snap-resume-title">Resume as submitted</h2>
+  <p class="hint">The resume exactly as it was approved, in the same print layout.</p>
+  <a class="btn-secondary" href="/jobs/{{ job.id }}/snapshots/{{ snapshot.id }}/resume">Open the resume as submitted</a>
+</section>
+
+<section class="card" aria-labelledby="snap-answers-title">
+  <h2 id="snap-answers-title">Answers as submitted</h2>
+  {% if snapshot.answers %}
+  <div class="question-list">
+    {% for a in snapshot.answers %}
+    <article class="question-row">
+      <header class="question-head"><h4>{{ a.question }}</h4></header>
+      <div class="tags">
+        <span class="tag importance-{{ 'required' if a.required else 'preferred' }}">{{ 'Required' if a.required else 'Optional' }}</span>
+        <span class="tag">{{ a.label }}</span>
+      </div>
+      {% if a.text %}<div class="answer-text">{{ a.text }}</div>{% endif %}
+    </article>
+    {% endfor %}
+  </div>
+  {% else %}
+    <p class="muted">No questions were entered in the workspace for this package.</p>
+  {% endif %}
+  <p class="hint">Only the questions entered in the workspace were part of this package, not any others on the employer's form.</p>
+</section>
+
+<section class="card" aria-labelledby="snap-job-title">
+  <h2 id="snap-job-title">Job as submitted</h2>
+  <dl class="facts">
+    <dt>Title</dt><dd>{{ snapshot.job.title }}</dd>
+    <dt>Company</dt><dd>{{ snapshot.job.company }}</dd>
+    {% if snapshot.job.location %}<dt>Location</dt><dd>{{ snapshot.job.location }}</dd>{% endif %}
+    {% if snapshot.job.url %}<dt>Posting</dt><dd><a href="{{ snapshot.job.url }}" target="_blank" rel="noopener noreferrer nofollow">{{ snapshot.job.url }} ↗</a></dd>{% endif %}
+  </dl>
+  <h3>Description</h3>
+  <div class="description" tabindex="0">{{ snapshot.job.description }}</div>
+</section>
+
+<section class="card" aria-labelledby="snap-approval-title">
+  <h2 id="snap-approval-title">Approval</h2>
+  <p>Approved {{ snapshot.approval.approved_at | local_datetime }} at profile revision {{ snapshot.approval.profile_revision }} and job revision {{ snapshot.approval.job_revision }}.</p>
+  {% if snapshot.approval.warnings %}
+    <p class="sub-label">Noted when you approved</p>
+    <ul class="plain-list">{% for w in snapshot.approval.warnings %}<li>{{ w }}</li>{% endfor %}</ul>
+  {% endif %}
+</section>
+{% endblock %}
