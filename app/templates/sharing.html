@@ -30,6 +30,7 @@
 </div>
 {% else %}
 
+<div class="split">
 <section class="card">
   <h2>Status</h2>
   {% if state.approval_current %}
@@ -50,6 +51,7 @@
     {% for item in always_removed %}<li>{{ item }}</li>{% endfor %}
   </ul>
 </section>
+</div>
 
 <form method="post" action="/profile/sharing" data-guard>
   <input type="hidden" name="base_hash" value="{{ state.base_hash }}">
