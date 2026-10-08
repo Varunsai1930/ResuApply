@@ -1,0 +1,50 @@
+<section class="card" id="resume" aria-labelledby="resume-title">
+  <h2 id="resume-title">Resume</h2>
+  <p class="hint">Prepare a proposal, review its wording against your profile, then accept the resume for printing.</p>
+  {% if resume_error %}<p class="notice warn" role="alert" tabindex="-1" data-focus>{{ resume_error }}</p>{% endif %}
+  {% if resume_notice %}<p class="notice" role="status">{{ resume_notice }}</p>{% endif %}
+  {% if msg == 'resume_accepted' %}<p class="flash" role="status">Resume accepted. Open the print view to save it as a PDF.</p>{% endif %}
+
+  {% if not candidate %}
+    <p><a href="/profile/edit">Create your profile</a> to prepare a resume.</p>
+  {% else %}
+    {% if resume_state.accepted %}
+      <p><strong>Accepted resume</strong>
+        <span class="badge {{ 'check-unknown' if resume_state.accepted_stale else 'check-met' }}">{{ 'Out of date' if resume_state.accepted_stale else 'Current' }}</span>
+      </p>
+      {% if resume_state.accepted_stale %}
+        <p class="notice">Your profile or job changed. Review and accept a fresh proposal before printing.</p>
+      {% else %}
+        <a class="btn-secondary" href="/jobs/{{ job.id }}/resume/print">Print / save PDF</a>
+      {% endif %}
+    {% endif %}
+    {% if resume_state.proposal and resume_state.proposal != resume_state.accepted %}
+      <p><strong>Resume proposal</strong>
+        <span class="badge {{ 'check-unknown' if resume_state.proposal_stale else 'check-met' }}">{{ 'Out of date' if resume_state.proposal_stale else 'Ready to review' }}</span>
+      </p>
+      {% if resume_state.proposal_stale %}
+        <p class="hint">The profile, job or AI inputs changed. Prepare a fresh proposal to review.</p>
+      {% endif %}
+      <p><a class="btn-secondary" href="/jobs/{{ job.id }}/resume/review">Review resume proposal</a></p>
+    {% endif %}
+    <div class="ai-actions">
+      <form method="post" action="/jobs/{{ job.id }}/resume/profile" class="inline-form">
+        <button type="submit" class="btn-secondary">Use profile as-is</button>
+      </form>
+      {% if settings.ai_configured %}
+        {% if sharing and not sharing.ready %}
+          <a class="btn-secondary" href="/profile/sharing?next=/jobs/{{ job.id }}">Review what's shared, then tailor a resume</a>
+        {% else %}
+          <form method="post" action="/jobs/{{ job.id }}/resume/generate" class="inline-form" data-ai>
+            {% if resume_state.proposal %}<input type="hidden" name="force" value="1">{% endif %}
+            <button type="submit" class="btn-secondary" data-busy-label="Tailoring… this can take up to 90 seconds">{{ 'Regenerate with AI' if resume_state.proposal else 'Tailor with AI' }}</button>
+          </form>
+          <a class="btn-link" href="/profile/sharing?next=/jobs/{{ job.id }}">What's shared?</a>
+        {% endif %}
+      {% else %}
+        <span class="hint">AI is off. You can review and print your saved profile as a resume.</span>
+      {% endif %}
+    </div>
+    {% if resume_state.accepted %}<p class="hint">Preparing another proposal keeps your accepted resume until you accept its replacement.</p>{% endif %}
+  {% endif %}
+</section>
