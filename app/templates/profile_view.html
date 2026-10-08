@@ -18,8 +18,10 @@
   <a class="btn-primary" href="/profile/edit">Edit profile</a>
 </div>
 
-<section class="card">
+<div class="doc">
+<section class="doc-section">
   <h2>Contact</h2>
+  <div class="doc-body">
   <dl class="facts">
     <dt>Email</dt><dd>{{ p.contact.email or '—' }}</dd>
     <dt>Phone</dt><dd>{{ p.contact.phone or '—' }}</dd>
@@ -28,12 +30,22 @@
     <dt>GitHub</dt><dd>{{ p.contact.links.github or '—' }}</dd>
     <dt>Portfolio</dt><dd>{{ p.contact.links.portfolio or '—' }}</dd>
   </dl>
-  {% if p.summary %}<h3>Summary</h3><p>{{ p.summary }}</p>{% endif %}
+  </div>
 </section>
 
+{% if p.summary %}
+<section class="doc-section">
+  <h2>Summary</h2>
+  <div class="doc-body">
+  <p class="doc-summary">{{ p.summary }}</p>
+  </div>
+</section>
+{% endif %}
+
 {% for section, title in [('education', 'Education'), ('experience', 'Experience'), ('projects', 'Projects')] %}
-<section class="card">
+<section class="doc-section">
   <h2>{{ title }}</h2>
+  <div class="doc-body">
   {% for e in p[section] %}
     <article class="entry-view">
       <h3>
@@ -56,11 +68,13 @@
   {% else %}
     <p class="muted">None added.</p>
   {% endfor %}
+  </div>
 </section>
 {% endfor %}
 
-<section class="card">
+<section class="doc-section">
   <h2>Skills</h2>
+  <div class="doc-body">
   {% if p.skills %}
   <dl class="facts">
     {% for line in (p.skills | skills_text).splitlines() %}
@@ -71,17 +85,21 @@
   {% else %}<p class="muted">None added.</p>{% endif %}
   <h3>Confirmed you don't have</h3>
   <p>{{ p.skills_absent | join(', ') if p.skills_absent else '—' }}</p>
+  </div>
 </section>
 
-<section class="card">
+<section class="doc-section">
   <h2>Certifications</h2>
+  <div class="doc-body">
   {% for c in p.certifications %}
     <p>{{ c.name }}{% if c.issuer %} · {{ c.issuer }}{% endif %}{% if c.date %} · {{ c.date }}{% endif %} <span class="id-badge">{{ c.id }}</span></p>
   {% else %}<p class="muted">None added.</p>{% endfor %}
+  </div>
 </section>
 
-<section class="card">
+<section class="doc-section">
   <h2>Work authorization</h2>
+  <div class="doc-body">
   {% if p.authorization %}
   <table class="simple">
     <thead><tr><th>Country</th><th>Authorized to work</th><th>Needs sponsorship</th></tr></thead>
@@ -92,10 +110,12 @@
     </tbody>
   </table>
   {% else %}<p class="muted">No countries added. Authorization is unknown everywhere.</p>{% endif %}
+  </div>
 </section>
 
-<section class="card">
+<section class="doc-section">
   <h2>Preferences and availability</h2>
+  <div class="doc-body">
   <dl class="facts">
     <dt>Roles</dt><dd>{{ p.preferences.roles | join(', ') or '—' }}</dd>
     <dt>Locations</dt><dd>{{ p.preferences.locations | join('; ') or '—' }}</dd>
@@ -103,6 +123,8 @@
     <dt>Available from</dt><dd>{{ p.availability.start_date or '—' }}</dd>
     <dt>Notes</dt><dd>{{ p.availability.notes or '—' }}</dd>
   </dl>
+  </div>
 </section>
+</div>
 {% endif %}
 {% endblock %}
