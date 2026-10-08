@@ -56,6 +56,11 @@ def create_app(settings: Settings | None = None, ai_transport: httpx.BaseTranspo
     def home():
         return RedirectResponse("/jobs", status_code=303)
 
+    @app.get("/favicon.ico", include_in_schema=False)
+    def favicon():
+        # Browsers ask for /favicon.ico even when a page links its icon; point them to the SVG.
+        return RedirectResponse("/static/favicon.svg", status_code=301)
+
     @app.exception_handler(StarletteHTTPException)
     async def http_error(request: Request, exc: StarletteHTTPException):
         return templates.TemplateResponse(
