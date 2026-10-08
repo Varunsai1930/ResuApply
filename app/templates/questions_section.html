@@ -89,6 +89,9 @@
   {% if row.confirmation_outdated %}
     <p class="notice small">Your profile value changed after you confirmed it. Confirm the new value, or the question stays unresolved.</p>
   {% endif %}
+  {% if row.unsupported %}
+    <p class="notice small">Your profile changed and no longer supports this AI-drafted answer ({{ row.unsupported | join('; ') }}). Edit the answer, or draft and accept it again, before approving.</p>
+  {% endif %}
 
   {% if pending %}
   <div class="suggestions">
