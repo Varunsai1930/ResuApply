@@ -1,0 +1,56 @@
+{# The Review section of the Job Workspace. Included with the workspace's context. #}
+{% import "macros.html" as m with context %}
+{% set approval = application.approval %}
+<section class="card" id="review" aria-labelledby="review-title">
+  <div class="section-head">
+    <h2 id="review-title">Review</h2>
+    {{ m.review_badge(review) }}
+  </div>
+  <p class="hint">Approving records that the accepted resume and the questions entered here are ready. It does not mark the job Applied, and it does not cover any other questions on the employer's form. You submit the application yourself on the employer's site.</p>
+
+  {% if package_error %}
+  <div class="notice warn" role="alert" tabindex="-1" data-focus>
+    <p>{{ package_error.message }}</p>
+    {% if package_error.details %}<ul>{% for d in package_error.details %}<li>{{ d }}</li>{% endfor %}</ul>{% endif %}
+  </div>
+  {% endif %}
+
+  {% if review == ReviewState.APPROVED %}
+    <p><strong>Package approved</strong>{% if approval %} on {{ approval.approved_at | local_datetime }} (profile revision {{ approval.profile_revision }}, job revision {{ approval.job_revision }}){% endif %}. Any change to the resume, questions or answers clears the approval.</p>
+    {% if approval and approval.warnings %}
+      <p class="sub-label">Noted when you approved</p>
+      <ul class="plain-list">{% for w in approval.warnings %}<li>{{ w }}</li>{% endfor %}</ul>
+    {% endif %}
+    {% if application.tracking_status != 'applied' %}
+    <p class="hint">When you have submitted it, record Applied under Tracking and keep the approved package as what you submitted.</p>
+    {% endif %}
+  {% else %}
+    {% if review == ReviewState.STALE %}
+      <p class="notice"><strong>Stale.</strong>
+        {% if approval and candidate and approval.profile_revision != candidate.revision and approval.job_revision != job.revision %}Your profile and this job both changed since you approved the package.
+        {% elif approval and candidate and approval.profile_revision != candidate.revision %}Your profile changed since you approved the package (revision {{ approval.profile_revision }} to {{ candidate.revision }}).
+        {% elif approval and approval.job_revision != job.revision %}The job changed since you approved the package (revision {{ approval.job_revision }} to {{ job.revision }}).
+        {% else %}Your profile or the job changed since you approved the package.{% endif %}
+        Check the items below, then approve it again. Packages you already submitted are not affected.</p>
+    {% elif approval %}
+      <p class="notice">The package no longer matches what you approved. Approve it again once it looks right.</p>
+    {% endif %}
+
+    {% if blockers %}
+      <h3>Before you can approve</h3>
+      <ul class="plain-list review-list">{% for b in blockers %}<li>{{ b }}</li>{% endfor %}</ul>
+    {% endif %}
+    {% if warnings %}
+      <h3>Worth a look <span class="muted">(these don't stop approval)</span></h3>
+      <ul class="plain-list review-list">{% for w in warnings %}<li>{{ w }}</li>{% endfor %}</ul>
+    {% endif %}
+
+    {% if not blockers %}
+      <form method="post" action="/jobs/{{ job.id }}/approve" class="form-actions">
+        <button type="submit" class="btn-primary">Approve package</button>
+      </form>
+    {% else %}
+      <p class="hint">Approve package becomes available once the items above are done.</p>
+    {% endif %}
+  {% endif %}
+</section>
