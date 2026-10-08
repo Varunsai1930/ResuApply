@@ -166,15 +166,18 @@ class OpenRouterClient:
     # ------------------------------------------------------------ with one corrective retry
 
     def structured(self, operation: str, messages: list[dict], tool: Tool,
-                   validate: Callable[[dict], T]) -> StructuredResult:
+                   validate: Callable[[dict], T], before_attempt: Callable[[], None] | None = None) -> StructuredResult:
         """Ask for a result and validate it, with one corrective retry for malformed or invalid output.
 
         ``validate`` turns the tool arguments into the final value and raises
         ``ResultProblem`` (or a Pydantic ``ValidationError``) when they break a rule.
+        ``before_attempt`` rechecks permission and input freshness before each outbound request.
         """
         conversation = list(messages)
         total: dict = {}
         for attempt in (1, 2):
+            if before_attempt is not None:
+                before_attempt()
             try:
                 completion = self.complete(operation, conversation, tool, attempt)
             except AIError as exc:
