@@ -3,7 +3,10 @@
 // - warn before leaving a form with unsaved edits,
 // - move focus to the error summary after a failed submit,
 // - show only the fields for the chosen requirement criterion,
-// - disable AI buttons while a request runs, so it can't be sent twice.
+// - disable AI buttons while a request runs, so it can't be sent twice,
+// - let "Use as starting point" fill an answer box from a saved answer (the user still saves it),
+// - count characters or words against an employer's length limit,
+// - show the "save the approved package" option only while Applied is chosen.
 (function () {
   "use strict";
   let counter = 0;
@@ -90,8 +93,62 @@
     }
   });
 
+  // Answer bank: copy a saved answer into the answer box. Nothing is saved until the user submits the form.
+  document.querySelectorAll("[data-use-answer]").forEach(function (button) { button.hidden = false; });
+  document.addEventListener("click", function (event) {
+    const use = event.target.closest("[data-use-answer]");
+    if (!use) return;
+    const form = use.closest("form");
+    const box = form && form.querySelector("textarea[name=text]");
+    const suggestion = use.closest("[data-bank-id]");
+    if (!box || !suggestion) return;
+    const text = suggestion.querySelector(".bank-text").textContent;
+    box.value = text;
+    box.dataset.fromBank = text;
+    form.elements.origin.value = "bank";
+    form.elements.bank_id.value = suggestion.dataset.bankId;
+    box.dispatchEvent(new Event("input", { bubbles: true }));
+    box.focus();
+  });
+  // Editing a copied answer makes it the user's own again.
+  document.addEventListener("input", function (event) {
+    const box = event.target;
+    if (!box.matches || !box.matches("textarea[name=text]") || box.dataset.fromBank === undefined) return;
+    if (box.value !== box.dataset.fromBank) {
+      box.form.elements.origin.value = "user";
+      box.form.elements.bank_id.value = "";
+      delete box.dataset.fromBank;
+    }
+  });
+
+  // Length counters for answers with an employer limit.
+  function updateCounter(box) {
+    document.querySelectorAll("[data-counter-for='" + box.id + "']").forEach(function (counter) {
+      const limit = Number(counter.dataset.limit);
+      const words = counter.dataset.unit === "words";
+      const size = words ? (box.value.trim() ? box.value.trim().split(/\s+/).length : 0) : box.value.length;
+      counter.textContent = size + " of " + limit.toLocaleString() + " " + (words ? "words" : "characters");
+      counter.classList.toggle("over-limit", size > limit);
+    });
+  }
+  document.addEventListener("input", function (event) {
+    if (event.target.id) updateCounter(event.target);
+  });
+
+  // Offer "save the approved package" only while the chosen status is Applied.
+  function syncStatusOptions() {
+    document.querySelectorAll("[data-when-status]").forEach(function (field) {
+      const select = field.closest("form").querySelector("select[name=status]");
+      if (select) field.hidden = select.value !== field.dataset.whenStatus;
+    });
+  }
+  document.addEventListener("change", function (event) {
+    if (event.target.matches("select[name=status]")) syncStatusOptions();
+  });
+
   document.addEventListener("DOMContentLoaded", function () {
     document.querySelectorAll("select[data-criterion-type]").forEach(syncCriterion);
+    syncStatusOptions();
     const summary = document.querySelector("[data-focus]");
     if (summary) summary.focus();
   });
