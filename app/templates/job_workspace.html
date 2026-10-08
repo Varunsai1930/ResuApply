@@ -5,8 +5,8 @@
 <p class="crumbs"><a href="/jobs">← All jobs</a></p>
 <div class="page-head with-actions">
   <div>
+    <p class="eyebrow">{{ job.company }}{% if job.location %} · {{ job.location }}{% endif %}</p>
     <h1>{{ job.title }}</h1>
-    <p class="company-line">{{ job.company }}{% if job.location %} · {{ job.location }}{% endif %}</p>
     <p class="meta">
       Job revision {{ job.revision }} · added {{ job.created_at | local_datetime }}
       {% if job.url %} · <a href="{{ job.url }}" target="_blank" rel="noopener noreferrer nofollow">Posting link ↗</a>{% endif %}
@@ -24,7 +24,7 @@
         <dt>Review</dt><dd>{{ m.review_badge(application.review) }}</dd>
         {% if application.applied_on %}<dt>Applied on</dt><dd>{{ application.applied_on.isoformat() }}</dd>{% endif %}
       </dl>
-      <p class="hint">Review state shows whether the application package is ready. It stays Draft until package review arrives; approving a package never marks a job Applied. You record what you did.</p>
+      <p class="hint">Review is whether the package is ready. Status is what you did; approving a package never marks a job Applied.</p>
 
       {% if status_form.get('error') %}<p class="field-error" role="alert" tabindex="-1" data-focus>{{ status_form.error }}</p>{% endif %}
       <form method="post" action="/jobs/{{ job.id }}/status" class="stack">
