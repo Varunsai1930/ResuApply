@@ -15,6 +15,7 @@ from sqlalchemy import Date, ForeignKey, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from .db import Base, PydanticJSON, UTCDateTime, utcnow
+from .schemas.package import Answer, AnswerDraft, Approval, Question, SubmittedSnapshot
 from .schemas.profile import Profile
 from .schemas.requirements import EvidenceLink, Override, Requirement
 from .schemas.resume import ResumePackage, ResumeRecord
@@ -55,7 +56,9 @@ class Job(Base):
     # requirement ID -> evidence the user confirmed; requirement ID -> manual status with a reason
     evidence: Mapped[dict[str, EvidenceLink]] = mapped_column(PydanticJSON(dict[str, EvidenceLink]), default=dict)
     overrides: Mapped[dict[str, Override]] = mapped_column(PydanticJSON(dict[str, Override]), default=dict)
-    questions: Mapped[JSONList] = mapped_column(PydanticJSON(JSONList), default=list)
+    questions: Mapped[list[Question]] = mapped_column(PydanticJSON(list[Question]), default=list)
+    # Highest question number ever issued ("q4" -> 4), so removed question IDs are never reused.
+    question_counter: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
     created_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utcnow)
     updated_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utcnow)
 
@@ -79,8 +82,11 @@ class Application(Base):
     applied_on: Mapped[date | None] = mapped_column(Date, nullable=True)
     current_proposal: Mapped[ResumeRecord | None] = mapped_column(PydanticJSON(ResumeRecord), nullable=True)
     accepted_package: Mapped[ResumePackage | None] = mapped_column(PydanticJSON(ResumePackage), nullable=True)
-    answers: Mapped[JSONList] = mapped_column(PydanticJSON(JSONList), default=list)
-    submitted_snapshots: Mapped[JSONList] = mapped_column(PydanticJSON(JSONList), default=list)
+    answers: Mapped[list[Answer]] = mapped_column(PydanticJSON(list[Answer]), default=list)
+    # AI proposals for open questions; not answers until the user accepts them.
+    answer_drafts: Mapped[list[AnswerDraft]] = mapped_column(PydanticJSON(list[AnswerDraft]), default=list, server_default="[]")
+    approval: Mapped[Approval | None] = mapped_column(PydanticJSON(Approval), nullable=True)
+    submitted_snapshots: Mapped[list[SubmittedSnapshot]] = mapped_column(PydanticJSON(list[SubmittedSnapshot]), default=list)
     created_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utcnow)
     updated_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utcnow)
 
