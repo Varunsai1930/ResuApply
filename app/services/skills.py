@@ -1,7 +1,6 @@
 """Skill normalization and the alias map, ported from ResuSkill's ``resuskill_core.skills``.
 
 Matching is deliberately simple and explicit: case folding plus a small alias map.
-The free-text technology finder used by claim validation arrives with Milestone 3a.
 Keep the lists identical to ResuSkill.
 """
 
@@ -102,3 +101,38 @@ def canon(name: str) -> str:
 def display(name: str) -> str:
     """The preferred spelling of a skill: the canonical name for known aliases, else as typed."""
     return _alias_index().get(norm_skill(name), name.strip())
+
+
+# These spellings also occur as ordinary words and require their technology case.
+CASE_SENSITIVE: set[str] = {
+    "Go", "R", "C", "Rust", "Swift", "Spring", "React", "Express", "Spark", "Lambda",
+    "Unity", "Excel", "Dart", "Julia", "Lua", "Helm", "Snowflake", "Looker", "Vite",
+    "Jest", "REST", "Rails", "CV", "CI", "TS", "JS", "ML", "Unreal", "Git", "Celery",
+    "Angular", "Flutter", "Keras", "Bootstrap", "Tailwind", "Svelte", "Redux",
+}
+
+
+@lru_cache(maxsize=128)
+def _term_patterns(extra_terms: tuple[str, ...]) -> tuple[tuple[str, re.Pattern], ...]:
+    entries: dict[str, set[str]] = {}
+    for term in [*LEXICON, *extra_terms]:
+        spellings = entries.setdefault(canon(term), set())
+        spellings.update([display(term), term.strip(), *ALIASES.get(display(term), [])])
+    patterns = []
+    for key, spellings in entries.items():
+        for spelling in sorted(spellings, key=len, reverse=True):
+            if not spelling:
+                continue
+            sensitive = spelling in CASE_SENSITIVE or len(spelling) <= 2
+            if sensitive and spelling.islower():
+                spelling = spelling.upper()
+            body = re.escape(spelling).replace(r"\ ", r"[\s-]+")
+            pattern = rf"(?<![\w+#.&-]){body}(?![\w+#&]|-\w)"
+            patterns.append((key, re.compile(pattern, 0 if sensitive else re.IGNORECASE)))
+    return tuple(patterns)
+
+
+def find_terms(text: str, extra_terms=()) -> set[str]:
+    """Canonical keys of known technologies, respecting boundaries and common words."""
+    extras = tuple(sorted({t for t in extra_terms if isinstance(t, str) and t.strip()}))
+    return {key for key, pattern in _term_patterns(extras) if pattern.search(text or "")}
