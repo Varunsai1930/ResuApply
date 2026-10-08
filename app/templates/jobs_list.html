@@ -15,6 +15,12 @@
 {% endif %}
 
 {% if jobs %}
+<ul class="summary-strip" aria-label="Jobs by status">
+  {% for s in TrackingStatus %}
+    {% set n = jobs | selectattr('application.tracking_status', 'equalto', s.value) | list | length %}
+    {% if n %}<li><strong>{{ n }}</strong> {{ s.label }}</li>{% endif %}
+  {% endfor %}
+</ul>
 <table class="tracker">
   <thead>
     <tr><th scope="col">Job</th><th scope="col">Location</th><th scope="col">Review</th><th scope="col">Status</th><th scope="col">Since</th><th scope="col">Added</th></tr>
@@ -37,7 +43,7 @@
 {% else %}
 <div class="empty card">
   <h2>No jobs yet</h2>
-  <p>Add a job by pasting its description. You'll track its status here.</p>
+  <p>Add a job by pasting its description. Each job gets a workspace for its requirements, resume and tracking.</p>
   <a class="btn-primary" href="/jobs/new">Add your first job</a>
 </div>
 {% endif %}
