@@ -1,0 +1,51 @@
+/* Review comparisons stack on phones; accepted resumes use one printable column. */
+.resume-comparison { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); margin: 16px 0; border: 1px solid var(--border); border-radius: 8px; overflow-wrap: anywhere; }
+.resume-originals, .resume-proposed { min-width: 0; padding: 14px 16px; }
+.resume-originals { border-right: 1px solid var(--border); background: var(--bg); }
+.resume-comparison h4 { margin: 0 0 8px; font-size: 0.9rem; }
+.resume-comparison p { margin: 8px 0; white-space: pre-wrap; }
+.resume-review-entry + .resume-review-entry { margin-top: 24px; border-top: 1px solid var(--border); padding-top: 12px; }
+.resume-selection { display: flex; flex-wrap: wrap; gap: 8px 24px; padding-left: 20px; }
+@media (max-width: 600px) {
+  .resume-comparison { grid-template-columns: minmax(0, 1fr); }
+  .resume-originals { border-right: 0; border-bottom: 1px solid var(--border); }
+}
+
+/* Print page: app-styled controls around a plain, ATS-friendly A4 document. */
+.resume-print-page { margin: 0; background: #ebe9e3; color: #17191c; font: 15px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", "Helvetica Neue", Arial, sans-serif; color-scheme: light; }
+.resume-print-controls { max-width: 210mm; margin: 28px auto 0; padding: 0 4px; display: grid; grid-template-columns: 1fr auto; align-items: end; gap: 4px 24px; }
+.resume-print-controls a { grid-column: 1 / -1; color: #6a6f78; font-size: 13px; text-decoration: none; }
+.resume-print-controls a:hover { color: #17191c; text-decoration: underline; }
+.resume-print-controls h1 { margin: 8px 0 0; font: 600 24px/1.2 Charter, "Iowan Old Style", Georgia, serif; }
+.resume-print-controls p { grid-column: 1; margin: 0; color: #474c55; font-size: 14px; }
+.resume-print-controls button { grid-column: 2; grid-row: 2 / span 2; border: 1px solid #1f3a5f; border-radius: 4px; background: #1f3a5f; color: #fff; font: 500 14px/1.2 inherit; font-family: inherit; padding: 10px 16px; cursor: pointer; }
+.resume-print-controls button:hover { background: #162b47; }
+.resume-print-controls button:focus-visible { outline: 2px solid #1f3a5f; outline-offset: 2px; }
+@media (max-width: 640px) {
+  .resume-print-controls { grid-template-columns: 1fr; padding: 0 16px; }
+  .resume-print-controls button { grid-column: 1; grid-row: auto; justify-self: start; margin-top: 8px; }
+}
+.resume-document { box-sizing: border-box; width: 100%; max-width: 210mm; min-height: 297mm; margin: 20px auto 40px; box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08); padding: 17mm 18mm; background: #fff; color: #111; font: 10.5pt/1.4 Arial, Helvetica, sans-serif; overflow-wrap: anywhere; }
+.resume-document h1 { font-size: 22pt; line-height: 1.15; margin: 0 0 7px; }
+.resume-document h2 { font-size: 12pt; margin: 0 0 8px; padding-bottom: 3px; border-bottom: 1px solid #555; text-transform: uppercase; letter-spacing: 0.03em; }
+.resume-document h3 { font-size: 10.5pt; margin: 0 0 2px; line-height: 1.3; }
+.resume-document p { margin: 3px 0; white-space: pre-wrap; }
+.resume-header { margin-bottom: 15px; }
+.resume-document .resume-contact { white-space: normal; }
+.resume-contact span { display: inline; }
+.resume-contact span + span::before { content: " · "; }
+.resume-link { font-size: 9.5pt; }
+.resume-block { margin-top: 15px; }
+.resume-entry + .resume-entry { margin-top: 12px; }
+.resume-entry-head p { font-size: 9.5pt; }
+.resume-document ul { margin: 5px 0 0; padding-left: 18px; }
+.resume-document li { margin: 4px 0; white-space: pre-wrap; }
+@page { size: A4; margin: 15mm 17mm; }
+@media print {
+  .resume-print-page { background: #fff; color: #000; }
+  .resume-print-controls { display: none !important; }
+  .resume-document { max-width: none; width: auto; min-height: 0; margin: 0; padding: 0; color: #000; background: #fff; box-shadow: none; }
+  .resume-document h2, .resume-entry-head { break-after: avoid; page-break-after: avoid; }
+  .resume-document h2, .resume-document h3, .resume-document p, .resume-document li { orphans: 2; widows: 2; }
+  .resume-entry, .resume-block, .resume-document li { break-inside: auto; page-break-inside: auto; }
+}
