@@ -17,6 +17,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from .db import Base, PydanticJSON, UTCDateTime, utcnow
 from .schemas.profile import Profile
 from .schemas.requirements import EvidenceLink, Override, Requirement
+from .schemas.resume import ResumePackage, ResumeRecord
 from .schemas.tracking import Note, ReviewState, StatusEvent, TrackingStatus
 
 JSONList = list[dict[str, Any]]
@@ -76,8 +77,8 @@ class Application(Base):
     status_history: Mapped[list[StatusEvent]] = mapped_column(PydanticJSON(list[StatusEvent]), default=list)
     notes: Mapped[list[Note]] = mapped_column(PydanticJSON(list[Note]), default=list)
     applied_on: Mapped[date | None] = mapped_column(Date, nullable=True)
-    current_proposal: Mapped[JSONDict | None] = mapped_column(PydanticJSON(JSONDict), nullable=True)
-    accepted_package: Mapped[JSONDict | None] = mapped_column(PydanticJSON(JSONDict), nullable=True)
+    current_proposal: Mapped[ResumeRecord | None] = mapped_column(PydanticJSON(ResumeRecord), nullable=True)
+    accepted_package: Mapped[ResumePackage | None] = mapped_column(PydanticJSON(ResumePackage), nullable=True)
     answers: Mapped[JSONList] = mapped_column(PydanticJSON(JSONList), default=list)
     submitted_snapshots: Mapped[JSONList] = mapped_column(PydanticJSON(JSONList), default=list)
     created_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utcnow)
