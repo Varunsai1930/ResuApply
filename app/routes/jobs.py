@@ -56,6 +56,8 @@ def _source_groups(candidate) -> list[dict]:
 
 
 def _render_workspace(request: Request, session: Session, job: Job, msg: str = "", status_code: int = 200, **forms):
+    from .resume import presentation_state
+
     settings = request.app.state.settings
     candidate = get_candidate(session)
     results = checklist.evaluate(job, candidate.profile if candidate else None)
@@ -83,6 +85,9 @@ def _render_workspace(request: Request, session: Session, job: Job, msg: str = "
             "source_groups": _source_groups(candidate),
             "settings": settings,
             "sharing": sharing,
+            "resume_state": presentation_state(session, settings, job, candidate),
+            "resume_error": forms.get("resume_error"),
+            "resume_notice": forms.get("resume_notice"),
             "has_proposal": operations.cached_proposal(session, job, settings.openrouter_model) is not None,
             "active": "jobs",
         },
