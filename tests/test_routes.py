@@ -235,7 +235,8 @@ def test_create_job_and_open_workspace(client):
     assert '<h2 id="requirements-title">Requirements</h2>' in text
     assert 'id="resume-title">Resume</h2>' in text
     for section in ("Questions", "Review"):
-        assert f'id="{section.lower()}-title">{section} <span class="soon">' in text
+        assert f'id="{section.lower()}-title">{section}</h2>' in text
+    assert "Milestone 3b" not in text
     assert 'href="https://jobs.example.com/backend-intern" target="_blank" rel="noopener noreferrer nofollow"' in text
 
 

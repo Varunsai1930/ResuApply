@@ -61,7 +61,7 @@ def test_manual_resume_review_accept_print_without_ai(client, sample_profile):
     workspace = client.get(f"/jobs/{job_id}").text
     assert "Use profile as-is" in workspace
     assert 'action="/jobs/%d/resume/generate"' % job_id not in workspace
-    assert "Milestone 3b" in workspace and "Milestone 3a" not in workspace
+    assert "Milestone 3" not in workspace
 
     review = manual_proposal(client, job_id)
     assert "Original profile bullet" in review.text and "Proposed bullet" in review.text
