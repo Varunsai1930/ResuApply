@@ -7,6 +7,7 @@ Nothing leaves your machine. The stand-in is deliberately simple and not a model
   (excerpt = the line, no criterion);
 - suggest_evidence suggests bullets that share a longer word with the requirement.
 - tailor_resume selects the shared entries and keeps their original bullet text.
+- return_answers drafts each open question by quoting the first shared bullet that fits its limit.
 Use a separate data folder (RESUAPPLY_DATA_DIR) if you don't want test data in data/.
 """
 
@@ -66,11 +67,30 @@ def _tailor(user: str) -> dict:
     }
 
 
+def _answer(user: str) -> dict:
+    questions = json.loads(user.split("<application_questions>", 1)[1].split("</application_questions>", 1)[0])
+    context = json.loads(user.split("<candidate_content>", 1)[1].split("</candidate_content>", 1)[0])
+    bullets = [b for s in ("experience", "projects", "education") for e in context[s] for b in e["bullets"]]
+    summary = [context["summary"]] if context.get("summary") else []
+
+    def fits(text: str, question: dict) -> bool:
+        size = len(text.split()) if question["unit"] == "words" else len(text)
+        return not question["limit"] or size <= question["limit"]
+
+    answers = []
+    for question in questions:
+        quote = next((b for b in [*bullets, *summary] if fits(b["text"], question)), None)
+        if quote:
+            answers.append({"question_id": question["id"], "text": quote["text"], "sources": [quote["id"]]})
+    return {"answers": answers}
+
+
 def _handle(request: httpx.Request) -> httpx.Response:
     body = json.loads(request.content)
     tool = body["tools"][0]["function"]["name"]
     user = body["messages"][1]["content"]
-    handlers = {"return_requirements": _parse_job, "return_evidence_suggestions": _suggest, "return_resume": _tailor}
+    handlers = {"return_requirements": _parse_job, "return_evidence_suggestions": _suggest, "return_resume": _tailor,
+                "return_answers": _answer}
     args = handlers[tool](user)
     return httpx.Response(200, json={"choices": [{"message": {"tool_calls": [
         {"id": "fake", "type": "function", "function": {"name": tool, "arguments": json.dumps(args)}}]}}],
