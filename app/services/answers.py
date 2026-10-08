@@ -69,6 +69,18 @@ def check_length(text: str, limit: int | None, unit: str) -> str | None:
     return None
 
 
+def answer_problems(job: Job, question: Question, answer: Answer | None, profile: Profile | dict) -> list[str]:
+    """Why an accepted AI-drafted answer no longer holds against the current profile; empty when it does.
+
+    Drafts are validated when accepted, but the profile can change afterwards (a cited bullet
+    edited or removed). Like the accepted resume, such an answer must be checked again before
+    the package is approved. User-written and profile-filled answers are the user's own words.
+    """
+    if answer is None or answer.skipped or answer.origin != "ai_draft":
+        return []
+    return validate_answer(profile, job, answer.text, answer.sources, question.limit, question.limit_unit)
+
+
 def validate_answer(profile: Profile | dict, job: Job | dict, text: str, cited: list[str],
                     limit: int | None, unit: str) -> list[str]:
     """Problems with an AI-drafted answer against the canonical profile; empty when it passes."""
