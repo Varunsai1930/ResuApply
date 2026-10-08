@@ -1,0 +1,86 @@
+{% extends "base.html" %}
+{% block title %}Review resume{% endblock %}
+{% block extra_head %}<link rel="stylesheet" href="{{ asset('resume.css') }}">{% endblock %}
+{% macro claim_review(claim, label) %}
+<article class="resume-comparison">
+  <div class="resume-originals">
+    <h4>Original profile {{ label }}</h4>
+    {% for original in claim.originals %}
+      <p><span class="id-badge">{{ original.id }}</span> {{ original.text }}</p>
+    {% else %}<p class="muted">No source text.</p>{% endfor %}
+  </div>
+  <div class="resume-proposed">
+    <h4>Proposed {{ label }}</h4>
+    <p>{{ claim.text }}</p>
+    <p class="hint">Sources: {{ claim.sources | join(', ') }}</p>
+  </div>
+</article>
+{% endmacro %}
+{% block content %}
+<p class="crumbs"><a href="/jobs/{{ job.id }}#resume">← Job workspace</a></p>
+<div class="page-head">
+  <h1>Review resume</h1>
+  <p class="lead">{{ job.title }} at {{ job.company }}</p>
+  <p class="meta">Profile revision {{ record.profile_revision }} · job revision {{ record.job_revision }} · prepared {{ record.created_at | local_datetime }}</p>
+</div>
+{% if resume_state.proposal_stale %}
+  <section class="card">
+    <h2>This proposal is out of date</h2>
+    <p>The profile, job or AI inputs changed. Prepare a fresh proposal so its sources and fixed facts can be reviewed together.</p>
+    <form method="post" action="/jobs/{{ job.id }}/resume/profile" class="inline-form"><button class="btn-secondary" type="submit">Use current profile as-is</button></form>
+    <p><a href="/jobs/{{ job.id }}#resume">Return to resume options</a></p>
+  </section>
+{% elif rendered %}
+  <section class="card">
+    <h2>Review checks</h2>
+    <p class="notice">The proposal passed source and format checks. Read each proposed sentence against its original: confirm the meaning, scope and claims before accepting.</p>
+    <p>Employer names, titles, dates, degrees, certifications and contact details below come from your saved profile.</p>
+    {% if record.warnings %}<ul class="resume-warnings">{% for warning in record.warnings %}<li>{{ warning }}</li>{% endfor %}</ul>{% endif %}
+    <p class="hint">{{ 'Prepared with AI. Its wording needs your review.' if record.model else 'Prepared from your profile without AI rewriting.' }}</p>
+  </section>
+
+  <section class="card">
+    <h2>Selection and order</h2>
+    <ul class="resume-selection">{% for section in selection %}<li>{{ section.label }}: {{ section.selected }} of {{ section.available }} selected</li>{% endfor %}</ul>
+    <p class="hint">Selected entries and bullets appear below in the order they will print.</p>
+    <h3>Contact</h3>
+    <p>{{ rendered.contact.name }}{% if rendered.contact.email %} · {{ rendered.contact.email }}{% endif %}{% if rendered.contact.phone %} · {{ rendered.contact.phone }}{% endif %}{% if rendered.contact.location %} · {{ rendered.contact.location }}{% endif %}</p>
+    {% for label, value in rendered.contact.links.items() %}{% if value %}<p>{{ label | capitalize }}: {{ value }}</p>{% endif %}{% endfor %}
+    <h3>Skills</h3><p>{{ rendered.skills | join(', ') if rendered.skills else 'None selected' }}</p>
+    {% for title, entries in [('Education', rendered.education), ('Certifications', rendered.certifications)] %}
+      <h3>{{ title }}</h3>
+      <ol>{% for entry in entries %}<li>
+        <span class="id-badge">{{ entry.id }}</span>
+        {% if title == 'Education' %}{{ entry.institution }} · {{ entry.degree }}{% if entry.field %}, {{ entry.field }}{% endif %}{% if entry.start or entry.end %} · {{ entry.start }}{% if entry.start and entry.end %} – {% endif %}{{ entry.end }}{% endif %}{% if entry.gpa %} · GPA {{ entry.gpa }}{% endif %}
+        {% else %}{{ entry.name }}{% if entry.issuer %} · {{ entry.issuer }}{% endif %}{% if entry.date %} · {{ entry.date }}{% endif %}{% endif %}
+        {% if title == 'Education' and entry.bullets %}<ul>{% for bullet in entry.bullets %}<li><span class="id-badge">{{ bullet.id }}</span> {{ bullet.text }}</li>{% endfor %}</ul>{% endif %}
+      </li>{% else %}<li class="muted">None selected</li>{% endfor %}</ol>
+    {% endfor %}
+  </section>
+
+  {% if rendered.summary %}<section class="card"><h2>Summary</h2>{{ claim_review(rendered.summary, 'summary') }}</section>{% endif %}
+  {% for title, entries in [('Experience', rendered.experience), ('Projects', rendered.projects)] %}
+    {% if entries %}<section class="card">
+      <h2>{{ title }}</h2>
+      {% for entry in entries %}
+        <div class="resume-review-entry">
+          <h3>{{ loop.index }}. {% if title == 'Experience' %}{{ entry.title }}{% if entry.title %} · {% endif %}{{ entry.organization }}{% else %}{{ entry.name }}{% if entry.role %} · {{ entry.role }}{% endif %}{% endif %}</h3>
+          <p class="meta"><span class="id-badge">{{ entry.id }}</span>{% if entry.location %} · {{ entry.location }}{% endif %}{% if entry.start or entry.end %} · {{ entry.start }}{% if entry.start and entry.end %} – {% endif %}{{ entry.end }}{% endif %}</p>
+          {% if entry.link %}<p class="meta">Project link: {{ entry.link }}</p>{% endif %}
+          {% if entry.technologies %}<p class="hint">Profile technologies: {{ entry.technologies | join(', ') }}</p>{% endif %}
+          {% for bullet in entry.bullets %}{{ claim_review(bullet, 'bullet') }}{% else %}<p class="muted">No bullets selected for this entry.</p>{% endfor %}
+        </div>
+      {% endfor %}
+    </section>{% endif %}
+  {% endfor %}
+  <section class="card">
+    <h2>Accept this resume</h2>
+    <p>Accept after checking the proposed wording, selected content and fixed facts. The resume becomes available to print.</p>
+    {% if resume_state.accepted %}<p class="hint">This replaces your previously accepted resume.</p>{% endif %}
+    <form method="post" action="/jobs/{{ job.id }}/resume/accept">
+      <input type="hidden" name="proposal_token" value="{{ proposal_token }}">
+      <button class="btn-primary" type="submit">Accept resume</button>
+    </form>
+  </section>
+{% endif %}
+{% endblock %}
