@@ -23,11 +23,13 @@ class QuestionRow:
     item: answer_service.ResolvedAnswer
     category_label: str
     suggestions: list[answer_service.BankSuggestion] = field(default_factory=list)
-    cited: list[tuple[str, str]] = field(default_factory=list)  # (source ID, text) behind an AI draft or answer
+    cited: list[tuple[str, str]] = field(default_factory=list)  # (source ID, text) behind the accepted AI answer
+    draft_cited: list[tuple[str, str]] = field(default_factory=list)  # (source ID, text) behind the pending draft
     can_bank: bool = False
     draft_outdated: bool = False  # the pending draft was made before the latest profile edit
     confirmation_outdated: bool = False  # the profile value changed after the user confirmed it
     unsupported: list[str] = field(default_factory=list)  # an accepted AI answer the profile no longer backs
+    replacement: bool = False  # the pending draft would replace an accepted answer
     manual_name_part: bool = False  # a first- or last-name question: typed by the user, never from the profile
     confirmation_token: str = ""  # sent with Confirm / Use the profile value
     draft_token: str = ""  # sent with Accept draft
@@ -49,22 +51,20 @@ def rows(session: Session, job: Job, application: Application, candidate: Candid
             suggestions = answer_service.bank_suggestions(session, question.text, MAX_SUGGESTIONS)
             if answer:  # don't offer what is already the answer
                 suggestions = [s for s in suggestions if s.entry.answer != answer.text]
-        cited = []
-        if draft is not None and item.label == answer_service.LABELS["pending"]:
-            cited = _cited(profile_sources, draft.sources)
-        elif accepted and answer.origin == "ai_draft":
-            cited = _cited(profile_sources, answer.sources)
+        cited = _cited(profile_sources, answer.sources) if accepted and answer.origin == "ai_draft" else []
         result.append(QuestionRow(
             item=item,
             category_label=q_rules.CATEGORY_LABELS[question.category],
             suggestions=suggestions,
             cited=cited,
+            draft_cited=_cited(profile_sources, draft.sources) if draft is not None else [],
             can_bank=answer_service.bank_block(question, answer) is None,
             draft_outdated=draft is not None and draft.profile_revision != candidate.revision,
             confirmation_outdated=bool(
                 answer and answer.confirmed and item.value is not None and answer.text != item.value
             ),
             unsupported=answer_service.answer_problems(job, question, answer, candidate.profile),
+            replacement=draft is not None and accepted,
             manual_name_part=q_rules.name_part(question.factual_key or "", question.text) is not None,
             confirmation_token=answer_service.confirmation_token(job, question, item.value, candidate),
             draft_token=answer_service.draft_token(job, question, draft) if draft is not None else "",
@@ -72,6 +72,6 @@ def rows(session: Session, job: Job, application: Application, candidate: Candid
     return result
 
 
-def draft_count(job: Job, application: Application) -> int:
-    """How many open questions could be drafted."""
-    return len(answer_service.draft_targets(job, application))
+def draft_count(job: Job, application: Application, candidate: Candidate) -> int:
+    """How many open questions could be drafted, by the same rule the drafting request uses."""
+    return len(answer_service.draft_targets(job, application, candidate.profile))

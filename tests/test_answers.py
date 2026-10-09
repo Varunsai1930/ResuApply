@@ -443,7 +443,21 @@ def test_draft_targets_are_open_unanswered_questions(session, job, app_):
     add(session, job, "Email?")
     svc.set_answer(session, job, app_, b.id, "A bot")
     svc.skip_answer(session, job, app_, c.id)
-    assert [q.id for q in svc.draft_targets(job, app_)] == [a.id]
+    assert [q.id for q in svc.draft_targets(job, app_, SAMPLE_PROFILE)] == [a.id]
+
+
+def test_draft_targets_include_ai_answers_the_profile_no_longer_supports(session, job, app_, candidate):
+    supported, unsupported, own = add(session, job, "Why us?"), add(session, job, "Describe a project"), add(session, job, "Why now?")
+    set_drafts(app_, make_draft(supported.id, "Wrote unit tests for the billing module", ("exp-1-b3",)),
+               make_draft(unsupported.id, "Served reporting data to 1,200 internal users"))
+    accept(session, job, supported.id, candidate)
+    accept(session, job, unsupported.id, candidate)
+    svc.set_answer(session, job, app_, own.id, "Built a Flask REST API in Python years ago")  # the user's own words
+    assert svc.draft_targets(job, app_, candidate.profile) == []
+    edited = candidate.profile.model_dump()
+    edited["experience"][0]["bullets"][0]["text"] = "Built a Flask REST API in Python for internal reporting"
+    profile_service.save(session, edited)
+    assert [q.id for q in svc.draft_targets(job, app_, candidate.profile)] == [unsupported.id]
 
 
 # ---------------------------------------------------------------- answer bank

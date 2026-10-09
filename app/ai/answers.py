@@ -9,6 +9,10 @@ drafts and everything else exactly as they were.
 A draft is a proposal. It becomes the answer only when the user accepts it, and it is
 validated again against the profile as it is then (``services.answers.accept_draft``).
 Storing drafts never clears approval: drafts are not package content.
+
+An accepted AI answer that the current profile no longer supports is drafted again like an
+unanswered question. The accepted answer stays as it is until the user accepts the replacement.
+The model request runs outside any writer transaction; only the final check and save hold it.
 """
 
 from __future__ import annotations
@@ -49,11 +53,11 @@ class DraftedAnswers(BaseModel):
     answers: list[_Answer]
 
 
-def target_payload(job: Job, application) -> list[dict]:
-    """The questions sent to the model: open ones without an accepted or skipped answer."""
+def target_payload(job: Job, application, profile) -> list[dict]:
+    """The questions sent to the model: ``services.answers.draft_targets`` against this profile."""
     return [
         {"id": q.id, "text": q.text, "limit": q.limit, "unit": q.limit_unit}
-        for q in answer_service.draft_targets(job, application)
+        for q in answer_service.draft_targets(job, application, profile)
     ]
 
 
@@ -67,7 +71,7 @@ def _assert_current(session: Session, settings: Settings, job: Job, candidate: C
         session.refresh(approval)
     current = outbound.state(session, settings, candidate)
     if (candidate.revision != profile_revision or job.revision != job_revision
-            or current.context_hash != context_hash or target_payload(job, job.application) != targets):
+            or current.context_hash != context_hash or target_payload(job, job.application, candidate.profile) != targets):
         raise AnswerError(
             "Your profile, job, sharing choices or questions changed while the answers were being drafted. "
             "Review the current information and draft again. Nothing was saved.",
@@ -98,9 +102,10 @@ def draft_answers(session: Session, client: OpenRouterClient, settings: Settings
         if context is None or context_hash is None:
             raise operations.ApprovalNeeded()
         application = job.application
-        targets = target_payload(job, application)
+        targets = target_payload(job, application, candidate.profile)
         if not targets:
-            raise NothingToDo("Every open question already has an answer, or there are no open questions to draft.")
+            raise NothingToDo("Every open question already has an answer your profile supports, "
+                              "or there are no open questions to draft.")
         profile_revision, job_revision = candidate.revision, job.revision
         prompt_revision = prompts.DRAFT_ANSWERS_REVISION
         job_data = job_context(job)

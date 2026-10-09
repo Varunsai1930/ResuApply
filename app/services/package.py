@@ -154,7 +154,8 @@ def check(job: Job, application: Application, candidate: Candidate | None) -> tu
             if problems:
                 blockers.append(f'"{_short(item.question.text)}": the AI-drafted answer is no longer supported by '
                                 f"your profile ({'; '.join(problems)}). Edit it, or draft and accept it again.")
-    pending = [f'"{_short(a.question.text)}"' for a in items if a.label == answer_service.LABELS["pending"]]
+    pending = [f'"{_short(a.question.text)}"' for a in items
+               if a.draft is not None and a.question.category == q_rules.OPEN and not a.skipped]
     if pending:
         warnings.append(f"AI answer drafts waiting for your review: {', '.join(pending)}.")
     package = application.accepted_package

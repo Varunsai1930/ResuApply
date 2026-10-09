@@ -225,7 +225,7 @@ def test_only_open_unanswered_questions_are_targeted(session, job, candidate, tr
     fake_ai.push(reply(item(unknown.id)), reply(item(unknown.id)))
     with pytest.raises(AIError):
         draft_all(session, ai_client, trusted, job, candidate)
-    assert other.id in {t["id"] for t in answers_ai.target_payload(job, job.application)}
+    assert other.id in {t["id"] for t in answers_ai.target_payload(job, job.application, candidate.profile)}
 
 
 def test_nothing_to_do_sends_nothing(session, job, candidate, trusted, fake_ai, ai_client, why):

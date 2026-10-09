@@ -59,7 +59,7 @@
 {% set item = row.item %}
 {% set q = item.question %}
 {% set err = question_error if (question_error and question_error.id == q.id) else none %}
-{% set pending = item.draft is not none and 'pending' in item.label %}
+{% set pending = item.draft is not none and q.category == 'open' and not item.skipped %}
 {% set answered = item.answer is not none and not item.answer.skipped %}
 {% set own_answer = answered and item.answer.origin in ['user', 'bank'] %}
 {% set tone = 'tag' if (item.skipped or pending) else ('badge check-met' if item.resolved else 'badge check-unknown') %}
@@ -95,23 +95,27 @@
     <p class="notice small">Your profile value changed after you confirmed it. Confirm the new value, or the question stays unresolved.</p>
   {% endif %}
   {% if row.unsupported %}
-    <p class="notice small">Your profile changed and no longer supports this AI-drafted answer ({{ row.unsupported | join('; ') }}). Edit the answer, or draft and accept it again, before approving.</p>
+    <p class="notice small">Your profile changed and no longer supports this AI-drafted answer ({{ row.unsupported | join('; ') }}). Edit the answer, or draft a replacement with AI and accept it, before approving. This answer stays until you accept a replacement.</p>
   {% endif %}
 
   {% if pending %}
   <div class="suggestions">
+    {% if row.replacement %}
+    <p class="sub-label">Replacement AI draft <span class="muted">(your accepted answer above stays until you accept this)</span></p>
+    {% else %}
     <p class="sub-label">AI draft <span class="muted">(not an answer until you accept it)</span></p>
+    {% endif %}
     <div class="suggestion">
       <div class="answer-text">{{ item.draft.text }}</div>
-      {% if row.cited %}<p class="hint">Built from these parts of your profile:</p>{{ sources_list(row.cited) }}{% endif %}
+      {% if row.draft_cited %}<p class="hint">Built from these parts of your profile:</p>{{ sources_list(row.draft_cited) }}{% endif %}
       {% if row.draft_outdated %}<p class="hint">Drafted before your latest profile edit. Accepting checks it against the current profile again.</p>{% endif %}
       <div class="suggestion-actions">
         <form method="post" action="/jobs/{{ job.id }}/questions/{{ q.id }}/draft/accept" class="inline-form">
           <input type="hidden" name="draft_token" value="{{ row.draft_token }}">
-          <button type="submit" class="btn-small">Accept draft</button>
+          <button type="submit" class="btn-small">{{ 'Accept replacement' if row.replacement else 'Accept draft' }}</button>
         </form>
         <form method="post" action="/jobs/{{ job.id }}/questions/{{ q.id }}/draft/discard" class="inline-form">
-          <button type="submit" class="btn-small danger">Discard draft</button>
+          <button type="submit" class="btn-small danger">{{ 'Discard replacement' if row.replacement else 'Discard draft' }}</button>
         </form>
       </div>
     </div>

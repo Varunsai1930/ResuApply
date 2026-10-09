@@ -9,6 +9,8 @@ Ported from ResuSkill's ``resuskill_core.package`` (questions, answers, resoluti
   accepts it, and it is re-validated against the *current* profile at that moment.
 - Any change to package content (questions, answers, categories) clears approval and returns
   the application to Draft. Storing drafts does not: they are proposals, not package content.
+- An accepted AI answer the current profile no longer supports can be drafted again. The
+  replacement waits beside the accepted answer until the user accepts or discards it.
 - A factual value over the question's length limit is shown but never shortened: it stays
   unresolved until the user writes their own answer or skips an optional question.
 - Sensitive answers are never saved to the answer bank. That is a hard rule, not a preference.
@@ -362,7 +364,7 @@ def accept_draft(session: Session, job: Job, application: Application, qid: str,
 
 
 def discard_draft(session: Session, job: Job, application: Application, qid: str) -> None:
-    """Throw away a pending draft. Drafts are not package content, so approval is untouched."""
+    """Throw away a pending draft. Drafts are not package content, so approval and the answer are untouched."""
     with transactions.write(session, job):
         _find(job, qid)
         if _draft_for(application, qid) is None:
@@ -395,7 +397,7 @@ class ResolvedAnswer:
     skipped: bool = False
     value: str | None = None  # the current profile value, for factual and sensitive-factual questions
     answer: Answer | None = None
-    draft: AnswerDraft | None = None
+    draft: AnswerDraft | None = None  # a pending AI draft, or a replacement beside an accepted answer
     problem: str | None = None  # why the shown profile value can't be used as it is (over the length limit)
 
 
@@ -442,10 +444,20 @@ def resolve_all(job: Job, application: Application, profile: Profile) -> list[Re
     return [resolve_answer(q, answers.get(q.id), drafts.get(q.id), profile) for q in job.questions]
 
 
-def draft_targets(job: Job, application: Application) -> list[Question]:
-    """Open questions with no accepted (or skipped) answer: the ones worth drafting."""
-    answered = {a.question_id for a in application.answers}
-    return [q for q in job.questions if q.category == q_rules.OPEN and q.id not in answered]
+def draft_targets(job: Job, application: Application, profile: Profile | dict) -> list[Question]:
+    """The open questions worth drafting: those without an answer, and those whose accepted AI
+    answer the current profile no longer supports.
+
+    Skipped questions, the user's own answers (typed or from the bank) and AI answers the
+    profile still supports are never drafted. The draft button, the request and the freshness
+    checks all use this one rule.
+    """
+    answers = {a.question_id: a for a in application.answers}
+    return [
+        q for q in job.questions
+        if q.category == q_rules.OPEN
+        and (q.id not in answers or answer_problems(job, q, answers[q.id], profile))
+    ]
 
 
 # ---------------------------------------------------------------- answer bank

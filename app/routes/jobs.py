@@ -98,7 +98,7 @@ def _render_workspace(request: Request, session: Session, job: Job, msg: str = "
             "resume_error": forms.get("resume_error"),
             "resume_notice": forms.get("resume_notice"),
             "question_rows": question_rows.rows(session, job, application, candidate) if candidate else [],
-            "draft_count": question_rows.draft_count(job, application),
+            "draft_count": question_rows.draft_count(job, application, candidate) if candidate else 0,
             "pending_drafts": bool(application.answer_drafts),
             "question_error": forms.get("question_error"),
             "question_form": forms.get("question_form") or {},
