@@ -191,3 +191,38 @@ def test_the_single_record_answers_only_when_no_country_is_identified(profile):
     assert factual_value("authorization", "Are you authorized to work in France?", us_only) is None
     france = with_authorization(profile, Authorization(country="FR", authorized=True, requires_sponsorship=False))
     assert factual_value("authorization", "Are you authorized to work in France?", france) == "Yes"
+
+
+# ---------------------------------------------------------------- name parts
+
+@pytest.mark.parametrize("text,key", [
+    ("First name", "first_name"),
+    ("Legal first name", "first_name"),
+    ("Given name", "first_name"),
+    ("Last name", "last_name"),
+    ("Surname", "last_name"),
+    ("Family name", "last_name"),
+    ("Full name", "name"),
+    ("First and last name", "name"),
+    ("First name / Last name", "name"),
+    ("What is your legal name?", "name"),
+])
+def test_first_and_last_name_questions_are_classified_separately(text, key):
+    assert classify(text) == ("factual", key)
+
+
+@pytest.mark.parametrize("key,text", [
+    ("first_name", "First name"),
+    ("last_name", "Last name"),
+    # Saved before name parts had keys: read by their text, never answered with the full name.
+    ("name", "First name"),
+    ("name", "Legal last name"),
+    ("name", "Surname"),
+])
+def test_name_parts_are_never_split_from_the_full_name(profile, key, text):
+    assert factual_value(key, text, profile) is None
+
+
+def test_full_name_questions_still_use_the_profile(profile):
+    assert factual_value("name", "Full name", profile) == "Jordan Example"
+    assert factual_value("name", "First and last name", profile) == "Jordan Example"

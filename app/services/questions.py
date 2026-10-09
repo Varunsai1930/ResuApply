@@ -7,8 +7,11 @@ Sensitive, Open-ended or Unrecognized purely by keyword rules.
 Differences from ResuSkill: the profile is our ``Profile`` model (or its dict), and the
 graduation date comes from an education entry's ``end`` (there is no ``graduation`` field).
 
-One rule is stricter than ResuSkill's:
+Two rules are stricter than ResuSkill's:
 
+- First-name and last-name questions have their own keys and no profile value. The profile
+  stores one full name, and splitting it is guesswork, so the user types name parts. Questions
+  saved earlier with the key ``name`` are read through their text the same way.
 - Work authorization looks for an explicit country name before an abbreviation, and only the
   capitalized ``US`` (or ``U.S.``, ``USA``) counts as one: "Tell us ..." names no country.
 """
@@ -47,7 +50,10 @@ _AUTH = re.compile(
     r"legally (?:able|permitted|allowed|entitled) to work)"
 )
 _FACTUAL = [
-    ("name", re.compile(r"\b(full name|first name|last name|legal name|your name|preferred name)\b")),
+    ("name", re.compile(
+        r"\b(full name|first name|last name|legal name|your name|preferred name|given name|family name|"
+        r"surname|forename)\b"
+    )),
     ("email", re.compile(r"\be-?mail\b")),
     ("phone", re.compile(r"\b(phone|mobile|telephone)\b")),
     ("linkedin", re.compile(r"\blinkedin\b")),
@@ -66,6 +72,12 @@ _OPEN = re.compile(
     r"^(why|what|how|describe|tell us|explain|share|walk us|give an example|please describe)\b|"
     r"\bwhy\b|tell us about|describe|cover letter|anything else|interest(?:s|ed)? you"
 )
+# Name parts: the profile has only the full name, so these are always answered by the user.
+NAME_PARTS = ("first_name", "last_name")
+_FIRST_NAME = re.compile(r"\b(?:first|given)\s+name\b|\bforenames?\b")
+_LAST_NAME = re.compile(r"\b(?:last|family)\s+name\b|\bsurname\b")
+_BOTH_NAMES = re.compile(r"\bfirst\s+(?:and|&|/)\s+(?:last|family)\s+names?\b")
+
 # Places the country table would misread in a question. None marks a place that is not one
 # country (a region, or a US state that shares a country's name): it makes the answer unknown.
 _PLACES = country_names() | {
@@ -74,6 +86,27 @@ _PLACES = country_names() | {
     "north america": None, "south america": None, "latin america": None, "central america": None,
 }
 _LONGEST_PLACE = max(len(name.split()) for name in _PLACES)
+
+
+def name_part(key: str, question: str) -> str | None:
+    """``first_name`` or ``last_name`` when a name question asks for only that part, else None.
+
+    Applies to the ``name`` key too, so questions saved before name parts had their own keys
+    are read by their text and never answered with the full name.
+    """
+    if key in NAME_PARTS:
+        return key
+    if key != "name":
+        return None
+    q = norm_text(question)
+    first, last = _FIRST_NAME.search(q), _LAST_NAME.search(q)
+    if _BOTH_NAMES.search(q) or (first and last):
+        return None  # asks for both parts together: the full name
+    if first:
+        return "first_name"
+    if last:
+        return "last_name"
+    return None
 
 
 def classify(text: str) -> tuple[str, str | None]:
@@ -91,7 +124,7 @@ def classify(text: str) -> tuple[str, str | None]:
         return UNKNOWN, None
     for key, regex in _FACTUAL:
         if regex.search(q):
-            return FACTUAL, key
+            return FACTUAL, name_part(key, text) or key
     if _OPEN.search(q):
         return OPEN, None
     return UNKNOWN, None
@@ -166,6 +199,8 @@ def factual_value(key: str, question: str, profile: Profile | dict) -> str | Non
     links = contact.get("links") or {}
     education = sorted(prof.get("education") or [], key=lambda e: e.get("end") or "", reverse=True)
     latest = education[0] if education else {}
+    if name_part(key, question):
+        return None  # typed by the user: the stored full name is never split
     if key in ("name", "email", "phone", "location"):
         return contact.get(key) or None
     if key in ("linkedin", "github", "portfolio"):
