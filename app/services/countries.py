@@ -268,10 +268,13 @@ ZM|Zambia
 ZW|Zimbabwe"""
 
 _COUNTRIES: dict[str, str] = {}
+_NAMES: dict[str, str] = {}
 for _row in _COUNTRY_NAMES.splitlines():
     _code, *_names = _row.split("|")
     for _name in [_code, *_names]:
         _COUNTRIES[_key(_name)] = _code
+    for _name in _names:
+        _NAMES[_key(_name)] = _code
 
 
 def normalize_country(value: str) -> str:
@@ -282,3 +285,18 @@ def normalize_country(value: str) -> str:
     if code is None:
         raise ValueError("Enter a valid two-letter country code or a recognized country name.")
     return code
+
+
+def words(value: str) -> list[str]:
+    """The words of running text, case kept and accents dropped, for matching country names."""
+    plain = unicodedata.normalize("NFKD", value)
+    plain = "".join(char for char in plain if not unicodedata.combining(char))
+    return re.findall(r"[^\W_]+", plain)
+
+
+def country_names() -> dict[str, str]:
+    """Every English name and alternate name, as lowercase words, mapped to its code.
+
+    The bare two-letter codes are left out: in running text "in", "us" or "it" are words.
+    """
+    return dict(_NAMES)

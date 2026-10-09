@@ -6,6 +6,11 @@ Sensitive, Open-ended or Unrecognized purely by keyword rules.
 
 Differences from ResuSkill: the profile is our ``Profile`` model (or its dict), and the
 graduation date comes from an education entry's ``end`` (there is no ``graduation`` field).
+
+One rule is stricter than ResuSkill's:
+
+- Work authorization looks for an explicit country name before an abbreviation, and only the
+  capitalized ``US`` (or ``U.S.``, ``USA``) counts as one: "Tell us ..." names no country.
 """
 
 from __future__ import annotations
@@ -14,6 +19,7 @@ import re
 
 from ..schemas.profile import Profile
 from . import profile as profile_service
+from .countries import country_names, words
 from .text import norm_text
 
 FACTUAL, SENSITIVE_FACTUAL, SENSITIVE, OPEN, UNKNOWN = "factual", "sensitive_factual", "sensitive", "open", "unknown"
@@ -60,18 +66,14 @@ _OPEN = re.compile(
     r"^(why|what|how|describe|tell us|explain|share|walk us|give an example|please describe)\b|"
     r"\bwhy\b|tell us about|describe|cover letter|anything else|interest(?:s|ed)? you"
 )
-# Matched as whole words after reducing the question to lowercase words ("U.S." -> "u s").
-_COUNTRIES = {
-    "US": ("united states", "u s", "us", "usa", "america"),
-    "CA": ("canada",),
-    "GB": ("united kingdom", "uk", "britain", "england"),
-    "IN": ("india",),
-    "DE": ("germany",),
-    "AU": ("australia",),
-    "IE": ("ireland",),
-    "SG": ("singapore",),
-    "NL": ("netherlands",),
+# Places the country table would misread in a question. None marks a place that is not one
+# country (a region, or a US state that shares a country's name): it makes the answer unknown.
+_PLACES = country_names() | {
+    "america": "US", "britain": "GB", "england": "GB", "scotland": "GB", "wales": "GB",
+    "northern ireland": "GB", "new mexico": "US", "new jersey": "US", "georgia": None,
+    "north america": None, "south america": None, "latin america": None, "central america": None,
 }
+_LONGEST_PLACE = max(len(name.split()) for name in _PLACES)
 
 
 def classify(text: str) -> tuple[str, str | None]:
@@ -98,15 +100,59 @@ def classify(text: str) -> tuple[str, str | None]:
 _NAMED_PLACE = re.compile(r"\bin\s+(?:the\s+)?[A-Z]")
 
 
+def _named_countries(question: str) -> tuple[set[str | None], bool]:
+    """Codes of the places the question names (None for a place that isn't one country), and
+    whether an all-capitals "US" left it unclear if the US is named.
+
+    Names are matched longest first, so "U.S. Virgin Islands" is not also the US. "U.S." and
+    "USA" are names in the country table; a bare "US" counts only where no name matched and
+    only capitalized: "Tell us ..." names no country.
+    """
+    original = words(question)
+    lowered = [word.casefold() for word in original]
+    shouting = not any(ch.islower() for ch in question)
+    found: set[str | None] = set()
+    unclear = False
+    i = 0
+    while i < len(lowered):
+        for size in range(min(_LONGEST_PLACE, len(lowered) - i), 0, -1):
+            phrase = " ".join(lowered[i:i + size])
+            if phrase in _PLACES:
+                found.add(_PLACES[phrase])
+                i += size
+                break
+        else:
+            if original[i] == "US":
+                if shouting:
+                    unclear = True
+                else:
+                    found.add("US")
+            i += 1
+    return found, unclear
+
+
+def question_country(question: str) -> str | None | bool:
+    """The one country a question names: its code, None when unknown, False when it names none.
+
+    Several countries, or a place that maps to no single country, are unknown. So is a place
+    the table can't map, rather than being answered from another country's record.
+    """
+    named, unclear = _named_countries(question)
+    if not named:
+        return None if unclear or _NAMED_PLACE.search(question) else False
+    if len(named) > 1 or None in named:
+        return None
+    return next(iter(named))
+
+
 def _country(question: str, prof: dict) -> dict | None:
     records = prof.get("authorization") or []
-    words = " " + " ".join(re.findall(r"[a-z0-9]+", norm_text(question))) + " "
-    for code, names in _COUNTRIES.items():
-        if any(f" {name} " in words for name in names):
-            return next((r for r in records if r["country"] == code), {"country": code})
-    if _NAMED_PLACE.search(question):
-        return None  # names a place we cannot map; never answer it from another country's record
-    return records[0] if len(records) == 1 else None
+    code = question_country(question)
+    if code is False:  # no country identified: only a single record answers
+        return records[0] if len(records) == 1 else None
+    if code is None:
+        return None
+    return next((r for r in records if r["country"] == code), None)
 
 
 def _yes_no(value) -> str | None:

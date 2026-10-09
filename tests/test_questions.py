@@ -123,3 +123,71 @@ def test_unknown_authorization_stays_unknown(profile):
     assert factual_value("authorization", "Authorized to work in the US?", unknown) is None
     assert factual_value("sponsorship", "Sponsorship?", unknown) is None
     assert factual_value("authorization", "Authorized to work?", with_authorization(profile)) is None
+
+
+# ---------------------------------------------------------------- countries named in a question
+
+def us_and_canada(profile: Profile) -> Profile:
+    return with_authorization(
+        profile,
+        Authorization(country="US", authorized=True, requires_sponsorship=False),
+        Authorization(country="CA", authorized=False, requires_sponsorship=True),
+    )
+
+
+@pytest.mark.parametrize("question", [
+    "Tell us whether you are authorized to work in Canada.",
+    "Please tell us: are you legally entitled to work in Canada?",
+    "Let us know if you need sponsorship to work in Canada",
+])
+def test_an_ordinary_us_never_means_the_united_states(profile, question):
+    key = classify(question)[1]
+    us_only = with_authorization(profile, Authorization(country="US", authorized=True, requires_sponsorship=False))
+    assert factual_value(key, question, us_only) is None  # Canada has no record; never the US answer
+    expected = {"authorization": "No", "sponsorship": "Yes"}[key]
+    assert factual_value(key, question, us_and_canada(profile)) == expected
+
+
+@pytest.mark.parametrize("question", [
+    "Are you authorized to work in the US?",
+    "Are you authorized to work in the U.S.?",
+    "Are you authorized to work in the U. S.?",
+    "Are you authorized to work in the USA?",
+    "Are you authorized to work in the U.S.A.?",
+    "Tell us if you are authorized to work in the US",
+])
+def test_explicit_us_abbreviations_still_name_the_united_states(profile, question):
+    assert factual_value("authorization", question, us_and_canada(profile)) == "Yes"
+
+
+@pytest.mark.parametrize("question", [
+    "Are you authorized to work in the US or Canada?",
+    "Are you authorized to work in the United States and the United Kingdom?",
+    "Are you authorized to work in Latin America?",  # a region, not one country
+    "Are you authorized to work in Georgia?",  # the country or the US state
+    "Are you authorized to work in Narnia?",
+    "ARE YOU AUTHORIZED TO WORK IN THE US?",  # all capitals: "US" can't be told from "us"
+])
+def test_several_or_unmappable_places_stay_unknown(profile, question):
+    us_only = with_authorization(profile, Authorization(country="US", authorized=True, requires_sponsorship=False))
+    assert factual_value("authorization", question, us_only) is None
+    assert factual_value("authorization", question, us_and_canada(profile)) is None
+
+
+def test_country_names_win_over_the_abbreviations_inside_them(profile):
+    us_only = with_authorization(profile, Authorization(country="US", authorized=True, requires_sponsorship=False))
+    assert factual_value("authorization", "Authorized to work in the U.S. Virgin Islands?", us_only) is None
+    assert factual_value("authorization", "Authorized to work in Northern Ireland?", us_only) is None
+    assert factual_value("authorization", "Authorized to work in New Mexico?", us_only) == "Yes"
+    uk = with_authorization(profile, Authorization(country="GB", authorized=True, requires_sponsorship=False))
+    assert factual_value("authorization", "Authorized to work in Northern Ireland?", uk) == "Yes"
+    assert factual_value("authorization", "Are you authorized to work in Côte d'Ivoire?", uk) is None
+
+
+def test_the_single_record_answers_only_when_no_country_is_identified(profile):
+    us_only = with_authorization(profile, Authorization(country="US", authorized=True, requires_sponsorship=False))
+    assert factual_value("authorization", "Tell us if you are legally authorized to work.", us_only) == "Yes"
+    assert factual_value("authorization", "Tell us if you are legally authorized to work.", us_and_canada(profile)) is None
+    assert factual_value("authorization", "Are you authorized to work in France?", us_only) is None
+    france = with_authorization(profile, Authorization(country="FR", authorized=True, requires_sponsorship=False))
+    assert factual_value("authorization", "Are you authorized to work in France?", france) == "Yes"
