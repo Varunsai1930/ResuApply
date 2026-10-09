@@ -22,6 +22,7 @@ from app.services.answers import AnswerError
 from app.services.requirements import set_requirements
 from scripts import fake_ai_server
 from tests.conftest import DEMO_JOB, DEMO_REQUIREMENTS, SAMPLE_PROFILE, TEST_MODEL, make_settings, tool_response
+from tests.test_answers import accept
 
 BULLET = "Built a Flask REST API in Python that served reporting data to 1,200 internal users"
 
@@ -329,6 +330,7 @@ def test_provider_failures_keep_drafts_and_answers(
     existing = AnswerDraft(question_id=why.id, text="Old draft", sources=["summary"], model="m", prompt_revision="p",
                            profile_revision=1, job_revision=1, created_at=utcnow())
     job.application.answer_drafts = [existing]
+    session.commit()
     answer = svc.set_answer(session, job, job.application, project.id, "Mine")
     fake_ai.push(failure, failure)
     with pytest.raises(AIError) as exc:
@@ -418,14 +420,14 @@ def test_accepting_a_draft_rechecks_the_current_profile(session, job, candidate,
     edited["experience"][0]["bullets"][0] = {"id": "exp-1-b1", "text": "Built internal dashboards"}
     changed = profile_service.save(session, edited).candidate
     with pytest.raises(AnswerError, match="no longer passes"):
-        svc.accept_draft(session, job, job.application, why.id, changed.profile)
+        accept(session, job, why.id, changed)
     assert job.application.answers == [] and len(job.application.answer_drafts) == 1
 
 
 def test_an_accepted_draft_can_be_banked_and_resolves_as_an_ai_draft(session, job, candidate, trusted, fake_ai, ai_client, why):
     fake_ai.push(reply(item(why.id)))
     draft_all(session, ai_client, trusted, job, candidate)
-    svc.accept_draft(session, job, job.application, why.id, candidate.profile)
+    accept(session, job, why.id, candidate)
     resolved = svc.resolve_all(job, job.application, candidate.profile)[0]
     assert (resolved.label, resolved.resolved, resolved.origin) == ("AI draft", True, "ai_draft")
     assert svc.save_to_bank(session, job, job.application, why.id).sources == ["exp-1-b1"]
@@ -441,4 +443,4 @@ def test_the_local_stand_in_model_produces_valid_drafts(session, job, candidate,
     drafts = {d.question_id: d for d in job.application.answer_drafts}
     assert drafts[why.id].text == BULLET and drafts[why.id].sources == ["exp-1-b1"]
     assert set(drafts) == {why.id, project.id} and run.model == "fake/local-stand-in"
-    svc.accept_draft(session, job, job.application, why.id, candidate.profile)
+    accept(session, job, why.id, candidate)

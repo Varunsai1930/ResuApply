@@ -14,6 +14,7 @@ from app.services import package
 from app.services import profile as profile_service
 from app.services import resume as resume_service
 from tests.conftest import SAMPLE_JOB, SAMPLE_PROFILE
+from tests.test_answers import accept
 
 
 @pytest.fixture
@@ -32,7 +33,7 @@ def prepared(session):
     )
     answer_service.replace_drafts(app, [draft])
     session.commit()
-    answer_service.accept_draft(session, job, app, question.id, candidate.profile)
+    accept(session, job, question.id, candidate)
     return candidate, job, question
 
 

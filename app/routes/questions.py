@@ -116,7 +116,7 @@ def confirm_answer(request: Request, job_id: int, qid: str, session: Session = D
     if candidate is None:
         return _failed(request, session, job, NO_PROFILE, 400, qid)
     return _act(request, session, job, qid,
-                lambda: answer_service.confirm_answer(session, job, job.application, qid, candidate.profile),
+                lambda: answer_service.confirm_answer(session, job, job.application, qid, candidate),
                 "answer_confirmed")
 
 
@@ -166,7 +166,7 @@ def accept_draft(request: Request, job_id: int, qid: str, session: Session = Dep
     if candidate is None:
         return _failed(request, session, job, NO_PROFILE, 400, qid)
     return _act(request, session, job, qid,
-                lambda: answer_service.accept_draft(session, job, job.application, qid, candidate.profile),
+                lambda: answer_service.accept_draft(session, job, job.application, qid, candidate),
                 "draft_accepted", status_code=409)
 
 

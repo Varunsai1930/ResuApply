@@ -12,6 +12,7 @@ from app.schemas.tracking import ReviewState, TrackingStatus
 from app.services import answers, jobs, package, profile, resume, tracking
 from app.services.package import PackageError
 from tests.synthetic import DEMO_JOB, SAMPLE_PROFILE
+from tests.test_answers import confirm
 
 EMAIL_Q = "What is your email address?"
 AUTH_Q = "Are you authorized to work in the US?"
@@ -48,7 +49,7 @@ def ready(session, job, candidate):
     q_auth = answers.add_question(session, job, AUTH_Q)
     q_why = answers.add_question(session, job, WHY_Q)
     q_gender = answers.add_question(session, job, GENDER_Q, required=False)
-    answers.confirm_answer(session, job, app_, q_auth.id, candidate.profile)
+    confirm(session, job, q_auth.id, candidate)
     answers.set_answer(session, job, app_, q_why.id, "I like building Python services.")
     answers.skip_answer(session, job, app_, q_gender.id)
     return app_

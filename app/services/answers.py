@@ -11,6 +11,9 @@ Ported from ResuSkill's ``resuskill_core.package`` (questions, answers, resoluti
   the application to Draft. Storing drafts does not: they are proposals, not package content.
 - Sensitive answers are never saved to the answer bank. That is a hard rule, not a preference.
 
+Every change runs in ``transactions.write``: it holds the database writer lock and works on the
+reloaded rows, so simultaneous requests can't undo each other's questions or answers.
+
 JSON columns are treated as immutable: every mutation assigns a new list.
 """
 
@@ -23,12 +26,13 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from ..db import utcnow
-from ..models import Application, AnswerBankEntry, Job
+from ..models import Application, AnswerBankEntry, Candidate, Job
 from ..schemas.package import Answer, AnswerDraft, Question
 from ..schemas.profile import Profile
 from ..schemas.tracking import ReviewState
 from . import profile as profile_service
 from . import questions as q_rules
+from . import transactions
 from .claims import claim_problems, detection_terms
 from .text import norm_text
 
@@ -174,48 +178,49 @@ def add_question(session: Session, job: Job, text: str, required: bool = True, l
     if category and category != detected:
         _check_category_change(detected, key, category)
         chosen = category
-    existing = [int(q.id[1:]) for q in job.questions if q.id[1:].isdigit()]
-    number = max(job.question_counter, *existing, 0) + 1
-    question = Question(
-        id=f"q{number}", text=text, required=bool(required), limit=limit, limit_unit=limit_unit,
-        category=chosen, detected_category=detected,
-        factual_key=key if chosen in (q_rules.FACTUAL, q_rules.SENSITIVE_FACTUAL) else None,
-        added_at=utcnow(),
-    )
-    job.question_counter = number
-    job.questions = [*job.questions, question]
-    _content_changed(job.application)
-    session.commit()
+    with transactions.write(session, job):
+        # The number comes from the reloaded counter and list, so simultaneous additions get distinct IDs.
+        existing = [int(q.id[1:]) for q in job.questions if q.id[1:].isdigit()]
+        number = max(job.question_counter, *existing, 0) + 1
+        question = Question(
+            id=f"q{number}", text=text, required=bool(required), limit=limit, limit_unit=limit_unit,
+            category=chosen, detected_category=detected,
+            factual_key=key if chosen in (q_rules.FACTUAL, q_rules.SENSITIVE_FACTUAL) else None,
+            added_at=utcnow(),
+        )
+        job.question_counter = number
+        job.questions = [*job.questions, question]
+        _content_changed(job.application)
     return question
 
 
 def set_category(session: Session, job: Job, application: Application, qid: str, category: str) -> Question:
     """Change a question's category. Its answer and draft are dropped: they were made for the old one."""
-    question = _find(job, qid)
     if category == q_rules.UNKNOWN:
         raise AnswerError("Choose a category; Unrecognized is only what the rules detect.")
-    _, key = q_rules.classify(question.text)
-    _check_category_change(question.detected_category, key, category)
-    if category == question.category:
-        return question
-    updated = question.model_copy(update={
-        "category": category,
-        "factual_key": key if category in (q_rules.FACTUAL, q_rules.SENSITIVE_FACTUAL) else None,
-    })
-    job.questions = [updated if q.id == qid else q for q in job.questions]
-    _drop(application, qid)
-    _content_changed(application)
-    session.commit()
+    with transactions.write(session, job):
+        question = _find(job, qid)
+        _, key = q_rules.classify(question.text)
+        _check_category_change(question.detected_category, key, category)
+        if category == question.category:
+            return question
+        updated = question.model_copy(update={
+            "category": category,
+            "factual_key": key if category in (q_rules.FACTUAL, q_rules.SENSITIVE_FACTUAL) else None,
+        })
+        job.questions = [updated if q.id == qid else q for q in job.questions]
+        _drop(application, qid)
+        _content_changed(application)
     return updated
 
 
 def remove_question(session: Session, job: Job, application: Application, qid: str) -> None:
     """Remove a question with its answer and draft. Its ID is never issued again."""
-    _find(job, qid)
-    job.questions = [q for q in job.questions if q.id != qid]
-    _drop(application, qid)
-    _content_changed(application)
-    session.commit()
+    with transactions.write(session, job):
+        _find(job, qid)
+        job.questions = [q for q in job.questions if q.id != qid]
+        _drop(application, qid)
+        _content_changed(application)
 
 
 # ---------------------------------------------------------------- answers
@@ -223,84 +228,89 @@ def remove_question(session: Session, job: Job, application: Application, qid: s
 def set_answer(session: Session, job: Job, application: Application, qid: str, text: str,
                origin: str = "user", bank_id: int | None = None) -> Answer:
     """Store the user's own answer. ``origin="bank"`` marks one that started from an answer-bank entry."""
-    question = _find(job, qid)
-    if origin not in USER_ORIGINS:
-        raise AnswerError("An answer you write is stored as yours or as one started from the answer bank.")
-    if question.category == q_rules.UNKNOWN:
-        raise AnswerError("Confirm the question's category before answering it.")
-    text = (text or "").strip()
-    if not text:
-        raise AnswerError("The answer is empty. Skip the question instead if it is optional.")
-    if len(text) > ANSWER_LIMIT:
-        raise AnswerError(f"Keep the answer under {ANSWER_LIMIT:,} characters.")
-    problem = check_length(text, question.limit, question.limit_unit)
-    if problem:
-        raise AnswerError(f"{qid}: {problem}.")
-    if origin == "bank":
-        if question.category in q_rules.SENSITIVE_CATEGORIES:
-            raise AnswerError("Sensitive questions are never answered from the answer bank.")
-        if bank_id is None or session.get(AnswerBankEntry, bank_id) is None:
-            raise AnswerError("That answer bank entry no longer exists.")
-    else:
-        bank_id = None
-    answer = Answer(question_id=qid, text=text, origin=origin, bank_id=bank_id, at=utcnow())
-    _replace_answer(application, answer)
-    session.commit()
+    with transactions.write(session, job):
+        question = _find(job, qid)
+        if origin not in USER_ORIGINS:
+            raise AnswerError("An answer you write is stored as yours or as one started from the answer bank.")
+        if question.category == q_rules.UNKNOWN:
+            raise AnswerError("Confirm the question's category before answering it.")
+        text = (text or "").strip()
+        if not text:
+            raise AnswerError("The answer is empty. Skip the question instead if it is optional.")
+        if len(text) > ANSWER_LIMIT:
+            raise AnswerError(f"Keep the answer under {ANSWER_LIMIT:,} characters.")
+        problem = check_length(text, question.limit, question.limit_unit)
+        if problem:
+            raise AnswerError(f"{qid}: {problem}.")
+        if origin == "bank":
+            if question.category in q_rules.SENSITIVE_CATEGORIES:
+                raise AnswerError("Sensitive questions are never answered from the answer bank.")
+            if bank_id is None or session.get(AnswerBankEntry, bank_id) is None:
+                raise AnswerError("That answer bank entry no longer exists.")
+        else:
+            bank_id = None
+        answer = Answer(question_id=qid, text=text, origin=origin, bank_id=bank_id, at=utcnow())
+        _replace_answer(application, answer)
     return answer
 
 
 def skip_answer(session: Session, job: Job, application: Application, qid: str) -> Answer:
     """Explicitly skip an optional question."""
-    question = _find(job, qid)
-    if question.required:
-        raise AnswerError(f"{qid} is required and can't be skipped.")
-    answer = Answer(question_id=qid, text="", origin="user", skipped=True, at=utcnow())
-    _replace_answer(application, answer)
-    session.commit()
+    with transactions.write(session, job):
+        question = _find(job, qid)
+        if question.required:
+            raise AnswerError(f"{qid} is required and can't be skipped.")
+        answer = Answer(question_id=qid, text="", origin="user", skipped=True, at=utcnow())
+        _replace_answer(application, answer)
     return answer
 
 
-def confirm_answer(session: Session, job: Job, application: Application, qid: str, profile: Profile) -> Answer:
-    """Confirm the current profile value for a factual or sensitive-factual question."""
-    question = _find(job, qid)
-    if question.category not in (q_rules.FACTUAL, q_rules.SENSITIVE_FACTUAL):
-        raise AnswerError(f"{qid} isn't answered from the profile, so there is nothing to confirm.")
-    value = q_rules.factual_value(question.factual_key or "", question.text, profile)
-    if value is None:
-        raise AnswerError("Your profile has no value for this question. Update the profile or answer it yourself.")
-    answer = Answer(question_id=qid, text=value, origin="profile", confirmed=True, at=utcnow())
-    _replace_answer(application, answer)
-    session.commit()
+def confirm_answer(session: Session, job: Job, application: Application, qid: str, candidate: Candidate) -> Answer:
+    """Confirm the current profile value for a factual or sensitive-factual question.
+
+    The value is read from the profile as reloaded under the writer lock.
+    """
+    with transactions.write(session, job, candidate):
+        question = _find(job, qid)
+        if question.category not in (q_rules.FACTUAL, q_rules.SENSITIVE_FACTUAL):
+            raise AnswerError(f"{qid} isn't answered from the profile, so there is nothing to confirm.")
+        value = q_rules.factual_value(question.factual_key or "", question.text, candidate.profile)
+        if value is None:
+            raise AnswerError("Your profile has no value for this question. Update the profile or answer it yourself.")
+        answer = Answer(question_id=qid, text=value, origin="profile", confirmed=True, at=utcnow())
+        _replace_answer(application, answer)
     return answer
 
 
-def accept_draft(session: Session, job: Job, application: Application, qid: str, profile: Profile) -> Answer:
+def accept_draft(session: Session, job: Job, application: Application, qid: str, candidate: Candidate) -> Answer:
     """Turn the AI draft into the answer, after checking it against the current profile and limit."""
-    question = _find(job, qid)
-    draft = _draft_for(application, qid)
-    if draft is None:
-        raise AnswerError(f"{qid} has no draft to accept.")
-    if question.category != q_rules.OPEN:
-        raise AnswerError("Only open-ended questions take AI drafts.")
-    problems = validate_answer(profile, job, draft.text, draft.sources, question.limit, question.limit_unit)
-    if problems:
-        raise AnswerError(
-            "This draft no longer passes validation against your current profile, so it was not accepted.", problems,
-        )
-    answer = Answer(question_id=qid, text=draft.text, origin="ai_draft", sources=list(draft.sources), at=utcnow())
-    _replace_answer(application, answer)
-    session.commit()
+    with transactions.write(session, job, candidate):
+        question = _find(job, qid)
+        draft = _draft_for(application, qid)
+        if draft is None:
+            raise AnswerError(f"{qid} has no draft to accept.")
+        if question.category != q_rules.OPEN:
+            raise AnswerError("Only open-ended questions take AI drafts.")
+        problems = validate_answer(candidate.profile, job, draft.text, draft.sources, question.limit,
+                                   question.limit_unit)
+        if problems:
+            raise AnswerError(
+                "This draft no longer passes validation against your current profile, so it was not accepted.",
+                problems,
+            )
+        answer = Answer(question_id=qid, text=draft.text, origin="ai_draft", sources=list(draft.sources), at=utcnow())
+        _replace_answer(application, answer)
     return answer
 
 
 def discard_draft(session: Session, job: Job, application: Application, qid: str) -> None:
     """Throw away a pending draft. Drafts are not package content, so approval is untouched."""
-    _find(job, qid)
-    if _draft_for(application, qid) is None:
-        raise AnswerError(f"{qid} has no draft to discard.")
-    application.answer_drafts = [d for d in application.answer_drafts if d.question_id != qid]
-    application.updated_at = utcnow()
-    session.commit()
+    with transactions.write(session, job):
+        _find(job, qid)
+        if _draft_for(application, qid) is None:
+            raise AnswerError(f"{qid} has no draft to discard.")
+        application.answer_drafts = [d for d in application.answer_drafts if d.question_id != qid]
+        application.updated_at = utcnow()
 
 
 def replace_drafts(application: Application, drafts: list[AnswerDraft]) -> None:
@@ -400,23 +410,23 @@ def bank_block(question: Question, answer: Answer | None) -> str | None:
 
 def save_to_bank(session: Session, job: Job, application: Application, qid: str) -> AnswerBankEntry:
     """Save an accepted answer to a non-sensitive question for reuse. Sensitive answers are refused."""
-    question = _find(job, qid)
-    answer = _answer_for(application, qid)
-    blocked = bank_block(question, answer)
-    if blocked:
-        raise AnswerError(blocked)
-    now = utcnow()
-    for entry in bank_entries(session):
-        if norm_text(entry.question) == norm_text(question.text) and norm_text(entry.answer) == norm_text(answer.text):
-            entry.updated_at = now
-            session.commit()
-            return entry
-    entry = AnswerBankEntry(
-        question=question.text, answer=answer.text, category=question.category, sources=list(answer.sources),
-        source_job_id=job.id, created_at=now, updated_at=now,
-    )
-    session.add(entry)
-    session.commit()
+    with transactions.write(session, job):
+        question = _find(job, qid)
+        answer = _answer_for(application, qid)
+        blocked = bank_block(question, answer)
+        if blocked:
+            raise AnswerError(blocked)
+        now = utcnow()
+        for entry in bank_entries(session):
+            if (norm_text(entry.question) == norm_text(question.text)
+                    and norm_text(entry.answer) == norm_text(answer.text)):
+                entry.updated_at = now
+                return entry
+        entry = AnswerBankEntry(
+            question=question.text, answer=answer.text, category=question.category, sources=list(answer.sources),
+            source_job_id=job.id, created_at=now, updated_at=now,
+        )
+        session.add(entry)
     return entry
 
 

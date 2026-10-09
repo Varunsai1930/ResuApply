@@ -5,6 +5,7 @@ from __future__ import annotations
 import copy
 
 import pytest
+from sqlalchemy.orm import object_session
 
 from app.db import utcnow
 from app.models import AnswerBankEntry
@@ -40,6 +41,20 @@ def app_(job):
 def approve(app_):
     app_.approval = Approval(content_hash="abc", approved_at=utcnow(), profile_revision=1, job_revision=1)
     app_.review_state = "approved"
+    object_session(app_).commit()
+
+
+def set_drafts(app_, *drafts):
+    app_.answer_drafts = list(drafts)
+    object_session(app_).commit()
+
+
+def confirm(session, job, qid, candidate):
+    return svc.confirm_answer(session, job, job.application, qid, candidate)
+
+
+def accept(session, job, qid, candidate):
+    return svc.accept_draft(session, job, job.application, qid, candidate)
 
 
 def make_draft(qid, text="Built a Flask REST API in Python", sources=("exp-1-b1",)) -> AnswerDraft:
@@ -136,8 +151,7 @@ def test_set_category_and_remove_drop_that_questions_answer_and_draft(session, j
     q = add(session, job, "Describe a project")
     svc.set_answer(session, job, app_, keep.id, "Because")
     svc.set_answer(session, job, app_, q.id, "A bot")
-    app_.answer_drafts = [make_draft(q.id), make_draft(keep.id)]
-    session.commit()
+    set_drafts(app_, make_draft(q.id), make_draft(keep.id))
     svc.set_category(session, job, app_, q.id, "sensitive")
     assert [a.question_id for a in app_.answers] == [keep.id]
     assert [d.question_id for d in app_.answer_drafts] == [keep.id]
@@ -182,7 +196,7 @@ def test_length_limits_in_characters_and_words(session, job, app_, unit, limit, 
 
 def test_set_answer_replaces_the_answer_and_discards_the_draft(session, job, app_):
     q = add(session, job, "Why us?")
-    app_.answer_drafts = [make_draft(q.id)]
+    set_drafts(app_, make_draft(q.id))
     first = svc.set_answer(session, job, app_, q.id, "First")
     second = svc.set_answer(session, job, app_, q.id, "Second")
     assert app_.answers == [second] and first.text == "First" and app_.answer_drafts == []
@@ -212,66 +226,65 @@ def test_bank_origin_needs_an_entry_and_never_applies_to_sensitive_questions(ses
         svc.set_answer(session, job, app_, q.id, "x", origin="ai_draft")
 
 
-def test_confirm_answer_stores_the_current_profile_value(session, job, app_, profile):
+def test_confirm_answer_stores_the_current_profile_value(session, job, app_, candidate, profile):
     email = add(session, job, "What is your email?")
     auth = add(session, job, "Are you authorized to work in the US?")
-    answer = svc.confirm_answer(session, job, app_, email.id, profile)
+    answer = confirm(session, job, email.id, candidate)
     assert (answer.text, answer.origin, answer.confirmed) == ("jordan@example.com", "profile", True)
-    assert svc.confirm_answer(session, job, app_, auth.id, profile).text == "Yes"
+    assert confirm(session, job, auth.id, candidate).text == "Yes"
 
 
-def test_confirm_answer_refuses_missing_values_and_other_categories(session, job, app_, profile):
+def test_confirm_answer_refuses_missing_values_and_other_categories(session, job, app_, candidate, profile):
     portfolio = add(session, job, "Portfolio link")
     openq = add(session, job, "Why us?")
     with pytest.raises(AnswerError, match="no value"):
-        svc.confirm_answer(session, job, app_, portfolio.id, profile)
+        confirm(session, job, portfolio.id, candidate)
     with pytest.raises(AnswerError, match="nothing to confirm"):
-        svc.confirm_answer(session, job, app_, openq.id, profile)
+        confirm(session, job, openq.id, candidate)
     assert app_.answers == []
 
 
 # ---------------------------------------------------------------- drafts
 
-def test_accept_draft_makes_an_ai_draft_answer(session, job, app_, profile):
+def test_accept_draft_makes_an_ai_draft_answer(session, job, app_, candidate, profile):
     q = add(session, job, "Why us?", limit=100)
-    app_.answer_drafts = [make_draft(q.id)]
-    answer = svc.accept_draft(session, job, app_, q.id, profile)
+    set_drafts(app_, make_draft(q.id))
+    answer = accept(session, job, q.id, candidate)
     assert (answer.origin, answer.sources, answer.text) == ("ai_draft", ["exp-1-b1"], "Built a Flask REST API in Python")
     assert app_.answers == [answer] and app_.answer_drafts == []
     with pytest.raises(AnswerError, match="no draft"):
-        svc.accept_draft(session, job, app_, q.id, profile)
+        accept(session, job, q.id, candidate)
 
 
 def test_accept_draft_revalidates_against_the_current_profile_and_limit(session, job, app_, candidate):
     q = add(session, job, "Why us?", limit=200)
-    app_.answer_drafts = [make_draft(q.id)]
-    session.commit()
+    set_drafts(app_, make_draft(q.id))
     edited = candidate.profile.model_dump()
     edited["experience"][0]["bullets"][0] = {"id": "exp-1-b1", "text": "Built internal dashboards"}
-    changed = profile_service.save(session, edited).candidate.profile
+    profile_service.save(session, edited)
     with pytest.raises(AnswerError, match="no longer passes validation") as exc:
-        svc.accept_draft(session, job, app_, q.id, changed)
+        accept(session, job, q.id, candidate)
     assert exc.value.details
     assert app_.answers == [] and len(app_.answer_drafts) == 1
     # a source that was deleted from the profile is also rejected
-    app_.answer_drafts = [make_draft(q.id, sources=("exp-9-b9",))]
+    set_drafts(app_, make_draft(q.id, sources=("exp-9-b9",)))
     with pytest.raises(AnswerError):
-        svc.accept_draft(session, job, app_, q.id, changed)
+        accept(session, job, q.id, candidate)
 
 
-def test_accept_draft_rechecks_the_length_limit(session, job, app_, profile):
+def test_accept_draft_rechecks_the_length_limit(session, job, app_, candidate, profile):
     q = add(session, job, "Why us?", limit=10)
-    app_.answer_drafts = [make_draft(q.id)]
+    set_drafts(app_, make_draft(q.id))
     with pytest.raises(AnswerError) as exc:
-        svc.accept_draft(session, job, app_, q.id, profile)
+        accept(session, job, q.id, candidate)
     assert any("exceeds the limit" in d for d in exc.value.details)
 
 
-def test_accept_draft_refuses_fabricated_claims(session, job, app_, profile):
+def test_accept_draft_refuses_fabricated_claims(session, job, app_, candidate, profile):
     q = add(session, job, "Why us?")
-    app_.answer_drafts = [make_draft(q.id, text="Built a Flask API with 10 years of Java")]
+    set_drafts(app_, make_draft(q.id, text="Built a Flask API with 10 years of Java"))
     with pytest.raises(AnswerError) as exc:
-        svc.accept_draft(session, job, app_, q.id, profile)
+        accept(session, job, q.id, candidate)
     assert any("numbers/years" in d for d in exc.value.details) and any("Java" in d for d in exc.value.details)
 
 
@@ -279,14 +292,14 @@ def test_discard_draft(session, job, app_):
     q = add(session, job, "Why us?")
     with pytest.raises(AnswerError, match="no draft"):
         svc.discard_draft(session, job, app_, q.id)
-    app_.answer_drafts = [make_draft(q.id)]
+    set_drafts(app_, make_draft(q.id))
     svc.discard_draft(session, job, app_, q.id)
     assert app_.answer_drafts == []
 
 
 # ---------------------------------------------------------------- approval
 
-def test_every_content_mutation_clears_approval_but_storing_drafts_does_not(session, job, app_, profile):
+def test_every_content_mutation_clears_approval_but_storing_drafts_does_not(session, job, app_, candidate, profile):
     q = add(session, job, "Why us?")
     optional = add(session, job, "Anything else?", required=False)
     email = add(session, job, "Email?")
@@ -302,9 +315,9 @@ def test_every_content_mutation_clears_approval_but_storing_drafts_does_not(sess
     check(lambda: add(session, job, "Another question about why?"))
     check(lambda: svc.set_answer(session, job, app_, q.id, "Because"))
     check(lambda: svc.skip_answer(session, job, app_, optional.id))
-    check(lambda: svc.confirm_answer(session, job, app_, email.id, profile))
-    app_.answer_drafts = [make_draft(open2.id)]
-    check(lambda: svc.accept_draft(session, job, app_, open2.id, profile))
+    check(lambda: confirm(session, job, email.id, candidate))
+    set_drafts(app_, make_draft(open2.id))
+    check(lambda: accept(session, job, open2.id, candidate))
     check(lambda: svc.set_category(session, job, app_, q.id, "sensitive"))
     check(lambda: svc.remove_question(session, job, app_, optional.id))
 
@@ -346,7 +359,7 @@ def labels(job, app_, profile):
     return {r.question.id: (r.label, r.resolved, r.text) for r in svc.resolve_all(job, app_, profile)}
 
 
-def test_resolution_labels(session, job, app_, profile):
+def test_resolution_labels(session, job, app_, candidate, profile):
     email = add(session, job, "Email?")
     portfolio = add(session, job, "Portfolio?")
     auth = add(session, job, "Are you authorized to work in the US?")
@@ -364,13 +377,13 @@ def test_resolution_labels(session, job, app_, profile):
     assert state[why.id] == ("Missing information", False, "")
     assert state[unknown.id] == ("Confirm category", False, "")
 
-    app_.answer_drafts = [make_draft(why.id)]
+    set_drafts(app_, make_draft(why.id))
     assert labels(job, app_, profile)[why.id] == ("AI draft (pending review)", False, "Built a Flask REST API in Python")
-    svc.accept_draft(session, job, app_, why.id, profile)
+    accept(session, job, why.id, candidate)
     svc.set_answer(session, job, app_, project.id, "A bot")
     svc.set_answer(session, job, app_, gender.id, "Prefer not to say")
     svc.skip_answer(session, job, app_, optional.id)
-    svc.confirm_answer(session, job, app_, auth.id, profile)
+    confirm(session, job, auth.id, candidate)
     svc.set_answer(session, job, app_, portfolio.id, "example.com/me")
     state = labels(job, app_, profile)
     assert state[why.id][:2] == ("AI draft", True)
@@ -384,19 +397,20 @@ def test_resolution_labels(session, job, app_, profile):
     assert resolved[optional.id].skipped and resolved[unknown.id].origin is None
 
 
-def test_sensitive_factual_confirmation_goes_stale_when_the_profile_changes(session, job, app_, profile):
+def test_sensitive_factual_confirmation_goes_stale_when_the_profile_changes(session, job, app_, candidate, profile):
     q = add(session, job, "Will you require visa sponsorship?")
-    svc.confirm_answer(session, job, app_, q.id, profile)
+    confirm(session, job, q.id, candidate)
     assert labels(job, app_, profile)[q.id] == ("From profile (confirmed)", True, "No")
     changed = profile.model_copy(update={"authorization": [Authorization(country="US", authorized=True, requires_sponsorship=True)]})
     assert labels(job, app_, changed)[q.id] == ("User input required", False, "Yes")
     gone = profile.model_copy(update={"authorization": []})
     assert labels(job, app_, gone)[q.id] == ("User input required", False, "")
-    svc.confirm_answer(session, job, app_, q.id, changed)
-    assert labels(job, app_, changed)[q.id] == ("From profile (confirmed)", True, "Yes")
+    profile_service.save(session, changed.model_dump())
+    confirm(session, job, q.id, candidate)
+    assert labels(job, app_, candidate.profile)[q.id] == ("From profile (confirmed)", True, "Yes")
 
 
-def test_factual_answers_follow_the_profile_without_reconfirming(session, job, app_, profile):
+def test_factual_answers_follow_the_profile_without_reconfirming(session, job, app_, candidate, profile):
     q = add(session, job, "What is your phone number?")
     changed = profile.model_copy(update={"contact": profile.contact.model_copy(update={"phone": "+1 555 0111"})})
     assert labels(job, app_, changed)[q.id] == ("From profile", True, "+1 555 0111")
@@ -404,9 +418,9 @@ def test_factual_answers_follow_the_profile_without_reconfirming(session, job, a
     assert labels(job, app_, removed)[q.id] == ("Missing information", False, "")
 
 
-def test_open_answers_ignore_the_profile_and_drafts_never_resolve(session, job, app_, profile):
+def test_open_answers_ignore_the_profile_and_drafts_never_resolve(session, job, app_, candidate, profile):
     q = add(session, job, "Why us?")
-    app_.answer_drafts = [make_draft(q.id)]
+    set_drafts(app_, make_draft(q.id))
     result = svc.resolve_all(job, app_, profile)[0]
     assert not result.resolved and result.draft is not None and result.origin is None
 
@@ -425,12 +439,12 @@ def test_draft_targets_are_open_unanswered_questions(session, job, app_):
 
 # ---------------------------------------------------------------- answer bank
 
-def test_sensitive_answers_never_enter_the_bank(session, job, app_, profile):
+def test_sensitive_answers_never_enter_the_bank(session, job, app_, candidate, profile):
     sensitive = add(session, job, "What is your gender?")
     factual_sensitive = add(session, job, "Are you authorized to work in the US?")
     overridden = add(session, job, "Why us?", category="sensitive")
     svc.set_answer(session, job, app_, sensitive.id, "Prefer not to say")
-    svc.confirm_answer(session, job, app_, factual_sensitive.id, profile)
+    confirm(session, job, factual_sensitive.id, candidate)
     svc.set_answer(session, job, app_, overridden.id, "Because")
     for q in (sensitive, factual_sensitive, overridden):
         with pytest.raises(AnswerError, match="never saved"):
@@ -446,7 +460,7 @@ def test_a_question_detected_sensitive_stays_out_of_the_bank_even_if_recategoriz
         svc.save_to_bank(session, job, app_, q.id)
 
 
-def test_only_accepted_non_skipped_answers_can_be_saved(session, job, app_, profile):
+def test_only_accepted_non_skipped_answers_can_be_saved(session, job, app_, candidate, profile):
     open_q = add(session, job, "Why us?")
     optional = add(session, job, "Anything else?", required=False)
     email = add(session, job, "Email?")
@@ -455,18 +469,18 @@ def test_only_accepted_non_skipped_answers_can_be_saved(session, job, app_, prof
     svc.skip_answer(session, job, app_, optional.id)
     with pytest.raises(AnswerError, match="no accepted answer"):
         svc.save_to_bank(session, job, app_, optional.id)
-    app_.answer_drafts = [make_draft(open_q.id)]
+    set_drafts(app_, make_draft(open_q.id))
     with pytest.raises(AnswerError, match="no accepted answer"):  # a pending draft is not accepted
         svc.save_to_bank(session, job, app_, open_q.id)
-    svc.confirm_answer(session, job, app_, email.id, profile)
+    confirm(session, job, email.id, candidate)
     with pytest.raises(AnswerError, match="from your profile"):
         svc.save_to_bank(session, job, app_, email.id)
 
 
-def test_save_to_bank_records_the_answer_and_deduplicates(session, job, app_, profile):
+def test_save_to_bank_records_the_answer_and_deduplicates(session, job, app_, candidate, profile):
     q = add(session, job, "Why do you want to work here?")
-    app_.answer_drafts = [make_draft(q.id)]
-    svc.accept_draft(session, job, app_, q.id, profile)
+    set_drafts(app_, make_draft(q.id))
+    accept(session, job, q.id, candidate)
     entry = svc.save_to_bank(session, job, app_, q.id)
     assert (entry.question, entry.answer, entry.category, entry.sources, entry.source_job_id) == (
         "Why do you want to work here?", "Built a Flask REST API in Python", "open", ["exp-1-b1"], job.id)
