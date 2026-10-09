@@ -83,6 +83,8 @@
     {% if row.cited %}<p class="sub-label">Built from your profile</p>{{ sources_list(row.cited) }}{% endif %}
   {% elif q.category in ['factual', 'sensitive_factual'] and item.value %}
     <p class="answer-line"><span class="muted">Profile value:</span> <strong>{{ item.value }}</strong></p>
+  {% elif q.category in ['factual', 'sensitive_factual'] and row.manual_name_part %}
+    <p class="notice small">Type this part of your name below. Your profile stores your full name only, and ResuApply never splits it.</p>
   {% elif q.category in ['factual', 'sensitive_factual'] %}
     <p class="notice small">Your profile has no value for this. <a href="/profile/edit">Add it to your profile</a>{% if q.category == 'factual' and q.required %}, or answer it yourself{% endif %}.</p>
   {% endif %}
@@ -140,7 +142,7 @@
         <button type="submit" class="btn-secondary">{{ 'Confirm this answer' if q.category == 'sensitive_factual' else 'Use the profile value' }}</button>
       </form>
     {% endif %}
-    <div class="check-actions"><details {% if (err and err.text is not none) or item.problem or (not item.value and q.required and not own_answer) %}open{% endif %}><summary>{{ 'Change my answer' if own_answer else 'Answer it myself instead' }}</summary>{{ answer_form(row, err) }}</details></div>
+    <div class="check-actions"><details {% if (err and err.text is not none) or item.problem or ((not item.value or row.manual_name_part) and q.required and not own_answer) %}open{% endif %}><summary>{{ 'Change my answer' if own_answer else 'Answer it myself instead' }}</summary>{{ answer_form(row, err) }}</details></div>
   {% endif %}
 
   <div class="question-actions">

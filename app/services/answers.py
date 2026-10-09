@@ -155,6 +155,14 @@ def _draft_for(application: Application, qid: str) -> AnswerDraft | None:
     return next((d for d in application.answer_drafts if d.question_id == qid), None)
 
 
+def missing_value_message(question: Question) -> str:
+    """Why a factual question has no profile value, and what to do instead."""
+    if q_rules.name_part(question.factual_key or "", question.text):
+        return ("Your profile stores your full name only, and ResuApply never splits it. "
+                "Type this part of your name yourself.")
+    return "Your profile has no value for this question. Update the profile or answer it yourself."
+
+
 def too_long_message(question: Question, problem: str) -> str:
     """Why a factual value can't be used as it is, and what to do instead. It is never shortened for the user."""
     instead = "write a shorter answer yourself" + ("" if question.required else ", or skip this optional question")
@@ -311,7 +319,7 @@ def confirm_answer(session: Session, job: Job, application: Application, qid: st
             raise AnswerError(f"{qid} isn't answered from the profile, so there is nothing to confirm.")
         value = q_rules.factual_value(question.factual_key or "", question.text, candidate.profile)
         if value is None:
-            raise AnswerError("Your profile has no value for this question. Update the profile or answer it yourself.")
+            raise AnswerError(missing_value_message(question))
         problem = check_length(value, question.limit, question.limit_unit)
         if problem:
             raise AnswerError(too_long_message(question, problem))
