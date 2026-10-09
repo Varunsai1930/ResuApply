@@ -86,6 +86,9 @@
   {% elif q.category in ['factual', 'sensitive_factual'] %}
     <p class="notice small">Your profile has no value for this. <a href="/profile/edit">Add it to your profile</a>{% if q.category == 'factual' and q.required %}, or answer it yourself{% endif %}.</p>
   {% endif %}
+  {% if item.problem %}
+    <p class="notice warn small">This value is too long for the question ({{ item.problem }}). ResuApply never shortens it for you: write a shorter answer below{% if not q.required %}, or skip this optional question{% endif %}. Until then it blocks approval.</p>
+  {% endif %}
   {% if row.confirmation_outdated %}
     <p class="notice small">Your profile value changed after you confirmed it. Confirm the new value, or the question stays unresolved.</p>
   {% endif %}
@@ -131,13 +134,13 @@
       {{ answer_form(row, err) }}
     {% endif %}
   {% elif q.category in ['factual', 'sensitive_factual'] %}
-    {% if item.value and not (item.resolved and item.origin == 'profile') %}
+    {% if item.value and not item.problem and not (item.resolved and item.origin == 'profile') %}
       <form method="post" action="/jobs/{{ job.id }}/questions/{{ q.id }}/confirm" class="inline-form">
         <input type="hidden" name="confirmation_token" value="{{ row.confirmation_token }}">
         <button type="submit" class="btn-secondary">{{ 'Confirm this answer' if q.category == 'sensitive_factual' else 'Use the profile value' }}</button>
       </form>
     {% endif %}
-    <div class="check-actions"><details {% if (err and err.text is not none) or (not item.value and q.required and not own_answer) %}open{% endif %}><summary>{{ 'Change my answer' if own_answer else 'Answer it myself instead' }}</summary>{{ answer_form(row, err) }}</details></div>
+    <div class="check-actions"><details {% if (err and err.text is not none) or item.problem or (not item.value and q.required and not own_answer) %}open{% endif %}><summary>{{ 'Change my answer' if own_answer else 'Answer it myself instead' }}</summary>{{ answer_form(row, err) }}</details></div>
   {% endif %}
 
   <div class="question-actions">

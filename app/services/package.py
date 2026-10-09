@@ -137,7 +137,9 @@ def check(job: Job, application: Application, candidate: Candidate | None) -> tu
             continue
         question = item.question
         name = f'"{_short(question.text)}"'
-        if question.category in q_rules.SENSITIVE_CATEGORIES:
+        if item.problem:  # even when optional: the value is there, but can't be submitted as it is
+            blockers.append(f"{name} ({item.label}): {answer_service.too_long_message(question, item.problem)}")
+        elif question.category in q_rules.SENSITIVE_CATEGORIES:
             blockers.append(f"{name} ({item.label}): sensitive questions need your own answer, "
                             "your confirmation or an explicit skip.")
         elif question.category == q_rules.UNKNOWN:

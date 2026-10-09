@@ -9,6 +9,8 @@ Ported from ResuSkill's ``resuskill_core.package`` (questions, answers, resoluti
   accepts it, and it is re-validated against the *current* profile at that moment.
 - Any change to package content (questions, answers, categories) clears approval and returns
   the application to Draft. Storing drafts does not: they are proposals, not package content.
+- A factual value over the question's length limit is shown but never shortened: it stays
+  unresolved until the user writes their own answer or skips an optional question.
 - Sensitive answers are never saved to the answer bank. That is a hard rule, not a preference.
 
 Every change runs in ``transactions.write``: it holds the database writer lock and works on the
@@ -52,6 +54,7 @@ LABELS = {
     "pending": "AI draft (pending review)",
     "skipped": "Skipped (optional)",
     "category": "Confirm category",
+    "limit": "Over the length limit",
 }
 
 
@@ -150,6 +153,12 @@ def _answer_for(application: Application, qid: str) -> Answer | None:
 
 def _draft_for(application: Application, qid: str) -> AnswerDraft | None:
     return next((d for d in application.answer_drafts if d.question_id == qid), None)
+
+
+def too_long_message(question: Question, problem: str) -> str:
+    """Why a factual value can't be used as it is, and what to do instead. It is never shortened for the user."""
+    instead = "write a shorter answer yourself" + ("" if question.required else ", or skip this optional question")
+    return f"The profile value is too long for this question: {problem}. Nothing is shortened for you; {instead}."
 
 
 def _content_changed(application: Application) -> None:
@@ -303,6 +312,9 @@ def confirm_answer(session: Session, job: Job, application: Application, qid: st
         value = q_rules.factual_value(question.factual_key or "", question.text, candidate.profile)
         if value is None:
             raise AnswerError("Your profile has no value for this question. Update the profile or answer it yourself.")
+        problem = check_length(value, question.limit, question.limit_unit)
+        if problem:
+            raise AnswerError(too_long_message(question, problem))
         if token != confirmation_token(job, question, value, candidate):
             raise ReviewChanged("This question or your profile changed since you reviewed it, so nothing was "
                                 "confirmed. Check the value shown now and confirm it again.")
@@ -376,6 +388,7 @@ class ResolvedAnswer:
     value: str | None = None  # the current profile value, for factual and sensitive-factual questions
     answer: Answer | None = None
     draft: AnswerDraft | None = None
+    problem: str | None = None  # why the shown profile value can't be used as it is (over the length limit)
 
 
 def resolve_answer(question: Question, answer: Answer | None, draft: AnswerDraft | None,
@@ -394,6 +407,9 @@ def resolve_answer(question: Question, answer: Answer | None, draft: AnswerDraft
         value = q_rules.factual_value(question.factual_key or "", question.text, profile)
         if answer and answer.origin in USER_ORIGINS:
             return result(answer.text, LABELS["user"], True, answer.origin, value=value)
+        problem = check_length(value, question.limit, question.limit_unit) if value else None
+        if problem:  # shown as it is, never shortened; even a confirmation of it doesn't resolve it
+            return result(value, LABELS["limit"], False, value=value, problem=problem)
         if category == q_rules.SENSITIVE_FACTUAL:
             # Confirmation covers the value that was shown; a changed profile value needs a new one.
             if answer and answer.confirmed and answer.text == value:
