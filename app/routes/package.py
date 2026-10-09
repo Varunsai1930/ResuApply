@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, Form, HTTPException, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from sqlalchemy.orm import Session
 
@@ -24,10 +24,10 @@ def _snapshot_or_404(job: Job, snapshot_id: int):
 
 
 @router.post("/approve")
-def approve(request: Request, job_id: int, session: Session = Depends(get_session)):
+def approve(request: Request, job_id: int, package_token: str = Form(""), session: Session = Depends(get_session)):
     job = _job_or_404(session, job_id)
     try:
-        package.approve(session, job, get_candidate(session))
+        package.approve(session, job, get_candidate(session), package_token)
     except package.PackageError as exc:
         session.rollback()
         error = {"message": str(exc), "details": exc.details}

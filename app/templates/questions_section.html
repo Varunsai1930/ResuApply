@@ -102,6 +102,7 @@
       {% if row.draft_outdated %}<p class="hint">Drafted before your latest profile edit. Accepting checks it against the current profile again.</p>{% endif %}
       <div class="suggestion-actions">
         <form method="post" action="/jobs/{{ job.id }}/questions/{{ q.id }}/draft/accept" class="inline-form">
+          <input type="hidden" name="draft_token" value="{{ row.draft_token }}">
           <button type="submit" class="btn-small">Accept draft</button>
         </form>
         <form method="post" action="/jobs/{{ job.id }}/questions/{{ q.id }}/draft/discard" class="inline-form">
@@ -132,6 +133,7 @@
   {% elif q.category in ['factual', 'sensitive_factual'] %}
     {% if item.value and not (item.resolved and item.origin == 'profile') %}
       <form method="post" action="/jobs/{{ job.id }}/questions/{{ q.id }}/confirm" class="inline-form">
+        <input type="hidden" name="confirmation_token" value="{{ row.confirmation_token }}">
         <button type="submit" class="btn-secondary">{{ 'Confirm this answer' if q.category == 'sensitive_factual' else 'Use the profile value' }}</button>
       </form>
     {% endif %}

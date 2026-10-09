@@ -9,6 +9,9 @@ Ported from ResuSkill's ``resuskill_core.package`` (``resolved``, ``check``, ``a
   or job changed since approval) or Approved. Approval never changes the tracking status.
 - Recording Applied with an approved package stores a submitted snapshot: the job, the resume
   as rendered, the answers and the profile as they were. Nothing later changes it.
+- Approving and recording Applied act on what the user reviewed: the page sends
+  ``package_token`` and, under the writer lock (``transactions.write``), a package that no
+  longer matches it is refused with ``PackageChanged``.
 
 JSON columns are treated as immutable: every change assigns a new value.
 """
@@ -41,6 +44,10 @@ class PackageError(Exception):
     def __init__(self, message: str, details: list[str] | None = None):
         super().__init__(message)
         self.details = details or []
+
+
+class PackageChanged(PackageError):
+    """The package is not the one the user reviewed, or the page sent no token. Nothing was changed."""
 
 
 def _short(text: str) -> str:
@@ -93,6 +100,25 @@ def resolved_package(job: Job, application: Application, candidate: Candidate | 
     })
 
 
+def package_token(job: Job, application: Application, candidate: Candidate | None) -> str:
+    """What an approve or record button vouches for.
+
+    The resolved package, the question definitions, the accepted resume record, and the
+    candidate and job with their revisions. Pending drafts, unaccepted resume proposals and
+    tracking notes are left out: they don't change what would be approved or submitted.
+    """
+    package = application.accepted_package
+    return content_hash(_jsonable({
+        "package": resolved_package(job, application, candidate),
+        "questions": [q.model_dump(mode="json") for q in job.questions],
+        "resume": package.model_dump(mode="json") if package else None,
+        "candidate": candidate.id if candidate else None,
+        "profile_revision": candidate.revision if candidate else None,
+        "job": job.id,
+        "job_revision": job.revision,
+    }))
+
+
 def check(job: Job, application: Application, candidate: Candidate | None) -> tuple[list[str], list[str]]:
     """Blockers (approval refused) and warnings (approval recorded with them) for the package."""
     blockers: list[str] = []
@@ -138,16 +164,25 @@ def check(job: Job, application: Application, candidate: Candidate | None) -> tu
     return blockers, warnings
 
 
-def approve(session: Session, job: Job, candidate: Candidate | None) -> Approval:
-    """Approve the current package. Refused while there are blockers; never changes tracking status.
+def _check_token(job: Job, application: Application, candidate: Candidate | None, token: str) -> None:
+    if token != package_token(job, application, candidate):
+        raise PackageChanged(
+            "The package changed since you reviewed it, so nothing was recorded. "
+            "Review the package as it is now, then try again.",
+        )
 
-    Checked and saved under the writer lock, against the reloaded package.
+
+def approve(session: Session, job: Job, candidate: Candidate | None, token: str) -> Approval:
+    """Approve the package the user reviewed. Refused while there are blockers; never changes tracking status.
+
+    ``token`` is ``package_token`` as the page showed it.
     """
     with transactions.write(session, job, candidate):
         application = job.application
         blockers, warnings = check(job, application, candidate)
         if blockers:
             raise PackageError("The package can't be approved yet.", blockers)
+        _check_token(job, application, candidate, token)
         approval = Approval(
             content_hash=content_hash(resolved_package(job, application, candidate)),
             approved_at=utcnow(),
@@ -199,12 +234,13 @@ def get_snapshot(application: Application, snapshot_id: int) -> SubmittedSnapsho
     return next((s for s in application.submitted_snapshots if s.id == snapshot_id), None)
 
 
-def record_applied(session: Session, job: Job, candidate: Candidate | None, on: date | None = None,
+def record_applied(session: Session, job: Job, candidate: Candidate | None, token: str, on: date | None = None,
                    note: str = "", today: date | None = None) -> SubmittedSnapshot:
-    """Record Applied with a snapshot of the approved package, in one transaction.
+    """Record Applied with a snapshot of the approved package the user reviewed, in one transaction.
 
-    Only a current approved package can be frozen. Recording Applied without a package
-    (the user applied some other way) is ``tracking.change_status`` on its own.
+    ``token`` is ``package_token`` as the page showed it. Only a current approved package can be
+    frozen. Recording Applied without a package (the user applied some other way) is
+    ``tracking.change_status`` on its own.
     """
     with transactions.write(session, job, candidate):
         application = job.application
@@ -214,6 +250,7 @@ def record_applied(session: Session, job: Job, candidate: Candidate | None, on: 
                 f"The package is {state.label}. Approve the current package before recording the application "
                 "with it, or record Applied without a package.",
             )
+        _check_token(job, application, candidate, token)
         today = today or date.today()
         context = _resume_context(job, application, candidate)
         if context is None:  # approval implies an accepted resume; stay safe if the data says otherwise

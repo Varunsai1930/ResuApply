@@ -108,6 +108,7 @@ def _render_workspace(request: Request, session: Session, job: Job, msg: str = "
             "blockers": blockers,
             "warnings": warnings,
             "package_error": forms.get("package_error"),
+            "package_token": package.package_token(job, application, candidate),
             "snapshots": list(reversed(application.submitted_snapshots)),
             "has_proposal": operations.cached_proposal(session, job, settings.openrouter_model) is not None,
             "active": "jobs",
@@ -190,6 +191,7 @@ def change_status(
     on: str = Form(""),
     note: str = Form(""),
     snapshot: str = Form(""),
+    package_token: str = Form(""),
     session: Session = Depends(get_session),
 ):
     job = _job_or_404(session, job_id)
@@ -202,7 +204,7 @@ def change_status(
         except ValueError:
             raise tracking.TrackingError("Enter the date as YYYY-MM-DD.", "on") from None
         if save_package:
-            package.record_applied(session, job, get_candidate(session), on_date, note)
+            package.record_applied(session, job, get_candidate(session), package_token, on_date, note)
         else:
             tracking.change_status(session, job.application, status, on_date, note)
     except tracking.TrackingError as exc:

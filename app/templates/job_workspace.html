@@ -47,6 +47,7 @@
         </div>
         {% if review == ReviewState.APPROVED and application.status != TrackingStatus.APPLIED %}
         <div class="field" data-when-status="applied">
+          <input type="hidden" name="package_token" value="{{ package_token }}">
           <label class="check"><input type="checkbox" name="snapshot" value="1" {% if status_form.get('snapshot', true) %}checked{% endif %}> Save the approved package as what I submitted</label>
           <small class="hint">Used only when you choose Applied. It keeps the resume, answers and job details exactly as approved, even if you edit your profile later.</small>
         </div>

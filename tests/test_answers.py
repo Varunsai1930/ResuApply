@@ -14,6 +14,7 @@ from app.schemas.profile import Authorization
 from app.services import answers as svc
 from app.services import jobs as job_service
 from app.services import profile as profile_service
+from app.services import questions as q_rules
 from app.services.answers import AnswerError
 from tests.synthetic import DEMO_JOB, SAMPLE_PROFILE
 
@@ -50,11 +51,19 @@ def set_drafts(app_, *drafts):
 
 
 def confirm(session, job, qid, candidate):
-    return svc.confirm_answer(session, job, job.application, qid, candidate)
+    """Confirm the value the question shows now, with the token the workspace would send."""
+    question = next(q for q in job.questions if q.id == qid)
+    value = q_rules.factual_value(question.factual_key or "", question.text, candidate.profile)
+    token = svc.confirmation_token(job, question, value, candidate)
+    return svc.confirm_answer(session, job, job.application, qid, candidate, token)
 
 
 def accept(session, job, qid, candidate):
-    return svc.accept_draft(session, job, job.application, qid, candidate)
+    """Accept the draft the question shows now, with the token the workspace would send."""
+    question = next(q for q in job.questions if q.id == qid)
+    draft = next((d for d in job.application.answer_drafts if d.question_id == qid), None)
+    token = svc.draft_token(job, question, draft) if draft else ""
+    return svc.accept_draft(session, job, job.application, qid, candidate, token)
 
 
 def make_draft(qid, text="Built a Flask REST API in Python", sources=("exp-1-b1",)) -> AnswerDraft:

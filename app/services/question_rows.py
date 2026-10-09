@@ -28,6 +28,8 @@ class QuestionRow:
     draft_outdated: bool = False  # the pending draft was made before the latest profile edit
     confirmation_outdated: bool = False  # the profile value changed after the user confirmed it
     unsupported: list[str] = field(default_factory=list)  # an accepted AI answer the profile no longer backs
+    confirmation_token: str = ""  # sent with Confirm / Use the profile value
+    draft_token: str = ""  # sent with Accept draft
 
 
 def _cited(profile_sources: dict, ids: list[str]) -> list[tuple[str, str]]:
@@ -62,6 +64,8 @@ def rows(session: Session, job: Job, application: Application, candidate: Candid
                 answer and answer.confirmed and item.value is not None and answer.text != item.value
             ),
             unsupported=answer_service.answer_problems(job, question, answer, candidate.profile),
+            confirmation_token=answer_service.confirmation_token(job, question, item.value, candidate),
+            draft_token=answer_service.draft_token(job, question, draft) if draft is not None else "",
         ))
     return result
 

@@ -15,6 +15,7 @@ from app.services import profile as profile_service
 from app.services import resume as resume_service
 from tests.conftest import SAMPLE_JOB, SAMPLE_PROFILE
 from tests.test_answers import accept
+from tests.test_package import approve
 
 
 @pytest.fixture
@@ -51,7 +52,7 @@ def _accept_fresh_resume(session, job, candidate):
 def test_supported_answer_approves(session, prepared):
     candidate, job, _ = prepared
     assert package.check(job, job.application, candidate)[0] == []
-    package.approve(session, job, candidate)
+    approve(session, job, candidate)
 
 
 def test_edited_source_blocks_reapproval_until_the_answer_is_fixed(session, prepared):
@@ -62,11 +63,11 @@ def test_edited_source_blocks_reapproval_until_the_answer_is_fixed(session, prep
     assert len(blockers) == 1 and "no longer supported by your profile" in blockers[0]
     assert "1200" in blockers[0]  # the metric its source no longer states
     with pytest.raises(package.PackageError):
-        package.approve(session, job, candidate)
+        approve(session, job, candidate)
 
     answer_service.set_answer(session, job, job.application, question.id, "I enjoy building internal tools.")
     assert package.check(job, job.application, candidate)[0] == []
-    package.approve(session, job, candidate)
+    approve(session, job, candidate)
 
 
 def test_removed_source_blocks_and_user_answers_are_not_rechecked(session, prepared):

@@ -35,6 +35,17 @@ def app_(job):
     return job.application
 
 
+def approve(session, job, candidate):
+    """Approve the package as the Review section shows it now."""
+    return package.approve(session, job, candidate, package.package_token(job, job.application, candidate))
+
+
+def record_applied(session, job, candidate, **kwargs):
+    """Record Applied with the package as the Tracking form shows it now."""
+    token = package.package_token(job, job.application, candidate)
+    return package.record_applied(session, job, candidate, token, **kwargs)
+
+
 def accept_resume(session, job, candidate):
     record = resume.propose(session, job, candidate, resume.profile_draft(candidate.profile))
     resume.accept(session, job, candidate, resume.proposal_token(record))
@@ -73,7 +84,7 @@ def test_empty_package_is_blocked_on_the_resume(session, job, app_, candidate):
     assert any("No accepted resume" in b for b in blockers)
     assert "No requirements were reviewed for this job." in warnings
     with pytest.raises(PackageError) as caught:
-        package.approve(session, job, candidate)
+        approve(session, job, candidate)
     assert caught.value.details == blockers
     assert app_.approval is None
 
@@ -157,7 +168,7 @@ def test_warnings_for_pending_drafts_newer_proposal_and_no_requirements(session,
 def test_approval_records_hash_revisions_and_warnings_and_leaves_tracking_alone(session, job, app_, candidate):
     ready(session, job, candidate)
     before = (app_.status, list(app_.status_history), app_.applied_on)
-    approval = package.approve(session, job, candidate)
+    approval = approve(session, job, candidate)
     assert app_.approval == approval and app_.review_state == "approved"
     assert approval.profile_revision == candidate.revision and approval.job_revision == job.revision
     assert approval.warnings == ["No requirements were reviewed for this job."]
@@ -182,7 +193,7 @@ def test_resolved_package_view(session, job, app_, candidate):
 
 def test_review_state_survives_reload_and_sync_stores_it(session, job, app_, candidate, settings):
     ready(session, job, candidate)
-    package.approve(session, job, candidate)
+    approve(session, job, candidate)
     engine = make_engine(settings.database_url)
     with make_session_factory(engine)() as other:
         other_job, other_candidate = jobs.get(other, job.id), profile.get_candidate(other)
@@ -196,7 +207,7 @@ def test_review_state_survives_reload_and_sync_stores_it(session, job, app_, can
 
 def test_editing_an_answer_returns_to_draft(session, job, app_, candidate):
     ready(session, job, candidate)
-    package.approve(session, job, candidate)
+    approve(session, job, candidate)
     answers.set_answer(session, job, app_, "q3", "A different answer.")
     assert app_.approval is None and app_.review_state == "draft"
     assert package.review_state(job, app_, candidate) is ReviewState.DRAFT
@@ -204,14 +215,14 @@ def test_editing_an_answer_returns_to_draft(session, job, app_, candidate):
 
 def test_adding_a_question_returns_to_draft(session, job, app_, candidate):
     ready(session, job, candidate)
-    package.approve(session, job, candidate)
+    approve(session, job, candidate)
     answers.add_question(session, job, "What excites you about our team?", required=False)
     assert package.review_state(job, app_, candidate) is ReviewState.DRAFT
 
 
 def test_accepting_a_different_resume_returns_to_draft(session, job, app_, candidate):
     ready(session, job, candidate)
-    package.approve(session, job, candidate)
+    approve(session, job, candidate)
     record = resume.propose(session, job, candidate, {"summary": None, "experience": [], "skills": ["Python"]})
     assert app_.review_state == "approved" and app_.approval is not None
     resume.accept(session, job, candidate, resume.proposal_token(record))
@@ -221,7 +232,7 @@ def test_accepting_a_different_resume_returns_to_draft(session, job, app_, candi
 
 def test_a_new_proposal_alone_keeps_approval(session, job, app_, candidate):
     ready(session, job, candidate)
-    package.approve(session, job, candidate)
+    approve(session, job, candidate)
     resume.propose(session, job, candidate, {"experience": []})
     assert app_.review_state == "approved" and app_.approval is not None
     assert package.review_state(job, app_, candidate) is ReviewState.APPROVED
@@ -231,7 +242,7 @@ def test_a_new_proposal_alone_keeps_approval(session, job, app_, candidate):
 def test_a_stored_draft_keeps_approval(session, job, app_, candidate):
     ready(session, job, candidate)
     question = answers.add_question(session, job, "What excites you about our team?", required=False)
-    package.approve(session, job, candidate)
+    approve(session, job, candidate)
     from tests.test_answers import make_draft
     answers.replace_drafts(app_, [make_draft(question.id)])
     session.commit()
@@ -241,21 +252,21 @@ def test_a_stored_draft_keeps_approval(session, job, app_, candidate):
 
 def test_profile_edit_makes_it_stale(session, job, app_, candidate):
     ready(session, job, candidate)
-    package.approve(session, job, candidate)
+    approve(session, job, candidate)
     edit_profile(session, candidate, summary="Computer science student focused on backend services.")
     assert package.review_state(job, app_, candidate) is ReviewState.STALE
 
 
 def test_job_description_edit_makes_it_stale(session, job, app_, candidate):
     ready(session, job, candidate)
-    package.approve(session, job, candidate)
+    approve(session, job, candidate)
     jobs.update(session, job, jobs.clean_input(**(DEMO_JOB | {"description": DEMO_JOB["description"] + "\nMore."})))
     assert package.review_state(job, app_, candidate) is ReviewState.STALE
 
 
 def test_stale_wins_over_changed_content(session, job, app_, candidate):
     ready(session, job, candidate)
-    package.approve(session, job, candidate)
+    approve(session, job, candidate)
     edit_profile(session, candidate, email="jordan.new@example.com")  # changes the email answer too
     assert package.review_state(job, app_, candidate) is ReviewState.STALE
 
@@ -265,13 +276,13 @@ def test_stale_wins_over_changed_content(session, job, app_, candidate):
 @pytest.mark.parametrize("how", ["draft", "stale"])
 def test_record_applied_refuses_draft_and_stale_packages(session, job, app_, candidate, how):
     ready(session, job, candidate)
-    package.approve(session, job, candidate)
+    approve(session, job, candidate)
     if how == "draft":
         answers.set_answer(session, job, app_, "q3", "Changed.")
     else:
         edit_profile(session, candidate, email="jordan.new@example.com")
     with pytest.raises(PackageError, match="Approve the current package"):
-        package.record_applied(session, job, candidate)
+        record_applied(session, job, candidate)
     assert app_.status is TrackingStatus.SAVED and app_.applied_on is None
     assert app_.submitted_snapshots == []
     assert [e.status for e in app_.status_history] == [TrackingStatus.SAVED]
@@ -280,15 +291,15 @@ def test_record_applied_refuses_draft_and_stale_packages(session, job, app_, can
 def test_record_applied_without_approval_is_refused(session, job, app_, candidate):
     ready(session, job, candidate)
     with pytest.raises(PackageError, match="Draft"):
-        package.record_applied(session, job, candidate)
+        record_applied(session, job, candidate)
     assert app_.status is TrackingStatus.SAVED
 
 
 def test_record_applied_stores_a_snapshot_and_sets_the_status(session, job, app_, candidate):
     ready(session, job, candidate)
-    approval = package.approve(session, job, candidate)
+    approval = approve(session, job, candidate)
     on = date.today() - timedelta(days=2)
-    snapshot = package.record_applied(session, job, candidate, on=on, note="Submitted on their site")
+    snapshot = record_applied(session, job, candidate, on=on, note="Submitted on their site")
     assert app_.status is TrackingStatus.APPLIED and app_.applied_on == on
     assert app_.status_history[-1].note == "Submitted on their site" and app_.status_history[-1].on == on
     assert app_.submitted_snapshots == [snapshot] and package.get_snapshot(app_, 1) == snapshot
@@ -310,13 +321,13 @@ def test_record_applied_stores_a_snapshot_and_sets_the_status(session, job, app_
 
 def test_failed_status_change_stores_no_snapshot(session, job, app_, candidate):
     ready(session, job, candidate)
-    package.approve(session, job, candidate)
+    approve(session, job, candidate)
     with pytest.raises(tracking.TrackingError, match="future"):
-        package.record_applied(session, job, candidate, on=date.today() + timedelta(days=1))
+        record_applied(session, job, candidate, on=date.today() + timedelta(days=1))
     assert app_.submitted_snapshots == [] and app_.status is TrackingStatus.SAVED
-    package.record_applied(session, job, candidate)
+    record_applied(session, job, candidate)
     with pytest.raises(tracking.TrackingError, match="already"):
-        package.record_applied(session, job, candidate)
+        record_applied(session, job, candidate)
     assert len(app_.submitted_snapshots) == 1
 
 
@@ -327,14 +338,14 @@ def test_recording_applied_without_a_package_still_works(session, job, app_):
 
 def test_second_applied_snapshot_gets_the_next_id(session, job, app_, candidate):
     ready(session, job, candidate)
-    package.approve(session, job, candidate)
-    first = package.record_applied(session, job, candidate)
+    approve(session, job, candidate)
+    first = record_applied(session, job, candidate)
     tracking.change_status(session, app_, "withdrawn")
     answers.set_answer(session, job, app_, "q3", "A better answer.")
     with pytest.raises(PackageError):
-        package.record_applied(session, job, candidate)
-    package.approve(session, job, candidate)
-    second = package.record_applied(session, job, candidate)
+        record_applied(session, job, candidate)
+    approve(session, job, candidate)
+    second = record_applied(session, job, candidate)
     assert (first.id, second.id) == (1, 2)
     assert app_.status is TrackingStatus.APPLIED
     assert [s.id for s in app_.submitted_snapshots] == [1, 2]
@@ -347,8 +358,8 @@ def test_second_applied_snapshot_gets_the_next_id(session, job, app_, candidate)
 def test_acceptance_gate_unchanged_package_after_profile_and_job_edits(session, job, app_, candidate, settings):
     """Prepare, approve, submit manually and retrieve an unchanged package after profile edits."""
     ready(session, job, candidate)
-    package.approve(session, job, candidate)
-    package.record_applied(session, job, candidate)
+    approve(session, job, candidate)
+    record_applied(session, job, candidate)
     stored = app_.submitted_snapshots[0]
     frozen = stored.model_dump_json()
     html, email = stored.resume_html, "jordan@example.com"

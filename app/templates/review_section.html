@@ -47,6 +47,7 @@
 
     {% if not blockers %}
       <form method="post" action="/jobs/{{ job.id }}/approve" class="form-actions">
+        <input type="hidden" name="package_token" value="{{ package_token }}">
         <button type="submit" class="btn-primary">Approve package</button>
       </form>
     {% else %}

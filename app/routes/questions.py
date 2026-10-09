@@ -14,7 +14,7 @@ from ..ai.client import AIError, OpenRouterClient
 from ..db import get_ai_client, get_session
 from ..models import Job
 from ..services import answers as answer_service
-from ..services.answers import AnswerError
+from ..services.answers import AnswerError, ReviewChanged
 from ..services.profile import get_candidate
 from .jobs import _job_or_404, _render_workspace
 
@@ -54,12 +54,17 @@ def _failed(request: Request, session: Session, job: Job, message: str, status_c
 
 def _act(request: Request, session: Session, job: Job, qid: str, action, msg: str, status_code: int = 422,
          text: str | None = None):
-    """Run one service action for a question; a refusal re-renders the workspace at that question."""
+    """Run one service action for a question; a refusal re-renders the workspace at that question.
+
+    A page that no longer matches what is stored (``ReviewChanged``) is a conflict: 409, with the
+    current content shown for the user to review again.
+    """
     _question_or_404(job, qid)
     try:
         action()
     except AnswerError as exc:
-        return _failed(request, session, job, str(exc), status_code, qid, exc.details, text)
+        code = 409 if isinstance(exc, ReviewChanged) else status_code
+        return _failed(request, session, job, str(exc), code, qid, exc.details, text)
     return _back(job, msg, qid)
 
 
@@ -109,14 +114,16 @@ def save_answer(request: Request, job_id: int, qid: str, text: str = Form(""), o
 
 
 @router.post("/{qid}/confirm")
-def confirm_answer(request: Request, job_id: int, qid: str, session: Session = Depends(get_session)):
+def confirm_answer(request: Request, job_id: int, qid: str, confirmation_token: str = Form(""),
+                   session: Session = Depends(get_session)):
     job = _job_or_404(session, job_id)
     _question_or_404(job, qid)
     candidate = get_candidate(session)
     if candidate is None:
         return _failed(request, session, job, NO_PROFILE, 400, qid)
     return _act(request, session, job, qid,
-                lambda: answer_service.confirm_answer(session, job, job.application, qid, candidate),
+                lambda: answer_service.confirm_answer(session, job, job.application, qid, candidate,
+                                                      confirmation_token),
                 "answer_confirmed")
 
 
@@ -159,14 +166,15 @@ def draft(request: Request, job_id: int, force: int = Form(0), session: Session 
 
 
 @router.post("/{qid}/draft/accept")
-def accept_draft(request: Request, job_id: int, qid: str, session: Session = Depends(get_session)):
+def accept_draft(request: Request, job_id: int, qid: str, draft_token: str = Form(""),
+                 session: Session = Depends(get_session)):
     job = _job_or_404(session, job_id)
     _question_or_404(job, qid)
     candidate = get_candidate(session)
     if candidate is None:
         return _failed(request, session, job, NO_PROFILE, 400, qid)
     return _act(request, session, job, qid,
-                lambda: answer_service.accept_draft(session, job, job.application, qid, candidate),
+                lambda: answer_service.accept_draft(session, job, job.application, qid, candidate, draft_token),
                 "draft_accepted", status_code=409)
 
 

@@ -12,7 +12,9 @@ Ported from ResuSkill's ``resuskill_core.package`` (questions, answers, resoluti
 - Sensitive answers are never saved to the answer bank. That is a hard rule, not a preference.
 
 Every change runs in ``transactions.write``: it holds the database writer lock and works on the
-reloaded rows, so simultaneous requests can't undo each other's questions or answers.
+reloaded rows, so simultaneous requests can't undo each other's questions or answers. Confirming
+a value and accepting a draft also need the token of what the user reviewed (``confirmation_token``,
+``draft_token``); a page that no longer matches is refused with ``ReviewChanged``.
 
 JSON columns are treated as immutable: every mutation assigns a new list.
 """
@@ -34,7 +36,7 @@ from . import profile as profile_service
 from . import questions as q_rules
 from . import transactions
 from .claims import claim_problems, detection_terms
-from .text import norm_text
+from .text import content_hash, norm_text
 
 QUESTION_LIMIT = 2000  # characters of question text
 ANSWER_LIMIT = 10000  # characters of answer text, whatever the employer's own limit
@@ -59,6 +61,28 @@ class AnswerError(Exception):
     def __init__(self, message: str, details: list[str] | None = None):
         super().__init__(message)
         self.details = details or []
+
+
+class ReviewChanged(AnswerError):
+    """What the user reviewed is no longer what is stored, or the page sent no token. Nothing was changed."""
+
+
+# ---------------------------------------------------------------- review tokens
+
+def _question_data(job: Job, question: Question) -> dict:
+    return {"job": job.id, "question": question.model_dump(mode="json")}
+
+
+def confirmation_token(job: Job, question: Question, value: str | None, candidate: Candidate) -> str:
+    """What a confirm button vouches for: this question, the value shown and the profile revision it came from."""
+    return content_hash(_question_data(job, question) | {
+        "value": value, "candidate": candidate.id, "profile_revision": candidate.revision,
+    })
+
+
+def draft_token(job: Job, question: Question, draft: AnswerDraft) -> str:
+    """What an accept button vouches for: this question and the complete draft shown."""
+    return content_hash(_question_data(job, question) | {"draft": draft.model_dump(mode="json")})
 
 
 # ---------------------------------------------------------------- length and validation
@@ -265,10 +289,12 @@ def skip_answer(session: Session, job: Job, application: Application, qid: str) 
     return answer
 
 
-def confirm_answer(session: Session, job: Job, application: Application, qid: str, candidate: Candidate) -> Answer:
-    """Confirm the current profile value for a factual or sensitive-factual question.
+def confirm_answer(session: Session, job: Job, application: Application, qid: str, candidate: Candidate,
+                   token: str) -> Answer:
+    """Confirm the profile value the user was shown for a factual or sensitive-factual question.
 
-    The value is read from the profile as reloaded under the writer lock.
+    ``token`` is ``confirmation_token`` as the page showed it. The value is read again from the
+    reloaded profile; if it, the question or the profile revision changed, nothing is confirmed.
     """
     with transactions.write(session, job, candidate):
         question = _find(job, qid)
@@ -277,20 +303,32 @@ def confirm_answer(session: Session, job: Job, application: Application, qid: st
         value = q_rules.factual_value(question.factual_key or "", question.text, candidate.profile)
         if value is None:
             raise AnswerError("Your profile has no value for this question. Update the profile or answer it yourself.")
+        if token != confirmation_token(job, question, value, candidate):
+            raise ReviewChanged("This question or your profile changed since you reviewed it, so nothing was "
+                                "confirmed. Check the value shown now and confirm it again.")
         answer = Answer(question_id=qid, text=value, origin="profile", confirmed=True, at=utcnow())
         _replace_answer(application, answer)
     return answer
 
 
-def accept_draft(session: Session, job: Job, application: Application, qid: str, candidate: Candidate) -> Answer:
-    """Turn the AI draft into the answer, after checking it against the current profile and limit."""
+def accept_draft(session: Session, job: Job, application: Application, qid: str, candidate: Candidate,
+                 token: str) -> Answer:
+    """Turn the AI draft the user reviewed into the answer, after checking it against the current profile and limit.
+
+    ``token`` is ``draft_token`` as the page showed it. The draft may be older than the latest
+    profile edit; it is accepted only if its claims still hold against the reloaded profile.
+    Accepting a replacement for an unsupported AI answer swaps the answer.
+    """
     with transactions.write(session, job, candidate):
         question = _find(job, qid)
         draft = _draft_for(application, qid)
         if draft is None:
-            raise AnswerError(f"{qid} has no draft to accept.")
+            raise ReviewChanged(f"{qid} has no draft to accept. Review the question as it is now.")
         if question.category != q_rules.OPEN:
             raise AnswerError("Only open-ended questions take AI drafts.")
+        if token != draft_token(job, question, draft):
+            raise ReviewChanged("This draft or its question changed since you reviewed it, so it was not accepted. "
+                                "Read the draft shown now and accept it again.")
         problems = validate_answer(candidate.profile, job, draft.text, draft.sources, question.limit,
                                    question.limit_unit)
         if problems:

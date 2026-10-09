@@ -45,8 +45,31 @@ def qid_of(response) -> str:
     return re.search(r"#question-(q\d+)", response.headers["location"]).group(1)
 
 
+TOKEN_FIELDS = {"confirm": "confirmation_token", "draft/accept": "draft_token"}
+
+
+def page_token(html: str, name: str) -> str | None:
+    """The value of a hidden token field in this markup, as a browser would submit it."""
+    found = re.search(rf'name="{name}" value="([0-9a-f]*)"', html)
+    return found.group(1) if found else None
+
+
 def post(client, job_id, qid, action, **data):
+    """Post a question action. Confirm and accept send the token from the question as currently shown."""
+    field = TOKEN_FIELDS.get(action)
+    if field and field not in data:
+        page = client.get(f"/jobs/{job_id}").text
+        token = page_token(row(page, qid), field) if f'id="question-{qid}"' in page else None
+        if token is not None:
+            data[field] = token
     return client.post(f"/jobs/{job_id}/questions/{qid}/{action}", data=data, follow_redirects=False)
+
+
+def approve_package(client, job_id):
+    """Press Approve package with the token of the Review section as currently shown."""
+    token = page_token(review_part(workspace(client, job_id)), "package_token")
+    data = {} if token is None else {"package_token": token}
+    return client.post(f"/jobs/{job_id}/approve", data=data, follow_redirects=False)
 
 
 def stored_job(client, job_id):
@@ -295,7 +318,7 @@ def test_approval_is_blocked_with_listed_blockers(client, sample_profile):
     assert "this required question has no accepted answer" in review
     assert "sensitive questions need your own answer" in review
     assert 'action="/jobs/%d/approve"' % job_id not in review and "Approve package becomes available" in review
-    refused = client.post(f"/jobs/{job_id}/approve", follow_redirects=False)
+    refused = approve_package(client, job_id)
     assert refused.status_code == 409
     assert "The package can't be approved yet." in unescape(refused.text)
     assert "No accepted resume" in review_part(refused.text) and 'role="alert" tabindex="-1" data-focus' in refused.text
@@ -313,7 +336,7 @@ def test_approve_flow_notes_and_changes_clear_approval(client, sample_profile):
     assert "does not cover any other questions on the employer" in review
     assert "submit the application yourself" in review
 
-    approved = client.post(f"/jobs/{job_id}/approve", follow_redirects=False)
+    approved = approve_package(client, job_id)
     assert approved.headers["location"] == f"/jobs/{job_id}?msg=package_approved#review"
     page = client.get(approved.headers["location"]).text
     assert "Package approved. This does not mark the job Applied" in page
@@ -326,15 +349,19 @@ def test_approve_flow_notes_and_changes_clear_approval(client, sample_profile):
     post(client, job_id, why, "answer", text="A different answer.")
     changed = workspace(client, job_id)
     assert "badge review-draft" in changed and 'action="/jobs/%d/approve"' % job_id in review_part(changed)
-    assert client.post(f"/jobs/{job_id}/approve", follow_redirects=False).status_code == 303
+    assert approve_package(client, job_id).status_code == 303
 
 
 # ---------------------------------------------------------------- tracking and snapshots
 
 def record(client, job_id, snapshot=True, status="applied", **extra):
+    """Update the status; with the snapshot box ticked, send the package token the Tracking form shows."""
     data = {"status": status, "on": "", "note": "Applied on the company site", **extra}
     if snapshot:
         data["snapshot"] = "1"
+        token = page_token(workspace(client, job_id), "package_token")
+        if token is not None and "package_token" not in data:
+            data["package_token"] = token
     return client.post(f"/jobs/{job_id}/status", data=data, follow_redirects=False)
 
 
@@ -343,7 +370,7 @@ def test_snapshot_option_appears_only_for_an_approved_package(client, sample_pro
     assert "Save the approved package as what I submitted" not in workspace(client, job_id)
     complete_package(client, job_id)
     assert "Save the approved package as what I submitted" not in workspace(client, job_id)
-    client.post(f"/jobs/{job_id}/approve")
+    approve_package(client, job_id)
     page = workspace(client, job_id)
     assert re.search(r'name="snapshot" value="1"\s+checked> Save the approved package as what I submitted', page)
     assert 'data-when-status="applied"' in page
@@ -352,7 +379,7 @@ def test_snapshot_option_appears_only_for_an_approved_package(client, sample_pro
 def test_record_applied_without_the_checkbox_is_a_plain_status_change(client, sample_profile):
     job_id = ready_job(client, sample_profile)
     complete_package(client, job_id)
-    client.post(f"/jobs/{job_id}/approve")
+    approve_package(client, job_id)
     response = record(client, job_id, snapshot=False)
     assert response.headers["location"] == f"/jobs/{job_id}?msg=status_changed#tracking"
     _, app_, _ = stored_job(client, job_id)
@@ -367,7 +394,7 @@ def test_record_applied_with_a_snapshot_and_without_an_approved_package(client, 
     assert forced.status_code == 409 and "The package is Draft" in forced.text
     assert stored_job(client, job_id)[1].tracking_status == "saved"
     complete_package(client, job_id)
-    client.post(f"/jobs/{job_id}/approve")
+    approve_package(client, job_id)
     # Another status with the checkbox ticked is just a status change.
     assert record(client, job_id, status="withdrawn").headers["location"].endswith("msg=status_changed#tracking")
     assert stored_job(client, job_id)[1].submitted_snapshots == []
@@ -383,7 +410,7 @@ def test_record_applied_with_a_snapshot_and_without_an_approved_package(client, 
 def test_snapshot_pages_show_the_frozen_package(client, sample_profile):
     job_id = ready_job(client, sample_profile)
     auth, why, gender = complete_package(client, job_id)
-    client.post(f"/jobs/{job_id}/approve")
+    approve_package(client, job_id)
     record(client, job_id)
     snap = client.get(f"/jobs/{job_id}/snapshots/1")
     assert snap.status_code == 200
@@ -418,7 +445,7 @@ def test_snapshot_resume_html_is_escaped(client, sample_profile):
     sample_profile["summary"] = "Builds <script>alert(1)</script> and <b>bold</b> services in Python."
     job_id = ready_job(client, sample_profile)
     complete_package(client, job_id)
-    client.post(f"/jobs/{job_id}/approve")
+    approve_package(client, job_id)
     record(client, job_id)
     printed = client.get(f"/jobs/{job_id}/snapshots/1/resume").text
     assert "<script>alert(1)" not in printed and "<b>bold</b>" not in printed
@@ -431,7 +458,7 @@ def test_snapshot_resume_html_is_escaped(client, sample_profile):
 def test_prepare_approve_submit_and_retrieve_an_unchanged_package(client, sample_profile):
     job_id = ready_job(client, sample_profile)
     auth, why, gender = complete_package(client, job_id)
-    approved = client.post(f"/jobs/{job_id}/approve", follow_redirects=False)
+    approved = approve_package(client, job_id)
     assert approved.status_code == 303
     assert "badge review-approved" in workspace(client, job_id)
     recorded = record(client, job_id, on="")
@@ -471,7 +498,7 @@ def test_jobs_list_reflects_the_computed_review_state(client, sample_profile):
     job_id = ready_job(client, sample_profile)
     complete_package(client, job_id)
     assert "review-draft" in client.get("/jobs").text
-    client.post(f"/jobs/{job_id}/approve")
+    approve_package(client, job_id)
     assert "review-approved" in client.get("/jobs").text
     edited = client_profile(client)
     edited["contact"]["phone"] = "+1 555 0123"
