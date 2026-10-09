@@ -141,7 +141,7 @@ Questions are categorized by explicit rules:
 
 | Category | Handling |
 |---|---|
-| Factual (name, email, phone, links, graduation, start date, school, degree, major, GPA, location) | Filled from the profile |
+| Factual (name, email, phone, links, graduation, start date, school, degree, major, GPA, location) | Filled from the profile; first and last names are typed by the user, because the profile stores only the full name and it is never split |
 | Sensitive-factual (work authorization, sponsorship) | Filled from the profile, then the user must explicitly confirm it |
 | Sensitive (demographics, disability, veteran status, criminal history, salary, legal attestations, consent) | The user answers directly or explicitly skips an optional question |
 | Open-ended | Source-backed AI draft, checked with the same claim rules plus the length limit |
@@ -158,11 +158,14 @@ Approval requires:
 
 - an accepted resume that still validates against the current profile;
 - an accepted answer for every required question;
-- every sensitive question resolved (answered, confirmed or explicitly skipped).
+- every sensitive question resolved (answered, confirmed or explicitly skipped);
+- no profile value over its question's length limit, even on an optional question (values are never shortened: the user writes a shorter answer or skips an optional question).
 
 It does not claim that employer questions not entered in the workspace are complete.
 
 Editing package content clears approval. Changing the profile or job marks unsubmitted packages Stale. Approval never marks an application Applied.
+
+Confirming a profile value, accepting an AI draft, approving and recording a submitted package apply only to what the user's page showed. If the stored content changed since, the action is refused and the current content is shown for review.
 
 When recording Applied, the user confirms which approved package they used; it is saved as a submitted snapshot, with its rendered resume and the profile revision it was built from. Later profile changes never alter it.
 
