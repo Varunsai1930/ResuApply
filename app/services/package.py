@@ -28,7 +28,7 @@ from ..templating import templates
 from . import answers as answer_service
 from . import questions as q_rules
 from . import resume as resume_service
-from . import tracking
+from . import tracking, transactions
 from .text import content_hash
 
 RESUME_DOCUMENT_TEMPLATE = "_resume_document.html"
@@ -139,22 +139,25 @@ def check(job: Job, application: Application, candidate: Candidate | None) -> tu
 
 
 def approve(session: Session, job: Job, candidate: Candidate | None) -> Approval:
-    """Approve the current package. Refused while there are blockers; never changes tracking status."""
-    application = job.application
-    blockers, warnings = check(job, application, candidate)
-    if blockers:
-        raise PackageError("The package can't be approved yet.", blockers)
-    approval = Approval(
-        content_hash=content_hash(resolved_package(job, application, candidate)),
-        approved_at=utcnow(),
-        profile_revision=candidate.revision,
-        job_revision=job.revision,
-        warnings=warnings,
-    )
-    application.approval = approval
-    application.review_state = ReviewState.APPROVED.value
-    application.updated_at = utcnow()
-    session.commit()
+    """Approve the current package. Refused while there are blockers; never changes tracking status.
+
+    Checked and saved under the writer lock, against the reloaded package.
+    """
+    with transactions.write(session, job, candidate):
+        application = job.application
+        blockers, warnings = check(job, application, candidate)
+        if blockers:
+            raise PackageError("The package can't be approved yet.", blockers)
+        approval = Approval(
+            content_hash=content_hash(resolved_package(job, application, candidate)),
+            approved_at=utcnow(),
+            profile_revision=candidate.revision,
+            job_revision=job.revision,
+            warnings=warnings,
+        )
+        application.approval = approval
+        application.review_state = ReviewState.APPROVED.value
+        application.updated_at = utcnow()
     return approval
 
 
@@ -173,7 +176,11 @@ def review_state(job: Job, application: Application, candidate: Candidate | None
 
 def sync_review_state(session: Session, job: Job, application: Application,
                       candidate: Candidate | None) -> ReviewState:
-    """Compute the review state and store it in the column when it differs, so lists can rely on it."""
+    """Compute the review state and store it in the column when it differs, so lists can rely on it.
+
+    Only for pages shown after a successful request. An error page uses ``review_state`` alone,
+    so a refused action never writes anything.
+    """
     state = review_state(job, application, candidate)
     if application.review_state != state.value:
         application.review_state = state.value
@@ -199,36 +206,35 @@ def record_applied(session: Session, job: Job, candidate: Candidate | None, on: 
     Only a current approved package can be frozen. Recording Applied without a package
     (the user applied some other way) is ``tracking.change_status`` on its own.
     """
-    application = job.application
-    state = sync_review_state(session, job, application, candidate)
-    if state != ReviewState.APPROVED:
-        raise PackageError(
-            f"The package is {state.label}. Approve the current package before recording the application "
-            "with it, or record Applied without a package.",
+    with transactions.write(session, job, candidate):
+        application = job.application
+        state = review_state(job, application, candidate)
+        if state != ReviewState.APPROVED:
+            raise PackageError(
+                f"The package is {state.label}. Approve the current package before recording the application "
+                "with it, or record Applied without a package.",
+            )
+        today = today or date.today()
+        context = _resume_context(job, application, candidate)
+        if context is None:  # approval implies an accepted resume; stay safe if the data says otherwise
+            raise PackageError("There is no accepted resume to freeze. Accept a resume and approve the package again.")
+        snapshot = SubmittedSnapshot(
+            id=max((s.id for s in application.submitted_snapshots), default=0) + 1,
+            submitted_on=on or today,
+            recorded_at=utcnow(),
+            approval=application.approval,
+            profile_revision=candidate.revision,
+            job_revision=job.revision,
+            job={"title": job.title, "company": job.company, "location": job.location, "url": job.url,
+                 "description": job.description, "revision": job.revision},
+            resume=_jsonable(context),
+            resume_html=_resume_html(context),
+            answers=[{k: entry[k] for k in ("question", "required", "category", "label", "text")}
+                     for entry in resolved_package(job, application, candidate)["questions"]],
+            profile=candidate.profile.model_copy(deep=True),
         )
-    today = today or date.today()
-    context = _resume_context(job, application, candidate)
-    if context is None:  # approval implies an accepted resume; stay safe if the data says otherwise
-        raise PackageError("There is no accepted resume to freeze. Accept a resume and approve the package again.")
-    snapshot = SubmittedSnapshot(
-        id=max((s.id for s in application.submitted_snapshots), default=0) + 1,
-        submitted_on=on or today,
-        recorded_at=utcnow(),
-        approval=application.approval,
-        profile_revision=candidate.revision,
-        job_revision=job.revision,
-        job={"title": job.title, "company": job.company, "location": job.location, "url": job.url,
-             "description": job.description, "revision": job.revision},
-        resume=_jsonable(context),
-        resume_html=_resume_html(context),
-        answers=[{k: entry[k] for k in ("question", "required", "category", "label", "text")}
-                 for entry in resolved_package(job, application, candidate)["questions"]],
-        profile=candidate.profile.model_copy(deep=True),
-    )
-    application.submitted_snapshots = [*application.submitted_snapshots, snapshot]
-    try:
-        tracking.change_status(session, application, TrackingStatus.APPLIED.value, on=on, note=note, today=today)
-    except Exception:
-        session.rollback()  # the snapshot goes with the failed status change
-        raise
+        # The status change is validated first; the snapshot and the status are committed together.
+        tracking.apply_status(application, TrackingStatus.APPLIED.value, on=on, note=note, today=today)
+        application.submitted_snapshots = [*application.submitted_snapshots, snapshot]
+        application.review_state = state.value
     return snapshot

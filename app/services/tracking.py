@@ -32,6 +32,19 @@ def change_status(
     today: date | None = None,
 ) -> StatusEvent:
     """Record a new tracking status with the date it happened (default today) and an optional note."""
+    event = apply_status(application, status, on, note, today)
+    session.commit()
+    return event
+
+
+def apply_status(
+    application: Application,
+    status: str,
+    on: date | None = None,
+    note: str = "",
+    today: date | None = None,
+) -> StatusEvent:
+    """Validate and apply a status change without committing, for callers that save more with it."""
     today = today or date.today()
     try:
         new_status = TrackingStatus((status or "").strip().lower())
@@ -53,7 +66,6 @@ def change_status(
     if new_status == TrackingStatus.APPLIED and application.applied_on is None:
         application.applied_on = on
     application.updated_at = now
-    session.commit()
     return event
 
 

@@ -67,7 +67,11 @@ def _render_workspace(request: Request, session: Session, job: Job, msg: str = "
     suggestions = operations.current_suggestions(session, job, candidate, settings)
     sharing = outbound.state(session, settings, candidate) if candidate else None
     application = job.application
-    review = package.sync_review_state(session, job, application, candidate)
+    # An error page shows the state without saving it: a refused request writes nothing.
+    if status_code < 400:
+        review = package.sync_review_state(session, job, application, candidate)
+    else:
+        review = package.review_state(job, application, candidate)
     blockers, warnings = package.check(job, application, candidate)
     return templates.TemplateResponse(
         request,
