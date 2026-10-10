@@ -176,3 +176,19 @@ def test_question_limits_stay_within_the_longest_answer_kept(client, sample_prof
         assert (response.status_code == 303) is ok, limit
         if not ok:
             assert "at most 10,000" in response.text
+
+
+def test_profile_links_must_be_web_addresses(client, sample_profile):
+    for link, ok in (("javascript:alert(1)", False), ("JaVaScRiPt:alert(1)", False), ("data:text/html,x", False),
+                     ("mailto:me@example.com", False), ("github.com/you", True), ("https://github.com/you", True),
+                     ("example.com:8080/me", True)):
+        profile = copy.deepcopy(sample_profile)
+        profile["contact"]["links"] = {"github": link}
+        response = client.post("/profile/review", data=profile_form(profile))
+        assert (response.status_code == 200) is ok, link
+        if not ok:
+            assert "GitHub link must be a web address" in response.text
+    project = copy.deepcopy(sample_profile)
+    project["projects"][0]["link"] = "javascript:alert(1)"
+    response = client.post("/profile/review", data=profile_form(project))
+    assert response.status_code == 422 and "link must be a web address" in response.text

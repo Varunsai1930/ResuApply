@@ -57,6 +57,22 @@ TOP_LEVEL = {
     "certifications", "preferences", "availability", "authorization", "_meta",
 }
 DATE_HINT = 'YYYY, YYYY-MM, YYYY-MM-DD or "present"'
+LINK_LABELS = {"linkedin": "LinkedIn", "github": "GitHub", "portfolio": "Portfolio"}
+LINK_HINT = "a web address, such as github.com/you or https://example.com"
+_SCHEME = re.compile(r"([A-Za-z][A-Za-z0-9+.-]*):")
+
+
+def is_web_link(value: str) -> bool:
+    """Whether a profile link is a web address: http(s)://…, or a bare one like github.com/you.
+
+    Other schemes (``javascript:``, ``data:``, ``mailto:``) are refused, so a link is safe to
+    show as clickable. "example.com:8080/x" is a host and port, not a scheme.
+    """
+    match = _SCHEME.match(value)
+    if not match:
+        return True
+    scheme = match.group(1).lower()
+    return scheme in ("http", "https") or "." in scheme
 
 
 # ---------------------------------------------------------------- errors and results
@@ -239,6 +255,9 @@ def normalize(
     prof["contact"] = {k: _clean_str(contact.get(k)) for k in ("name", "email", "phone", "location")} | {
         "links": {k: _clean_str(raw_links.get(k)) for k in LINK_KEYS}
     }
+    for key, link in prof["contact"]["links"].items():
+        if link and not is_web_link(link):
+            errors.append(FieldError(f"{LINK_LABELS[key]} link must be {LINK_HINT} (got {link!r})", f"contact-links-{key}"))
     if not prof["contact"]["name"]:
         errors.append(FieldError("Name is required", "contact-name"))
     email = prof["contact"]["email"]
@@ -278,6 +297,9 @@ def normalize(
                         f"{label}: {FIELD_LABELS[name]} must be {DATE_HINT} (got {entry[name]!r})",
                         _form_field(raw, name),
                     ))
+            if entry.get("link") and not is_web_link(entry["link"]):
+                errors.append(FieldError(f"{label}: link must be {LINK_HINT} (got {entry['link']!r})",
+                                         _form_field(raw, "link")))
             # "present" as the end is always accepted: a role can start in the future.
             if entry["end"] != "present" and ends_before_start(entry["start"], entry["end"]):
                 errors.append(FieldError(f"{label}: end date is before the start date", _form_field(raw, "end")))
