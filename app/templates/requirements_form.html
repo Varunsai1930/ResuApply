@@ -89,7 +89,28 @@
   {% if job.requirements %}
   <ul>
     {% for req in job.requirements %}
-    <li><span class="id-badge">{{ req.id }}</span> {{ req.text }} <span class="meta">({{ req.importance | replace('_', ' ') }}; “{{ req.excerpt }}”)</span></li>
+    <li>
+      <div><span class="id-badge">{{ req.id }}</span> {{ req.text }}</div>
+      <div class="meta">Category: {{ req.category | capitalize }}; Importance: {{ req.importance | replace('_', ' ') }}; Excerpt: “{{ req.excerpt }}”</div>
+      {% set crit = req.criterion %}
+      <div>Comparable criterion: {% if not crit %}None{% else %}{{ criterion_labels[crit.type] }} —
+        {% if crit.type == 'skill' %}
+          Needs {{ 'all skills' if crit.match == 'all' else 'any skill' }}: {{ crit.skills | join(', ') }}
+        {% elif crit.type == 'degree' %}
+          Level: {{ crit.level | capitalize }}; Fields of study: {{ crit.fields | join(', ') or 'Any field' }}; Status: {{ crit.status | capitalize }}
+        {% elif crit.type == 'graduation_window' %}
+          From: {{ crit.from_ or 'Not stated' }}; By: {{ crit.to or 'Not stated' }}
+        {% elif crit.type == 'location' %}
+          Locations: {{ crit.locations | join('; ') or 'Not stated' }}; Work mode: {{ crit.work_mode | capitalize if crit.work_mode else 'Not stated' }}
+        {% elif crit.type == 'authorization' %}
+          Country: {{ crit.country }}; Job offers visa sponsorship: {{ 'Not stated' if crit.sponsorship_available is none else ('Yes' if crit.sponsorship_available else 'No') }}
+        {% elif crit.type == 'availability' %}
+          Starts from: {{ crit.start_from or 'Not stated' }}; Must start by: {{ crit.start_by or 'Not stated' }}
+        {% elif crit.type == 'years_experience' %}
+          Years: {{ crit.years }}; In: {{ crit.area or 'Any area' }}
+        {% endif %}
+      {% endif %}</div>
+    </li>
     {% endfor %}
   </ul>
   {% else %}

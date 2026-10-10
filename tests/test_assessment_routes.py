@@ -92,6 +92,39 @@ def test_editor_round_trips_saved_requirements(client, sample_profile):
     assert response.headers["location"].endswith("msg=requirements_unchanged#requirements")
 
 
+@pytest.mark.parametrize("criterion, expected", [
+    ({"type": "skill", "skills": ["Python", "SQL"], "match": "any"}, ["Needs any skill: Python, SQL"]),
+    ({"type": "degree", "level": "phd", "fields": ["Physics"], "status": "pursuing"},
+     ["Level: Phd", "Fields of study: Physics", "Status: Pursuing"]),
+    ({"type": "graduation_window", "from": "2028-05", "to": "2029-06"}, ["From: 2028-05", "By: 2029-06"]),
+    ({"type": "location", "locations": ["Austin", "Remote"], "work_mode": "hybrid"},
+     ["Locations: Austin; Remote", "Work mode: Hybrid"]),
+    ({"type": "authorization", "country": "US", "sponsorship_available": False},
+     ["Country: US", "Job offers visa sponsorship: No"]),
+    ({"type": "availability", "start_from": "2028-01", "start_by": "2028-06"},
+     ["Starts from: 2028-01", "Must start by: 2028-06"]),
+    ({"type": "years_experience", "years": 2.5, "area": "backend <development>"},
+     ["Years: 2.5", "In: backend &lt;development&gt;"]),
+    (None, ["Comparable criterion: None"]),
+])
+def test_conflict_shows_saved_category_and_every_criterion_field(client, sample_profile, criterion, expected):
+    from app.services.requirements import set_requirements
+
+    job_id = setup(client, sample_profile)
+    old_form = editor_fields(client.get(f"/jobs/{job_id}/requirements/edit").text)
+    with client.app.state.session_factory() as session:
+        job = session.get(Job, job_id)
+        changed = [req.model_dump(by_alias=True) for req in job.requirements]
+        changed[0].update(category="experience", criterion=criterion)
+        set_requirements(session, job, changed)
+    response = client.post(f"/jobs/{job_id}/requirements", data=old_form, follow_redirects=False)
+    assert response.status_code == 409
+    saved = response.text.split('aria-labelledby="saved-requirements"', 1)[1].split("</section>", 1)[0]
+    assert "Category: Experience" in saved
+    for field in expected:
+        assert field in saved
+
+
 def editor_fields(html: str) -> dict[str, str]:
     html = html.split("<template", 1)[0]
     fields = {}
