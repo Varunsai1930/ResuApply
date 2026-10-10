@@ -330,6 +330,17 @@ def test_notes_over_http(client):
 
 # ---------------------------------------------------------------- local-only guards
 
+@pytest.mark.parametrize("header", ["Origin", "Referer"])
+@pytest.mark.parametrize("source", ["http://[bad", "http://[127.0.0.1]", "http://evil\uff0f.example"],
+                         ids=["unclosed-bracket", "invalid-ipv6", "invalid-authority"])
+def test_malformed_request_origins_are_refused_without_saving(client, header, source):
+    response = client.post("/jobs", data=SAMPLE_JOB, headers={header: source.encode("utf-8")})
+    assert response.status_code == 403
+    assert "Cross-site request refused" in response.text
+    with client.app.state.session_factory() as session:
+        assert session.query(Job).count() == 0
+
+
 def test_cross_site_posts_are_refused(client):
     for origin in ("https://evil.example", "null"):
         response = client.post("/jobs", data=SAMPLE_JOB, headers={"Origin": origin})

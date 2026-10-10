@@ -30,7 +30,11 @@ class SameOriginMiddleware:
             headers = Headers(scope=scope)
             source = headers.get("origin") or headers.get("referer")
             # Browsers always send Origin on form posts; non-browser clients (tests, curl) may send neither.
-            if source is not None and (source == "null" or urlsplit(source).netloc != headers.get("host")):
+            try:
+                refused = source is not None and (source == "null" or urlsplit(source).netloc != headers.get("host"))
+            except ValueError:  # Malformed IPv6 hosts and other invalid URL authorities.
+                refused = True
+            if refused:
                 response = PlainTextResponse("Cross-site request refused.", status_code=403)
                 await response(scope, receive, send)
                 return
