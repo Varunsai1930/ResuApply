@@ -36,8 +36,12 @@
 {% endif %}
 
 <form method="post" action="{{ '/jobs/%d/edit' % job.id if job else '/jobs' }}" class="card" data-guard novalidate>
-  {% if job %}<input type="hidden" name="base_revision" value="{{ values.get('base_revision', job.revision) }}">{% endif %}
+  {% if job %}
+  <input type="hidden" name="base_revision" value="{{ values.get('base_revision', job.revision) }}">
+  <input type="hidden" name="base_token" value="{{ values.get('base_token', '') }}">
+  {% endif %}
   {% if conflict %}
+  <input type="hidden" name="replace_token" value="{{ saved_token }}">
   <label class="check"><input type="checkbox" id="base_revision" name="replace_revision" value="{{ job.revision }}"> I compared my changes with the saved version above. Save mine over it.</label>
   {% endif %}
   <div class="grid">

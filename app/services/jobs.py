@@ -18,6 +18,7 @@ from ..models import Application, Job
 from ..schemas.tracking import ReviewState, StatusEvent, TrackingStatus
 from . import transactions
 from .profile import get_candidate
+from .text import content_hash
 
 LIMITS = {"title": 200, "company": 200, "location": 200, "url": 2000, "description": 100_000}
 # Changing any of these changes what a package would be built from, so the revision increases.
@@ -92,17 +93,25 @@ def create(session: Session, data: JobInput, today: date | None = None) -> Job:
     return job
 
 
-def update(session: Session, job: Job, data: JobInput, base_revision: int | None = None) -> bool:
+def edit_token(job: Job) -> str:
+    """Identify the saved editor contents, including URL-only changes that don't stale a resume."""
+    return content_hash({"job": job.id, "revision": job.revision,
+                         **{name: getattr(job, name) for name in LIMITS}})
+
+
+def update(session: Session, job: Job, data: JobInput, base_revision: int | None = None,
+           base_token: str | None = None) -> bool:
     """Apply edits only to the reviewed revision, including when the form appears unchanged.
 
-    Service callers may omit ``base_revision``: their loaded revision is captured before the
-    writer lock reloads the row. HTTP callers provide the revision shown by the edit form.
+    Service callers may omit the revision and token: their loaded state is captured before the
+    writer lock reloads the row. HTTP callers provide both values shown by the edit form.
     """
     expected_revision = job.revision if base_revision is None else base_revision
+    expected_token = edit_token(job) if base_token is None else base_token
     with transactions.write(session, job):
-        if expected_revision != job.revision:
+        if expected_revision != job.revision or expected_token != edit_token(job):
             raise JobChanged(
-                f"The job changed since you opened the edit form (revision {expected_revision} → {job.revision}). "
+                "The job changed since you opened the edit form. "
                 "Compare your changes with the saved job before saving again."
             )
         changed = [name for name, value in vars(data).items() if getattr(job, name) != value]

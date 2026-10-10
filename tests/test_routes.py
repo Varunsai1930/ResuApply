@@ -53,6 +53,11 @@ def hidden(html: str, name: str) -> str:
     return unescape(match.group(1))
 
 
+def job_review(client, job_id):
+    form = client.get(f"/jobs/{job_id}/edit").text
+    return {name: hidden(form, name) for name in ("base_revision", "base_token")}
+
+
 def review_and_save(client: TestClient, fields: dict[str, str]):
     review = client.post("/profile/review", data=fields)
     assert review.status_code == 200, review.text
@@ -259,10 +264,10 @@ def test_job_form_errors(client):
 
 def test_edit_job_bumps_revision(client):
     job_id = create_job(client)
-    revision = hidden(client.get(f"/jobs/{job_id}/edit").text, "base_revision")
-    unchanged = client.post(f"/jobs/{job_id}/edit", data=SAMPLE_JOB | {"base_revision": revision}, follow_redirects=False)
+    reviewed = job_review(client, job_id)
+    unchanged = client.post(f"/jobs/{job_id}/edit", data=SAMPLE_JOB | reviewed, follow_redirects=False)
     assert unchanged.headers["location"].endswith("msg=job_unchanged")
-    changed = client.post(f"/jobs/{job_id}/edit", data=SAMPLE_JOB | {"title": "Platform Intern", "base_revision": revision}, follow_redirects=False)
+    changed = client.post(f"/jobs/{job_id}/edit", data=SAMPLE_JOB | reviewed | {"title": "Platform Intern"}, follow_redirects=False)
     assert changed.headers["location"].endswith("msg=job_updated")
     assert "Job revision 2" in client.get(f"/jobs/{job_id}").text
 

@@ -32,7 +32,8 @@ def _render_job_form(request: Request, values: dict, errors: dict | None = None,
     return templates.TemplateResponse(
         request,
         "job_form.html",
-        {"values": values, "errors": errors or {}, "job": job, "active": "jobs"},
+        {"values": values, "errors": errors or {}, "job": job, "active": "jobs",
+         "saved_token": job_service.edit_token(job) if job else ""},
         status_code=status_code,
     )
 
@@ -173,6 +174,7 @@ def edit_job(request: Request, job_id: int, session: Session = Depends(get_sessi
     job = _job_or_404(session, job_id)
     values = {name: getattr(job, name) for name in ("title", "company", "description", "location", "url")}
     values["base_revision"] = job.revision
+    values["base_token"] = job_service.edit_token(job)
     return _render_job_form(request, values, job=job)
 
 
@@ -187,20 +189,24 @@ def update_job(
     url: str = Form(""),
     base_revision: str = Form(""),
     replace_revision: str = Form(""),
+    base_token: str = Form(""),
+    replace_token: str = Form(""),
     session: Session = Depends(get_session),
 ):
     job = _job_or_404(session, job_id)
     reviewed_revision = reviewed_revision_of(base_revision, replace_revision)
+    reviewed_token = replace_token if reviewed_revision_of(replace_revision) is not None else base_token
     values = {"title": title, "company": company, "description": description, "location": location, "url": url,
-              "base_revision": str(reviewed_revision) if reviewed_revision else base_revision}
+              "base_revision": str(reviewed_revision) if reviewed_revision else base_revision,
+              "base_token": reviewed_token}
     try:
         data = job_service.clean_input(title, company, description, location, url)
     except job_service.JobInvalid as exc:
         return _render_job_form(request, values, exc.errors, job=job, status_code=422)
     try:
-        if reviewed_revision is None:
-            raise job_service.JobChanged("The edit form has no valid job revision. Compare your changes with the saved job below.")
-        changed = job_service.update(session, job, data, reviewed_revision)
+        if reviewed_revision is None or not reviewed_token:
+            raise job_service.JobChanged("The edit form has no valid review information. Compare your changes with the saved job below.")
+        changed = job_service.update(session, job, data, reviewed_revision, reviewed_token)
     except job_service.JobChanged as exc:
         return _render_job_form(request, values, {"base_revision": str(exc)}, job=job, status_code=409)
     return RedirectResponse(f"/jobs/{job.id}?msg={'job_updated' if changed else 'job_unchanged'}", status_code=303)

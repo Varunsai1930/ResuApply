@@ -16,11 +16,93 @@ from tests.synthetic import SAMPLE_JOB
 from tests.test_package import accept_resume, approve
 from tests.test_questions_routes import approve_package, complete_package, page_token, ready_job, workspace
 from tests.test_review_tokens import fingerprint, record_with
-from tests.test_routes import create_job, hidden
+from tests.test_routes import create_job, hidden, job_review
 
 
 def job_values(job, **changes):
     return jobs.clean_input(**({name: getattr(job, name) for name in SAMPLE_JOB} | changes))
+
+
+def test_stale_loaded_job_cannot_overwrite_a_newer_url(session):
+    job = jobs.create(session, jobs.clean_input(**SAMPLE_JOB))
+    with make_session_factory(session.get_bind())() as stale:
+        old = jobs.get(stale, job.id)
+        old_data = job_values(old, title="My title")
+        jobs.update(session, job, job_values(job, url="https://example.com/new-posting"))
+        with pytest.raises(jobs.JobChanged):
+            jobs.update(stale, old, old_data)
+    session.refresh(job)
+    assert job.url == "https://example.com/new-posting" and job.title == SAMPLE_JOB["title"]
+
+
+def test_job_url_conflicts_require_review_of_each_new_version(client):
+    job_id = create_job(client)
+    form = client.get(f"/jobs/{job_id}/edit").text
+    original = {"base_revision": hidden(form, "base_revision"), "base_token": hidden(form, "base_token")}
+    first = SAMPLE_JOB | original | {"url": "https://example.com/first"}
+    assert client.post(f"/jobs/{job_id}/edit", data=first, follow_redirects=False).status_code == 303
+    mine = SAMPLE_JOB | original | {"title": "My title"}
+    conflict = client.post(f"/jobs/{job_id}/edit", data=mine, follow_redirects=False)
+    assert conflict.status_code == 409 and "https://example.com/first" in conflict.text
+    assert hidden(conflict.text, "base_token") == original["base_token"]
+    assert client.post(f"/jobs/{job_id}/edit", data=mine, follow_redirects=False).status_code == 409
+    replacement = {name: hidden(conflict.text, name) for name in ("replace_revision", "replace_token")}
+
+    current = client.get(f"/jobs/{job_id}/edit").text
+    second = SAMPLE_JOB | {name: hidden(current, name) for name in ("base_revision", "base_token")}
+    second["url"] = "https://example.com/second"
+    assert client.post(f"/jobs/{job_id}/edit", data=second, follow_redirects=False).status_code == 303
+    again = client.post(f"/jobs/{job_id}/edit", data=mine | replacement, follow_redirects=False)
+    assert again.status_code == 409 and "https://example.com/second" in again.text
+    replacement = {name: hidden(again.text, name) for name in ("replace_revision", "replace_token")}
+    assert client.post(f"/jobs/{job_id}/edit", data=mine | replacement, follow_redirects=False).status_code == 303
+    with client.app.state.session_factory() as session:
+        job = jobs.get(session, job_id)
+        assert job.title == "My title" and job.url == SAMPLE_JOB["url"]
+
+
+@pytest.mark.parametrize("token", [None, "", "invalid"])
+def test_job_edit_without_a_valid_token_requires_review(client, token):
+    job_id = create_job(client)
+    mine = SAMPLE_JOB | {"title": "My title", "base_revision": "1"}
+    if token is not None:
+        mine["base_token"] = token
+    refused = client.post(f"/jobs/{job_id}/edit", data=mine, follow_redirects=False)
+    assert refused.status_code == 409 and 'value="My title"' in refused.text
+    with client.app.state.session_factory() as session:
+        assert jobs.get(session, job_id).title == SAMPLE_JOB["title"]
+    reviewed = {name: hidden(refused.text, name) for name in ("replace_revision", "replace_token")}
+    assert client.post(f"/jobs/{job_id}/edit", data=mine | reviewed, follow_redirects=False).status_code == 303
+
+
+def test_job_validation_error_keeps_the_reviewed_token(client):
+    job_id = create_job(client)
+    reviewed = job_review(client, job_id)
+    mine = SAMPLE_JOB | reviewed | {"url": "invalid", "title": "My title"}
+    invalid = client.post(f"/jobs/{job_id}/edit", data=mine, follow_redirects=False)
+    assert invalid.status_code == 422
+    retry = {name: hidden(invalid.text, name) for name in ("base_revision", "base_token")}
+    assert retry == reviewed
+    winner = SAMPLE_JOB | reviewed | {"url": "https://example.com/winner"}
+    assert client.post(f"/jobs/{job_id}/edit", data=winner, follow_redirects=False).status_code == 303
+    corrected = SAMPLE_JOB | retry | {"title": "My title"}
+    assert client.post(f"/jobs/{job_id}/edit", data=corrected, follow_redirects=False).status_code == 409
+
+
+def test_job_validation_error_keeps_explicit_replacement_review(client):
+    job_id = create_job(client)
+    original = job_review(client, job_id)
+    winner = SAMPLE_JOB | original | {"url": "https://example.com/winner"}
+    client.post(f"/jobs/{job_id}/edit", data=winner, follow_redirects=False)
+    conflict = client.post(f"/jobs/{job_id}/edit", data=SAMPLE_JOB | original, follow_redirects=False)
+    reviewed = {name: hidden(conflict.text, name) for name in ("replace_revision", "replace_token")}
+    invalid = client.post(f"/jobs/{job_id}/edit", data=SAMPLE_JOB | original | reviewed | {"title": ""},
+                          follow_redirects=False)
+    assert invalid.status_code == 422
+    retry = {name: hidden(invalid.text, name) for name in ("base_revision", "base_token")}
+    assert retry["base_token"] == reviewed["replace_token"]
+    assert client.post(f"/jobs/{job_id}/edit", data=SAMPLE_JOB | retry | {"title": "My title"},
+                       follow_redirects=False).status_code == 303
 
 
 @pytest.mark.parametrize("no_op", [False, True])
@@ -81,7 +163,7 @@ def test_concurrent_job_edits_issue_one_revision_and_one_conflict(session):
 @pytest.mark.parametrize("base_revision", [None, "", "bogus", "0", "-1", "99"])
 def test_job_edit_requires_the_reviewed_revision_without_saving(client, base_revision):
     job_id = create_job(client)
-    data = SAMPLE_JOB | {"title": "Unsaved title"}
+    data = SAMPLE_JOB | {"title": "Unsaved title", "base_token": job_review(client, job_id)["base_token"]}
     if base_revision is not None:
         data["base_revision"] = base_revision
     response = client.post(f"/jobs/{job_id}/edit", data=data, follow_redirects=False)
@@ -95,15 +177,15 @@ def test_job_edit_requires_the_reviewed_revision_without_saving(client, base_rev
 
 def test_job_edit_from_an_old_page_preserves_the_proposal_and_current_data(client):
     job_id = create_job(client)
-    old_revision = hidden(client.get(f"/jobs/{job_id}/edit").text, "base_revision")
-    first = client.post(f"/jobs/{job_id}/edit", data=SAMPLE_JOB | {"title": "Saved title", "base_revision": old_revision},
+    reviewed = job_review(client, job_id)
+    first = client.post(f"/jobs/{job_id}/edit", data=SAMPLE_JOB | reviewed | {"title": "Saved title"},
                         follow_redirects=False)
     assert first.status_code == 303
-    response = client.post(f"/jobs/{job_id}/edit", data=SAMPLE_JOB | {"title": "Unsaved title", "base_revision": old_revision},
+    response = client.post(f"/jobs/{job_id}/edit", data=SAMPLE_JOB | reviewed | {"title": "Unsaved title"},
                            follow_redirects=False)
     assert response.status_code == 409 and "changed since" in unescape(response.text)
     assert 'value="Unsaved title"' in response.text
-    assert hidden(response.text, "base_revision") == old_revision
+    assert hidden(response.text, "base_revision") == reviewed["base_revision"]
     with client.app.state.session_factory() as session:
         job = jobs.get(session, job_id)
         assert job.title == "Saved title" and job.revision == 2
@@ -111,10 +193,10 @@ def test_job_edit_from_an_old_page_preserves_the_proposal_and_current_data(clien
 
 def test_job_edit_conflict_shows_the_saved_job_and_can_be_saved_over_it(client):
     job_id = create_job(client)
-    old_revision = hidden(client.get(f"/jobs/{job_id}/edit").text, "base_revision")
-    client.post(f"/jobs/{job_id}/edit", data=SAMPLE_JOB | {"title": "Saved title", "base_revision": old_revision},
+    reviewed = job_review(client, job_id)
+    client.post(f"/jobs/{job_id}/edit", data=SAMPLE_JOB | reviewed | {"title": "Saved title"},
                 follow_redirects=False)
-    mine = SAMPLE_JOB | {"title": "My title", "base_revision": old_revision}
+    mine = SAMPLE_JOB | reviewed | {"title": "My title"}
     conflict = client.post(f"/jobs/{job_id}/edit", data=mine, follow_redirects=False)
     assert conflict.status_code == 409
     assert "The job as it is saved now (revision 2)" in conflict.text and "Title: Saved title" in conflict.text
@@ -123,7 +205,8 @@ def test_job_edit_conflict_shows_the_saved_job_and_can_be_saved_over_it(client):
     assert client.post(f"/jobs/{job_id}/edit", data=mine, follow_redirects=False).status_code == 409
     replace = hidden(conflict.text, "replace_revision")
     assert replace == "2"
-    saved = client.post(f"/jobs/{job_id}/edit", data=mine | {"replace_revision": replace}, follow_redirects=False)
+    saved = client.post(f"/jobs/{job_id}/edit", data=mine | {"replace_revision": replace,
+                        "replace_token": hidden(conflict.text, "replace_token")}, follow_redirects=False)
     assert saved.status_code == 303
     with client.app.state.session_factory() as session:
         job = jobs.get(session, job_id)
@@ -132,9 +215,11 @@ def test_job_edit_conflict_shows_the_saved_job_and_can_be_saved_over_it(client):
 
 def test_job_edit_replace_box_is_refused_when_the_job_changed_again(client):
     job_id = create_job(client)
-    client.post(f"/jobs/{job_id}/edit", data=SAMPLE_JOB | {"title": "Second", "base_revision": "1"}, follow_redirects=False)
-    client.post(f"/jobs/{job_id}/edit", data=SAMPLE_JOB | {"title": "Third", "base_revision": "2"}, follow_redirects=False)
-    stale = SAMPLE_JOB | {"title": "Mine", "base_revision": "1", "replace_revision": "2"}
+    first = job_review(client, job_id)
+    client.post(f"/jobs/{job_id}/edit", data=SAMPLE_JOB | first | {"title": "Second"}, follow_redirects=False)
+    second = job_review(client, job_id)
+    client.post(f"/jobs/{job_id}/edit", data=SAMPLE_JOB | second | {"title": "Third"}, follow_redirects=False)
+    stale = SAMPLE_JOB | first | {"title": "Mine", "replace_revision": "2", "replace_token": second["base_token"]}
     response = client.post(f"/jobs/{job_id}/edit", data=stale, follow_redirects=False)
     assert response.status_code == 409 and hidden(response.text, "replace_revision") == "3"
     with client.app.state.session_factory() as session:
@@ -161,8 +246,8 @@ def test_old_snapshot_form_cannot_record_an_unreviewed_job_url(client, sample_pr
     complete_package(client, job_id)
     assert approve_package(client, job_id).status_code == 303
     old_token = page_token(workspace(client, job_id), "package_token")
-    revision = hidden(client.get(f"/jobs/{job_id}/edit").text, "base_revision")
-    changed = client.post(f"/jobs/{job_id}/edit", data=SAMPLE_JOB | {"url": "https://example.com/replacement", "base_revision": revision},
+    reviewed = job_review(client, job_id)
+    changed = client.post(f"/jobs/{job_id}/edit", data=SAMPLE_JOB | reviewed | {"url": "https://example.com/replacement"},
                           follow_redirects=False)
     assert changed.status_code == 303
     before = fingerprint(client, job_id)

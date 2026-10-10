@@ -11,7 +11,7 @@ from app.main import create_app
 from app.models import Job
 from app.services import resume as resume_service
 from tests.conftest import BASE_URL, SAMPLE_JOB, tool_response
-from tests.test_routes import client_profile, hidden, profile_form, review_and_save
+from tests.test_routes import client_profile, hidden, job_review, profile_form, review_and_save
 
 
 def setup(client, profile):
@@ -135,8 +135,8 @@ def test_job_revision_change_blocks_print(client, sample_profile):
     job_id = setup(client, sample_profile)
     review = manual_proposal(client, job_id)
     accept(client, job_id, review)
-    revision = hidden(client.get(f"/jobs/{job_id}/edit").text, "base_revision")
-    changed = client.post(f"/jobs/{job_id}/edit", data=SAMPLE_JOB | {"description": "Updated job description.", "base_revision": revision})
+    reviewed = job_review(client, job_id)
+    changed = client.post(f"/jobs/{job_id}/edit", data=SAMPLE_JOB | reviewed | {"description": "Updated job description."})
     assert changed.status_code == 200
     assert client.get(f"/jobs/{job_id}/resume/print").status_code == 409
 
