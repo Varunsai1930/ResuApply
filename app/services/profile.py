@@ -36,7 +36,7 @@ from ..models import Application, Candidate
 from ..schemas.profile import Profile
 from .countries import normalize_country
 from .skills import canon, display
-from .text import ends_before_start, is_valid_date, norm_text
+from .text import ends_before_start, is_valid_date, norm_text, without_controls
 
 ENTRY_SECTIONS = {"education": "edu", "experience": "exp", "projects": "proj"}
 NAME_FIELDS = {"education": "institution", "experience": "organization", "projects": "name"}
@@ -615,7 +615,9 @@ def get_candidate(session: Session) -> Candidate | None:
 def review(session: Session, data: dict) -> ReviewResult:
     """Validate the proposed profile against the saved one and list the changes. Saves nothing."""
     candidate = get_candidate(session)
-    current = candidate.profile if candidate else None
+    # Compared with the stored profile as a form now sends it: legacy control characters
+    # alone aren't listed as changes (see text.without_controls).
+    current = without_controls(candidate.profile) if candidate else None
     normalized = normalize(data, current, candidate.id_counters if candidate else None)
     return ReviewResult(normalized, diff(current, normalized.profile), candidate.revision if candidate else 0)
 
@@ -633,10 +635,10 @@ def save(session: Session, data: dict, base_revision: int | None = None) -> Save
             f"The profile changed since you reviewed it (revision {base_revision} → {current_revision}). "
             "Review the changes again."
         )
-    current = candidate.profile if candidate else None
+    current = without_controls(candidate.profile) if candidate else None  # as in review()
     normalized = normalize(data, current, candidate.id_counters if candidate else None)
     changes = diff(current, normalized.profile)
-    if candidate and candidate.profile == normalized.profile:
+    if candidate and current == normalized.profile:
         # A long-lived session may still hold an older profile in its identity map.
         stored_revision = session.scalar(select(Candidate.revision).where(Candidate.id == candidate.id))
         if stored_revision != current_revision:

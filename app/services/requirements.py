@@ -26,7 +26,7 @@ from ..schemas.requirements import (
 )
 from .countries import normalize_country
 from .profile import FieldError
-from .text import date_key, ends_before_start, is_valid_date, norm_text, today_key
+from .text import date_key, ends_before_start, is_valid_date, norm_text, today_key, without_controls
 from .transactions import write
 
 
@@ -235,9 +235,10 @@ def set_requirements(session: Session, job: Job, items, base_revision: int | Non
                 "Compare it with the saved requirements and the current description before saving again."
             )
         reqs, counter = validate_requirements(job, items)
-        if reqs == job.requirements:
+        saved = without_controls(job.requirements)  # legacy control characters alone aren't a change
+        if reqs == saved:
             return False
-        old = {r.id: r for r in job.requirements}
+        old = {r.id: r for r in saved}
         unchanged = {r.id for r in reqs if old.get(r.id) == r}
         job.requirements = reqs
         job.evidence = {k: v for k, v in job.evidence.items() if k in unchanged}

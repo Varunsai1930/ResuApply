@@ -363,3 +363,63 @@ def test_a_bad_value_in_a_link_is_not_called_a_damaged_form(client):
     assert "nothing was saved" not in response.text
     damaged = client.post(f"/jobs/{job_id}/requirements/extract", data={"force": "abc"})
     assert damaged.status_code == 422 and "incomplete or damaged" in damaged.text  # body errors keep their wording
+
+
+def test_saving_unchanged_forms_over_legacy_control_characters_changes_nothing(client, sample_profile):
+    from app.services import jobs
+    from app.services.profile import get_candidate
+    from tests.test_routes import hidden
+
+    review_and_save(client, profile_form(sample_profile))
+    job_id = create_job(client)
+    # Text saved before forms were cleaned, as if by an older version.
+    with client.app.state.session_factory() as session:
+        job = jobs.get(session, job_id)
+        job.description = "About the role\n\nWe need Python\x0band SQL."
+        candidate = get_candidate(session)
+        candidate.profile = candidate.profile.model_copy(update={"summary": "Builds backend\x07 services."})
+        session.commit()
+        job_revision, profile_revision = job.revision, candidate.revision
+
+    # Job editor: the form re-sends the description, which the middleware cleans.
+    page = client.get(f"/jobs/{job_id}/edit").text
+    fields = {name: hidden(page, name) for name in ("base_revision", "base_token")}
+    fields |= {"title": hidden(page, "title") or "Backend Engineering Intern", "company": "Example Corp",
+               "location": "Austin, TX", "url": "https://jobs.example.com/backend-intern",
+               "description": "About the role\n\nWe need Python\x0band SQL."}
+    for name in ("title", "company", "location", "url"):
+        found = re.search(rf'id="{name}" name="{name}" value="([^"]*)"', page)
+        if found:
+            fields[name] = found.group(1)
+    response = client.post(f"/jobs/{job_id}/edit", data=fields, follow_redirects=False)
+    assert response.headers["location"].endswith("msg=job_unchanged"), response.headers.get("location")
+
+    # Profile editor: reviewing the stored profile lists no changes, and saving keeps the revision.
+    from tests.test_routes import client_profile
+    review = client.post("/profile/review", data=profile_form(client_profile(client)))
+    assert review.status_code == 200 and "Nothing changed" in review.text
+
+    with client.app.state.session_factory() as session:
+        assert jobs.get(session, job_id).revision == job_revision
+        assert get_candidate(session).revision == profile_revision
+
+
+def test_requirements_resubmitted_over_legacy_control_characters_keep_their_evidence(client, sample_profile):
+    from app.schemas.requirements import EvidenceLink, Requirement
+    from app.services import jobs
+
+    review_and_save(client, profile_form(sample_profile))
+    job_id = create_job(client)
+    with client.app.state.session_factory() as session:
+        job = jobs.get(session, job_id)
+        job.requirements = [Requirement(id="r1", text="Python\x07 and SQL", excerpt="We need Python and SQL")]
+        job.requirement_counter = 1
+        job.evidence = {"r1": EvidenceLink(sources=["exp-1-b1"], source_hashes={"exp-1-b1": "x"})}
+        session.commit()
+        revision = job.revision
+    fields = editor_fields(client.get(f"/jobs/{job_id}/requirements/edit").text)
+    response = client.post(f"/jobs/{job_id}/requirements", data=fields, follow_redirects=False)
+    assert response.headers["location"].endswith("msg=requirements_unchanged#requirements")
+    with client.app.state.session_factory() as session:
+        job = jobs.get(session, job_id)
+        assert job.revision == revision and "r1" in job.evidence

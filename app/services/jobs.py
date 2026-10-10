@@ -18,7 +18,7 @@ from ..models import Application, Job
 from ..schemas.tracking import ReviewState, StatusEvent, TrackingStatus
 from . import transactions
 from .profile import get_candidate
-from .text import content_hash
+from .text import content_hash, without_controls
 
 LIMITS = {"title": 200, "company": 200, "location": 200, "url": 2000, "description": 100_000}
 # Changing any of these changes what a package would be built from, so the revision increases.
@@ -114,7 +114,9 @@ def update(session: Session, job: Job, data: JobInput, base_revision: int | None
                 "The job changed since you opened the edit form. "
                 "Compare your changes with the saved job before saving again."
             )
-        changed = [name for name, value in vars(data).items() if getattr(job, name) != value]
+        # Compared with the stored text as a form now sends it, so legacy control characters
+        # alone don't count as an edit (see text.without_controls).
+        changed = [name for name, value in vars(data).items() if without_controls(getattr(job, name)) != value]
         if not changed:
             return False
         for name in changed:

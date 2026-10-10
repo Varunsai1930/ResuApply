@@ -12,6 +12,8 @@ import unicodedata
 from calendar import monthrange
 from datetime import date, datetime, timezone
 
+from pydantic import BaseModel
+
 _QUOTES = {
     "‘": "'", "’": "'", "‚": "'", "‛": "'",
     "“": '"', "”": '"', "„": '"', "″": '"',
@@ -84,3 +86,40 @@ def canonical_json(data) -> str:
 
 def content_hash(data) -> str:
     return hashlib.sha256(canonical_json(data).encode("utf-8")).hexdigest()[:16]
+
+
+# ---------------------------------------------------------------- control characters
+
+_KEEP = {"\t", "\n", "\r"}
+_LINE_BREAKS = {"\x0b": "\n", "\x0c": "\n"}
+
+
+def clean_text(value: str) -> str:
+    """``value`` without control characters, except tab, newline and carriage return.
+
+    Vertical tab and form feed (line breaks in some word processors) become newlines; every
+    other control character (Unicode category Cc, including NUL and DEL) is removed. Every
+    submitted form value goes through this (``app.input_cleaning``).
+    """
+    if value.isprintable():
+        return value
+    return "".join(_LINE_BREAKS.get(ch, ch) for ch in value
+                   if ch in _KEEP or ch in _LINE_BREAKS or unicodedata.category(ch) != "Cc")
+
+
+def without_controls(value):
+    """``value`` (text, or lists, dicts and Pydantic models of it) as the cleaned form would send it.
+
+    Text saved before forms were cleaned can still hold control characters. The editors compare
+    a submission with this cleaned copy of what is stored, so re-saving an unchanged form isn't
+    a change that raises a revision or drops evidence.
+    """
+    if isinstance(value, str):
+        return clean_text(value)
+    if isinstance(value, list):
+        return [without_controls(v) for v in value]
+    if isinstance(value, dict):
+        return {k: without_controls(v) for k, v in value.items()}
+    if isinstance(value, BaseModel):
+        return type(value).model_validate(without_controls(value.model_dump(by_alias=True)))
+    return value

@@ -12,22 +12,12 @@ body here covers all of them in one place:
 
 from __future__ import annotations
 
-import unicodedata
 from urllib.parse import parse_qsl, urlencode
 
 from starlette.datastructures import Headers
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
-_KEEP = {"\t", "\n", "\r"}
-_LINE_BREAKS = {"\x0b": "\n", "\x0c": "\n"}
-
-
-def clean_text(value: str) -> str:
-    """``value`` without control characters, except tab, newline and carriage return."""
-    if value.isprintable():
-        return value
-    return "".join(_LINE_BREAKS.get(ch, ch) for ch in value
-                   if ch in _KEEP or ch in _LINE_BREAKS or unicodedata.category(ch) != "Cc")
+from .services.text import clean_text
 
 
 class ControlCharacterMiddleware:
