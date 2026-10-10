@@ -5,10 +5,12 @@ from __future__ import annotations
 import re
 from html import unescape
 
+import pytest
 from fastapi.testclient import TestClient
 
 from app.config import Settings
 from app.main import create_app
+from app.models import Job
 from tests.conftest import BASE_URL, SAMPLE_JOB
 
 
@@ -226,6 +228,20 @@ def create_job(client: TestClient, **overrides) -> int:
     response = client.post("/jobs", data=SAMPLE_JOB | overrides, follow_redirects=False)
     assert response.status_code == 303, response.text
     return int(re.match(r"/jobs/(\d+)\?msg=job_created", response.headers["location"]).group(1))
+
+
+@pytest.mark.parametrize("route", ["edit", "requirements"])
+@pytest.mark.parametrize("field", ["base_revision", "replace_revision"])
+@pytest.mark.parametrize("raw", ["9" * 5000, "²", "-1", "1.5"], ids=["oversized", "superscript", "negative", "fraction"])
+def test_malformed_job_revisions_are_conflicts_and_preserve_saved_data(client, route, field, raw):
+    job_id = create_job(client)
+    data = SAMPLE_JOB | job_review(client, job_id) | {field: raw}
+    response = client.post(f"/jobs/{job_id}/{route}", data=data, follow_redirects=False)
+    assert response.status_code == 409
+    with client.app.state.session_factory() as session:
+        job = session.get(Job, job_id)
+        assert job.revision == 1 and job.requirements == []
+        assert job.title == SAMPLE_JOB["title"]
 
 
 def test_create_job_and_open_workspace(client):

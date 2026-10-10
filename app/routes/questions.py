@@ -107,7 +107,11 @@ def set_category(request: Request, job_id: int, qid: str, category: str = Form("
 def save_answer(request: Request, job_id: int, qid: str, text: str = Form(""), origin: str = Form("user"),
                 bank_id: str = Form(""), session: Session = Depends(get_session)):
     job = _job_or_404(session, job_id)
-    entry_id = int(bank_id) if bank_id.strip().isdigit() else None
+    raw_id = bank_id.strip()
+    try:
+        entry_id = int(raw_id) if raw_id.isascii() and raw_id.isdigit() else None
+    except ValueError:
+        entry_id = None
     return _act(request, session, job, qid,
                 lambda: answer_service.set_answer(session, job, job.application, qid, text, origin, entry_id),
                 "answer_saved", text=text)

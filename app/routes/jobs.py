@@ -46,8 +46,15 @@ def reviewed_revision_of(base_revision: object, replace_revision: object = None)
     their input with that newer revision, so it takes precedence.
     """
     for raw in (replace_revision, base_revision):
-        if isinstance(raw, str) and raw.isascii() and raw.isdigit() and int(raw) >= 1:
-            return int(raw)
+        if raw is None or raw == "":
+            continue
+        if not isinstance(raw, str) or not raw.isascii() or not raw.isdigit():
+            return None
+        try:
+            revision = int(raw)
+        except ValueError:  # Includes Python's limit on decimal integer digits.
+            return None
+        return revision if revision >= 1 else None
     return None
 
 

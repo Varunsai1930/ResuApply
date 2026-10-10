@@ -65,6 +65,20 @@ def post(client, job_id, qid, action, **data):
     return client.post(f"/jobs/{job_id}/questions/{qid}/{action}", data=data, follow_redirects=False)
 
 
+@pytest.mark.parametrize("bank_id", ["²", "9" * 5000, str(2**64), "-1", "1.5", ""],
+                         ids=["superscript", "oversized", "database-overflow", "negative", "fraction", "missing"])
+def test_invalid_bank_id_preserves_the_saved_answer(client, sample_profile, bank_id):
+    job_id = ready_job(client, sample_profile)
+    qid = qid_of(add(client, job_id, WHY_Q))
+    assert post(client, job_id, qid, "answer", text="Keep my answer").status_code == 303
+    response = post(client, job_id, qid, "answer", text="Do not save this", origin="bank", bank_id=bank_id)
+    assert response.status_code == 422
+    assert "no longer exists" in response.text
+    with client.app.state.session_factory() as session:
+        job = session.get(Job, job_id)
+        assert next(a for a in job.application.answers if a.question_id == qid).text == "Keep my answer"
+
+
 def approve_package(client, job_id):
     """Press Approve package with the token of the Review section as currently shown."""
     token = page_token(review_part(workspace(client, job_id)), "package_token")
