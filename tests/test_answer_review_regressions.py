@@ -222,6 +222,26 @@ def test_upgrade_drops_answers_made_for_the_old_category(session, prepared, text
     assert any(text[:20] in blocker for blocker in package.check(job, job.application, candidate)[0])
 
 
+@pytest.mark.parametrize("answer", [
+    {"text": "My own answer", "origin": "user"},
+    {"text": "Saved earlier", "origin": "bank"},
+    {"text": "", "origin": "user", "skipped": True},
+])
+def test_upgrade_to_sensitive_keeps_what_the_user_wrote_or_chose(session, prepared, answer):
+    candidate, job, _ = prepared
+    _save_legacy(session, job, "Email address and date of birth", "email")
+    mine = Answer(question_id="q99", at=utcnow(), **answer)
+    job.application.answers = [*job.application.answers, mine]
+    session.commit()
+
+    answers.upgrade_stored_questions(session)
+    upgraded = next(q for q in job.questions if q.id == "q99")
+    assert upgraded.category == "sensitive"
+    assert mine in job.application.answers
+    resolved = next(r for r in answers.resolve_all(job, job.application, candidate.profile) if r.question.id == "q99")
+    assert resolved.resolved and resolved.text == answer["text"]
+
+
 def test_upgrade_keeps_answers_when_only_the_key_changes(session, prepared):
     candidate, job, _ = prepared
     _save_legacy(session, job, "First name", "name")

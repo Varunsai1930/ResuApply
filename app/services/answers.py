@@ -291,19 +291,23 @@ def upgrade_stored_questions(session: Session) -> int:
     """Store every saved question as the current rules read it. Returns how many changed.
 
     Runs once at startup, so reading an answer can trust the stored category and key. A job
-    whose questions change goes back to Draft: its approval covered the old definitions. As
-    with ``set_category``, a question whose category changes loses its answer and draft: they
-    were made for the old category (a profile value used for a factual question must never
-    become the answer to a sensitive one).
+    whose questions change goes back to Draft: its approval covered the old definitions.
+
+    A question whose category changes loses what was made for the old category: a profile
+    value (which must never become the answer to a sensitive question) and any AI draft. What
+    the user wrote or chose is kept, including an explicit skip: unlike ``set_category``, this
+    change isn't the user's, and their own words still answer the question.
     """
     changed = 0
     for job in session.scalars(select(Job)):
         upgraded = [upgrade_factual_question(q) for q in job.questions]
         count = sum(new != old for new, old in zip(upgraded, job.questions))
         if count:
-            for new, old in zip(upgraded, job.questions):
-                if new.category != old.category:
-                    _drop(job.application, new.id)
+            moved = {new.id for new, old in zip(upgraded, job.questions) if new.category != old.category}
+            application = job.application
+            application.answers = [a for a in application.answers
+                                   if a.question_id not in moved or a.origin in USER_ORIGINS]
+            application.answer_drafts = [d for d in application.answer_drafts if d.question_id not in moved]
             job.questions = upgraded
             _content_changed(job.application)
             changed += count
