@@ -15,7 +15,7 @@ from starlette.concurrency import run_in_threadpool
 
 from ..db import get_session
 from ..services import profile as profile_service
-from ..services.profile_form import parse_form
+from ..services.profile_form import is_form_shaped, parse_form
 from ..templating import templates
 from .forms import read_form
 
@@ -54,9 +54,9 @@ def _render_form(request: Request, data: dict, errors=(), warnings=(), status_co
 def _load_payload(payload: object) -> dict:
     try:
         data = json.loads(payload) if isinstance(payload, str) else None
-    except json.JSONDecodeError:
+    except (json.JSONDecodeError, RecursionError):  # RecursionError: absurdly deep nesting
         data = None
-    if not isinstance(data, dict):
+    if not is_form_shaped(data):
         raise HTTPException(400, "The reviewed profile data is missing or damaged. Edit the profile again.")
     return data
 

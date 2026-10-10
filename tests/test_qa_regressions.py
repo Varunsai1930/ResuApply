@@ -77,3 +77,25 @@ def test_ids_too_large_for_the_database_are_not_found(client, sample_profile):
     response = client.post(f"/jobs/{job_id}/questions/{question}/answer",
                            data={"text": "x", "origin": "bank", "bank_id": huge})
     assert response.status_code == 422 and "no longer exists" in response.text
+
+
+def test_damaged_profile_review_data_is_refused_not_crashed(client, sample_profile):
+    import json
+
+    from tests.test_routes import hidden
+
+    review, _ = review_and_save(client, profile_form(sample_profile))
+    damaged = ["[" * 50000 + "]" * 50000, json.dumps({"contact": "x"}), json.dumps(sample_profile),
+               json.dumps({"contact": {"links": []}, "preferences": {}, "availability": {}})]
+    for payload in damaged:
+        for path, data in (("/profile/save", {"payload": payload, "base_revision": "1"}), ("/profile/edit", {"payload": payload})):
+            response = client.post(path, data=data, follow_redirects=False)
+            assert response.status_code == 400, (path, payload[:40], response.status_code)
+            assert "damaged" in response.text
+
+    # A genuine review payload with a wrong revision still gets the conflict page.
+    fresh = client.post("/profile/review", data=profile_form(sample_profile | {"summary": "Changed"}))
+    for revision in ("-1", "99999999999999999999"):
+        response = client.post("/profile/save", data={"payload": hidden(fresh.text, "payload"), "base_revision": revision},
+                               follow_redirects=False)
+        assert response.status_code == 409, (revision, response.status_code)

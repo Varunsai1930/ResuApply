@@ -135,3 +135,42 @@ def parse_form(items: Iterable[tuple[str, str]]) -> dict:
         "notes": fields.get("availability-notes", ""),
     }
     return data
+
+
+def is_form_shaped(data: object) -> bool:
+    """Whether ``data`` has the shape ``parse_form`` produces, so the profile form can show it.
+
+    The review page posts that dict back as JSON. Anything else (edited by hand or damaged)
+    is refused before it is saved or shown, instead of failing inside the template.
+    """
+    def text(value: object) -> bool:
+        return isinstance(value, str)
+
+    def texts(value: object) -> bool:
+        return isinstance(value, list) and all(text(v) for v in value)
+
+    def mapping(value: object, check=text) -> bool:
+        return isinstance(value, dict) and all(isinstance(k, str) and check(v) for k, v in value.items())
+
+    def rows(value: object, check=text) -> bool:
+        return isinstance(value, list) and all(mapping(row, check) for row in value)
+
+    def entry(value: object) -> bool:
+        checks = {"technologies": texts, "bullets": rows}
+        return isinstance(value, dict) and all(isinstance(k, str) and checks.get(k, text)(v) for k, v in value.items())
+
+    if not isinstance(data, dict):
+        return False
+    contact = data.get("contact")
+    if not (isinstance(contact, dict) and mapping(contact.get("links", {}))
+            and mapping({k: v for k, v in contact.items() if k != "links"})):
+        return False
+    preferences, availability = data.get("preferences"), data.get("availability")
+    if not (mapping(preferences, lambda v: text(v) or texts(v)) and mapping(availability)):
+        return False
+    return (text(data.get("summary", ""))
+            and all(isinstance(data.get(section, []), list) and all(entry(e) for e in data.get(section, []))
+                    for section in ENTRY_SECTIONS)
+            and rows(data.get("skills", [])) and texts(data.get("skills_absent", []))
+            and rows(data.get("certifications", []))
+            and rows(data.get("authorization", []), lambda v: v is None or isinstance(v, (str, bool))))
