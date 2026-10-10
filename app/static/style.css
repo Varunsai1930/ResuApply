@@ -669,6 +669,11 @@ details.card[open] summary::after { content: " −"; }
   .page-head.with-actions { align-items: stretch; }
   .page-head.with-actions > a { width: 100%; }
   .btn-primary, .btn-secondary { min-height: 42px; }
+  /* A long label wraps inside its button instead of pushing the page wider than the screen. */
+  .btn-primary, .btn-secondary { white-space: normal; text-align: center; max-width: 100%; }
+  /* Tables keep their columns but use less padding, so three columns fit a phone. */
+  th, td { padding: 10px 8px; }
+  th { letter-spacing: 0.02em; }
   input, textarea, select { min-height: 42px; font-size: 16px; }
   .row-item { flex-direction: column; align-items: stretch; }
   .facts { grid-template-columns: 1fr; gap: 0; }
