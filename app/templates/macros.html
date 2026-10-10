@@ -166,3 +166,23 @@
 {% macro review_badge(state) -%}
 <span class="badge review-{{ state.value }}">{{ state.label }}</span>
 {%- endmacro %}
+
+{# The four shared status meanings (services/status.py), each with its own icon. The icon is
+   decoration: the label always says the meaning in words. #}
+{% macro status_icon(status) -%}
+<span class="st-icon st-{{ status.value }}" aria-hidden="true">
+  {%- if status == Status.DONE -%}
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12l5 5 9-10"/></svg>
+  {%- elif status == Status.NEEDS_YOU -%}
+    <svg width="14" height="14" viewBox="0 0 24 24"><circle cx="12" cy="12" r="5" fill="currentColor"/></svg>
+  {%- elif status == Status.BLOCKED -%}
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="11" width="14" height="9" rx="1.5"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>
+  {%- else -%}
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 11v6"/><path d="M12 7.5v.5"/></svg>
+  {%- endif -%}
+</span>
+{%- endmacro %}
+
+{% macro status_line(meaning) -%}
+<span class="st st-{{ meaning.status.value }}">{{ status_icon(meaning.status) }}<span class="st-text">{{ meaning.status.label }}{% if meaning.note %} · {{ meaning.note }}{% endif %}</span></span>
+{%- endmacro %}

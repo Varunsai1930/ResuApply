@@ -361,6 +361,15 @@ button[disabled], button[disabled]:hover { opacity: 0.55; cursor: progress; }
 .review-draft::before { background: transparent; border: 1.5px solid var(--neutral-dot); width: 7px; height: 7px; }
 .review-stale::before { background: var(--unknown); }
 
+/* The four shared status meanings: Done, Needs you, Blocked, Info (services/status.py). */
+.st { display: inline-flex; align-items: center; gap: 6px; font-size: 0.86rem; font-weight: 500; }
+.st-icon { display: inline-flex; flex: none; }
+.st-icon svg { display: block; }
+.st-done { color: var(--met); }
+.st-needs_you { color: var(--unknown); }
+.st-blocked { color: var(--unmet); }
+.st-info { color: var(--ink-3); }
+
 /* Checklist results: square labels in the three reserved colours. */
 .badge.check-met, .badge.check-unmet, .badge.check-unknown {
   gap: 0; padding: 2px 8px; border-radius: 3px;

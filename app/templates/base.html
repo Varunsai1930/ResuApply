@@ -11,17 +11,7 @@
 </head>
 <body>
   <a class="skip-link" href="#main">Skip to content</a>
-  <header class="site-header">
-    <div class="wrap header-inner">
-      <a class="brand" href="/jobs">ResuApply</a>
-      <nav aria-label="Main">
-        <a href="/jobs" {% if active == 'jobs' %}aria-current="page"{% endif %}>Jobs</a>
-        <a href="/answers" {% if active == 'answers' %}aria-current="page"{% endif %}>Answers</a>
-        <a href="/profile" {% if active == 'profile' %}aria-current="page"{% endif %}>Profile</a>
-      </nav>
-      <span class="local-badge" title="ResuApply runs only on this computer (127.0.0.1)"><span>Local only</span></span>
-    </div>
-  </header>
+  {% include "_header.html" %}
   <main id="main" class="wrap">
     {% if msg and MESSAGES.get(msg) %}
       <p class="flash" role="status">{{ MESSAGES[msg] }}</p>

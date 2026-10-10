@@ -9,9 +9,17 @@ from fastapi.templating import Jinja2Templates
 
 from .schemas.tracking import ReviewState, TrackingStatus
 from .services.profile_form import skills_text
+from .services.status import Status
 
 TEMPLATE_DIR = Path(__file__).parent / "templates"
 STATIC_DIR = Path(__file__).parent / "static"
+
+# The fixed main nav: (key matched against a page's `active`, link, label).
+NAV_ITEMS = (
+    ("jobs", "/jobs", "Jobs"),
+    ("answers", "/answers", "Answers"),
+    ("profile", "/profile", "Profile"),
+)
 
 # Confirmation messages shown after a redirect (?msg=code). Only known codes are shown.
 MESSAGES = {
@@ -95,4 +103,6 @@ templates.env.globals.update(
     TrackingStatus=TrackingStatus,
     ReviewState=ReviewState,
     MESSAGES=MESSAGES,
+    NAV_ITEMS=NAV_ITEMS,
+    Status=Status,
 )

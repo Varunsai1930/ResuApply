@@ -1,0 +1,12 @@
+{# The site header every page shares. NAV_ITEMS (templating.py) is the fixed nav; `active` marks the current one. #}
+<header class="site-header">
+  <div class="wrap header-inner">
+    <a class="brand" href="/jobs">ResuApply</a>
+    <nav aria-label="Main">
+      {% for key, href, label in NAV_ITEMS %}
+        <a href="{{ href }}" {% if active == key %}aria-current="page"{% endif %}>{{ label }}</a>
+      {% endfor %}
+    </nav>
+    <span class="local-badge" title="ResuApply runs only on this computer (127.0.0.1)"><span>Local only</span></span>
+  </div>
+</header>
