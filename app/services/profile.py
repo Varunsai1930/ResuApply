@@ -36,7 +36,7 @@ from ..models import Application, Candidate
 from ..schemas.profile import Profile
 from .countries import normalize_country
 from .skills import canon, display
-from .text import is_valid_date, norm_text
+from .text import ends_before_start, is_valid_date, norm_text
 
 ENTRY_SECTIONS = {"education": "edu", "experience": "exp", "projects": "proj"}
 NAME_FIELDS = {"education": "institution", "experience": "organization", "projects": "name"}
@@ -278,6 +278,9 @@ def normalize(
                         f"{label}: {FIELD_LABELS[name]} must be {DATE_HINT} (got {entry[name]!r})",
                         _form_field(raw, name),
                     ))
+            # "present" as the end is always accepted: a role can start in the future.
+            if entry["end"] != "present" and ends_before_start(entry["start"], entry["end"]):
+                errors.append(FieldError(f"{label}: end date is before the start date", _form_field(raw, "end")))
             name_field = NAME_FIELDS[section]
             if not entry[name_field]:
                 errors.append(FieldError(f"{label}: {FIELD_LABELS[name_field]} is required", _form_field(raw, name_field)))

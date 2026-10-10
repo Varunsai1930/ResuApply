@@ -64,6 +64,15 @@ def date_key(value, end_of_period: bool = False) -> tuple[int, int, int] | None:
     return (year, month, day)
 
 
+def ends_before_start(start, end) -> bool:
+    """Whether a range of partial dates ends before it begins ("2026-05" to "2026" is fine).
+
+    False when either side is missing or invalid: those are reported on their own.
+    """
+    first, last = date_key(start), date_key(end, end_of_period=True)
+    return first is not None and last is not None and last < first
+
+
 def today_key() -> tuple[int, int, int]:
     today = datetime.now(timezone.utc)
     return (today.year, today.month, today.day)

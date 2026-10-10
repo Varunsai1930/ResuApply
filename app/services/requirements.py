@@ -26,7 +26,7 @@ from ..schemas.requirements import (
 )
 from .countries import normalize_country
 from .profile import FieldError
-from .text import date_key, is_valid_date, norm_text, today_key
+from .text import date_key, ends_before_start, is_valid_date, norm_text, today_key
 from .transactions import write
 
 
@@ -111,6 +111,8 @@ def _validate_criterion(crit, label: str, item: dict, errors: list[FieldError]) 
         end = _criterion_date(crit.get("to"), f"{label}: graduation to date", _field(item, "to"), errors)
         if not start and not end:
             errors.append(FieldError(f"{label}: a graduation window needs a from and/or to date", _field(item, "from")))
+        elif ends_before_start(start, end):
+            errors.append(FieldError(f"{label}: the graduation window ends before it starts", _field(item, "to")))
         clean.update({"from": start, "to": end})
     elif kind == "location":
         mode = crit.get("work_mode") or None
@@ -136,6 +138,8 @@ def _validate_criterion(crit, label: str, item: dict, errors: list[FieldError]) 
         start_from = _criterion_date(crit.get("start_from"), f"{label}: start-from", _field(item, "start_from"), errors)
         if not start_by and not start_from:
             errors.append(FieldError(f"{label}: availability needs a start-by and/or start-from date", _field(item, "start_by")))
+        elif ends_before_start(start_from, start_by):
+            errors.append(FieldError(f"{label}: the start-by date is before the start-from date", _field(item, "start_by")))
         clean.update(start_by=start_by, start_from=start_from)
     elif kind == "years_experience":
         years = crit.get("years")

@@ -115,3 +115,25 @@ def test_years_of_experience_must_be_a_finite_sensible_number(client, sample_pro
     with client.app.state.session_factory() as session:
         from app.models import Job
         assert "NaN" not in str(session.get(Job, job_id).requirements)
+
+
+def test_date_ranges_that_end_before_they_start_are_rejected(client, sample_profile):
+    reversed_role = copy.deepcopy(sample_profile)
+    reversed_role["experience"][0] |= {"start": "2024-08", "end": "2024-06"}
+    review = client.post("/profile/review", data=profile_form(reversed_role))
+    assert review.status_code == 422 and "end date is before the start date" in review.text
+    for start, end in (("2024-06", "2024-06"), ("2024-06", "2024"), ("2030-01", "present")):
+        fine = copy.deepcopy(sample_profile)
+        fine["experience"][0] |= {"start": start, "end": end}
+        assert client.post("/profile/review", data=profile_form(fine)).status_code == 200, (start, end)
+
+    review_and_save(client, profile_form(sample_profile))
+    job_id = create_job(client)
+    cases = [("graduation_window", {"from": "2027-05", "to": "2026-05"}, "the graduation window ends before it starts"),
+             ("availability", {"start_from": "2026-09", "start_by": "2026-06"}, "the start-by date is before the start-from date")]
+    for ctype, values, message in cases:
+        data = _editor_rows(client, job_id, 1) | {"req-n0-ctype": ctype} | {f"req-n0-{k}": v for k, v in values.items()}
+        response = client.post(f"/jobs/{job_id}/requirements", data=data, follow_redirects=False)
+        assert response.status_code == 422 and message in response.text, ctype
+    data = _editor_rows(client, job_id, 1) | {"req-n0-ctype": "graduation_window", "req-n0-from": "2026-05", "req-n0-to": "2026"}
+    assert client.post(f"/jobs/{job_id}/requirements", data=data, follow_redirects=False).status_code == 303
