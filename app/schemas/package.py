@@ -18,7 +18,7 @@ from __future__ import annotations
 from datetime import date, datetime
 from typing import Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from .profile import Profile
 
@@ -76,9 +76,15 @@ class Approval(_Model):
     profile_revision: int
     job_revision: int
     warnings: list[str] = Field(default_factory=list)
-    # The approval rules version it passed (package.APPROVAL_RULES). Approvals saved before
-    # this was recorded read as 1, so they are checked against the current rules.
-    rules: int = 1
+
+    @model_validator(mode="before")
+    @classmethod
+    def _drop_stored_rules(cls, data: Any) -> Any:
+        # One release stored the rules version here. It lives in applications.approval_rules,
+        # outside this JSON, so earlier versions of the app can still read stored approvals.
+        if isinstance(data, dict) and "rules" in data:
+            data = {k: v for k, v in data.items() if k != "rules"}
+        return data
 
 
 class SubmittedSnapshot(_Model):

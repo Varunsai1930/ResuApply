@@ -20,6 +20,7 @@ from .db import init_db, make_engine, make_session_factory
 from .routes import answers, jobs, package, profile, questions, requirements, resume, sharing
 from .security import SameOriginMiddleware
 from .services.answers import upgrade_stored_questions
+from .services.package import rewrite_approvals_with_stored_rules
 from .templating import STATIC_DIR, templates
 
 
@@ -36,6 +37,7 @@ def create_app(settings: Settings | None = None, ai_transport: httpx.BaseTranspo
         app.state.session_factory = make_session_factory(engine)
         with app.state.session_factory() as session:
             upgrade_stored_questions(session)
+            rewrite_approvals_with_stored_rules(session)
         key = settings.openrouter_api_key.get_secret_value() if settings.openrouter_api_key else None
         app.state.ai_client = OpenRouterClient(key, settings.openrouter_model, transport=ai_transport)
         try:

@@ -243,8 +243,8 @@ def test_upgrading_questions_clears_only_affected_approvals(session, prepared):
         target.application.approval = package.Approval(
             content_hash=content_hash(package.resolved_package(target, target.application, candidate)),
             approved_at=utcnow(), profile_revision=candidate.revision, job_revision=target.revision,
-            rules=package.APPROVAL_RULES,
         )
+        target.application.approval_rules = package.APPROVAL_RULES
     session.commit()
     _save_legacy(session, job, "Describe your email marketing experience", "email")
     assert answers.upgrade_stored_questions(session) == 1

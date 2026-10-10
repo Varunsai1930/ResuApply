@@ -86,6 +86,9 @@ class Application(Base):
     # AI proposals for open questions; not answers until the user accepts them.
     answer_drafts: Mapped[list[AnswerDraft]] = mapped_column(PydanticJSON(list[AnswerDraft]), default=list, server_default="[]")
     approval: Mapped[Approval | None] = mapped_column(PydanticJSON(Approval), nullable=True)
+    # The approval rules version (services.package.APPROVAL_RULES) the approval passed. A plain
+    # column, not part of the approval JSON, so earlier versions of the app can read the row.
+    approval_rules: Mapped[int] = mapped_column(Integer, default=1, server_default="1")
     submitted_snapshots: Mapped[list[SubmittedSnapshot]] = mapped_column(PydanticJSON(list[SubmittedSnapshot]), default=list)
     created_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utcnow)
     updated_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utcnow)

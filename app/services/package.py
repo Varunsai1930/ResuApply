@@ -21,7 +21,9 @@ from __future__ import annotations
 import json
 from datetime import date
 
+from sqlalchemy import String, select
 from sqlalchemy.orm import Session
+from sqlalchemy.orm.attributes import flag_modified
 
 from ..db import utcnow
 from ..models import Application, Candidate, Job
@@ -201,12 +203,29 @@ def approve(session: Session, job: Job, candidate: Candidate | None, token: str)
             profile_revision=candidate.revision,
             job_revision=job.revision,
             warnings=warnings,
-            rules=APPROVAL_RULES,
         )
         application.approval = approval
+        application.approval_rules = APPROVAL_RULES
         application.review_state = ReviewState.APPROVED.value
         application.updated_at = utcnow()
     return approval
+
+
+def rewrite_approvals_with_stored_rules(session: Session) -> int:
+    """Rewrite approvals and snapshots that still carry the rules version inside their JSON.
+
+    One release stored it there; earlier versions of the app reject the extra key. Reading
+    already drops it, so saving the row again removes it from the database. Returns how many
+    applications were rewritten.
+    """
+    stored = Application.approval.cast(String).like('%"rules":%') | \
+        Application.submitted_snapshots.cast(String).like('%"rules":%')
+    applications = session.scalars(select(Application).where(stored)).all()
+    for application in applications:
+        flag_modified(application, "approval")
+        flag_modified(application, "submitted_snapshots")
+    session.commit()
+    return len(applications)
 
 
 def review_state(job: Job, application: Application, candidate: Candidate | None) -> ReviewState:
@@ -220,7 +239,7 @@ def review_state(job: Job, application: Application, candidate: Candidate | None
     if approval.content_hash != content_hash(resolved_package(job, application, candidate)):
         return ReviewState.DRAFT
     # An approval from older, looser rules: a matching hash doesn't make the package pass now.
-    if approval.rules < APPROVAL_RULES and check(job, application, candidate)[0]:
+    if application.approval_rules < APPROVAL_RULES and check(job, application, candidate)[0]:
         return ReviewState.DRAFT
     return ReviewState.APPROVED
 
