@@ -228,10 +228,7 @@ def change_status(
     # The checkbox only matters when recording Applied; any other status is a plain status change.
     save_package = bool(snapshot) and status.strip().lower() == TrackingStatus.APPLIED.value
     try:
-        try:
-            on_date = date.fromisoformat(on) if on.strip() else None
-        except ValueError:
-            raise tracking.TrackingError("Enter the date as YYYY-MM-DD.", "on") from None
+        on_date = tracking.parse_date(on)
         if save_package:
             package.record_applied(session, job, get_candidate(session), package_token, on_date, note)
         else:

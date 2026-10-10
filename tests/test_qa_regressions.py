@@ -155,3 +155,24 @@ def test_control_characters_are_removed_from_every_form_value(client, sample_pro
         from app.models import Job
         job = session.get(Job, job_id)
         assert job.title == "C++ & Go — Ünïcødé 😀 Intern" and job.description == "Line one\nLine two & more"
+
+
+def test_status_dates_must_be_plain_and_plausible(client):
+    job_id = create_job(client)
+    for on, message in (("2026-W41", "Enter the date as YYYY-MM-DD."), ("20261010", "Enter the date as YYYY-MM-DD."),
+                        ("0001-01-01", "Enter a date from 1990 onwards."), ("1900-01-01", "Enter a date from 1990 onwards.")):
+        response = client.post(f"/jobs/{job_id}/status", data={"status": "applied", "on": on})
+        assert response.status_code == 422 and message in response.text, on
+    assert client.post(f"/jobs/{job_id}/status", data={"status": "applied", "on": "1990-01-01"},
+                       follow_redirects=False).status_code == 303
+
+
+def test_question_limits_stay_within_the_longest_answer_kept(client, sample_profile):
+    review_and_save(client, profile_form(sample_profile))
+    job_id = create_job(client)
+    for limit, ok in (("10000", True), ("10001", False), ("99999999999999999999", False)):
+        response = client.post(f"/jobs/{job_id}/questions", data={"text": "Why us?", "required": "1", "limit": limit},
+                               follow_redirects=False)
+        assert (response.status_code == 303) is ok, limit
+        if not ok:
+            assert "at most 10,000" in response.text

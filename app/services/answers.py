@@ -226,8 +226,9 @@ def add_question(session: Session, job: Job, text: str, required: bool = True, l
         raise AnswerError(f"Keep the question under {QUESTION_LIMIT:,} characters.")
     if limit_unit not in LIMIT_UNITS:
         raise AnswerError("The limit unit must be characters or words.")
-    if limit is not None and (isinstance(limit, bool) or not isinstance(limit, int) or limit < 1):
-        raise AnswerError("The length limit must be a whole number of at least 1, or empty for no limit.")
+    if limit is not None and (isinstance(limit, bool) or not isinstance(limit, int) or not 1 <= limit <= ANSWER_LIMIT):
+        raise AnswerError(f"The length limit must be a whole number of at least 1 and at most {ANSWER_LIMIT:,} "
+                          "(the longest answer ResuApply keeps), or empty for no limit.")
     detected, key = q_rules.classify(text)
     chosen = detected
     if category and category != detected:

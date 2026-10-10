@@ -6,6 +6,7 @@ explicit user action changes the status: approving a package never sets Applied.
 
 from __future__ import annotations
 
+import re
 from datetime import date
 
 from sqlalchemy.orm import Session
@@ -16,6 +17,25 @@ from ..schemas.tracking import Note, StatusEvent, TrackingStatus
 from . import transactions
 
 NOTE_LIMIT = 5000
+EARLIEST = date(1990, 1, 1)  # older dates are typing mistakes, such as a missing digit in the year
+_ISO_DATE = re.compile(r"[0-9]{4}-[0-9]{2}-[0-9]{2}")
+
+
+def parse_date(text: str) -> date | None:
+    """A status date typed as YYYY-MM-DD, or None when empty.
+
+    ``date.fromisoformat`` also reads week dates ("2026-W41") and compact ones ("20261010"),
+    which the date field never produces; those are refused like any other format.
+    """
+    text = (text or "").strip()
+    if not text:
+        return None
+    try:
+        if not _ISO_DATE.fullmatch(text):
+            raise ValueError
+        return date.fromisoformat(text)
+    except ValueError:
+        raise TrackingError("Enter the date as YYYY-MM-DD.", "on") from None
 
 
 class TrackingError(Exception):
@@ -58,6 +78,8 @@ def apply_status(
     on = on or today
     if on > today:
         raise TrackingError("The date can't be in the future.", "on")
+    if on < EARLIEST:
+        raise TrackingError(f"Enter a date from {EARLIEST.year} onwards.", "on")
     note = (note or "").strip()
     if len(note) > NOTE_LIMIT:
         raise TrackingError(f"Keep the note under {NOTE_LIMIT:,} characters.", "note")
