@@ -176,3 +176,34 @@ def test_startup_leaves_stale_old_approvals_alone(session, sample_profile):
     assert package.upgrade_stored_approvals(session) == 0
     assert job.application.approval is not None and job.application.approval_rules == 1
     assert package.review_state(job, job.application, candidate) is ReviewState.STALE
+
+
+def test_rules_stamp_does_not_carry_over_to_an_approval_recorded_elsewhere(session, sample_profile):
+    """An earlier app version clears and records approvals without updating the stamp columns."""
+    from tests.test_package import accept_resume, approve
+
+    sample_profile["summary"] = "Previously supported 5,000 users on legacy services."
+    candidate = profile.save(session, sample_profile).candidate
+    job = jobs.create(session, jobs.clean_input(**DEMO_JOB))
+    accept_resume(session, job, candidate)
+    approve(session, job, candidate)
+    application = job.application
+    assert application.approval_rules == package.APPROVAL_RULES and application.approval_rules_for
+
+    # As an earlier version would: accept an answer its looser rules allow and approve again,
+    # leaving approval_rules and approval_rules_for as they were.
+    question = answers.add_question(session, job, "Describe a project")
+    application.answers = [Answer(
+        question_id=question.id, text="Built a Flask REST API in Python serving 5,000 users.",
+        origin="ai_draft", sources=["exp-1-b1"], at=utcnow(),
+    )]
+    application.approval = Approval(
+        content_hash=content_hash(package.resolved_package(job, application, candidate)),
+        approved_at=utcnow(), profile_revision=candidate.revision, job_revision=job.revision,
+    )
+    session.commit()
+    assert application.approval_rules == package.APPROVAL_RULES  # the stamp is still there
+
+    assert package.review_state(job, application, candidate) is ReviewState.DRAFT
+    assert package.upgrade_stored_approvals(session) == 1
+    assert application.approval is None

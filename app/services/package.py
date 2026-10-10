@@ -187,6 +187,28 @@ def _check_token(job: Job, application: Application, candidate: Candidate | None
 APPROVAL_RULES = 2
 
 
+def approval_key(approval: Approval) -> str:
+    """Identifies one approval record, so a rules stamp can't carry over to a later approval."""
+    return content_hash(approval.model_dump(mode="json"))
+
+
+def _mark_checked(application: Application) -> None:
+    """Record that the current approval passed the current rules."""
+    application.approval_rules = APPROVAL_RULES
+    application.approval_rules_for = approval_key(application.approval)
+
+
+def _checked(application: Application) -> bool:
+    """Whether the current approval is known to pass the current rules.
+
+    The stamp must name this very approval: earlier versions of the app can clear an approval
+    and record a new one under their own rules without touching the stamp columns.
+    """
+    approval = application.approval
+    return (approval is not None and application.approval_rules >= APPROVAL_RULES
+            and application.approval_rules_for == approval_key(approval))
+
+
 def approve(session: Session, job: Job, candidate: Candidate | None, token: str) -> Approval:
     """Approve the package the user reviewed. Refused while there are blockers; never changes tracking status.
 
@@ -206,7 +228,7 @@ def approve(session: Session, job: Job, candidate: Candidate | None, token: str)
             warnings=warnings,
         )
         application.approval = approval
-        application.approval_rules = APPROVAL_RULES
+        _mark_checked(application)
         application.review_state = ReviewState.APPROVED.value
         application.updated_at = utcnow()
     return approval
@@ -247,8 +269,7 @@ def review_state(job: Job, application: Application, candidate: Candidate | None
     state = _recorded_state(job, application, candidate)
     # An approval from older, looser rules: a matching hash doesn't make the package pass now.
     # upgrade_stored_approvals settles these at startup, so this check rarely runs.
-    if (state is ReviewState.APPROVED and application.approval_rules < APPROVAL_RULES
-            and check(job, application, candidate)[0]):
+    if state is ReviewState.APPROVED and not _checked(application) and check(job, application, candidate)[0]:
         return ReviewState.DRAFT
     return state
 
@@ -257,13 +278,15 @@ def upgrade_stored_approvals(session: Session) -> int:
     """Check approvals recorded under older rules once, at startup. Returns how many were settled.
 
     An approval that would read Approved and still passes the current checks is marked with
-    the current rules version, so reading its state stays cheap. One that no longer passes is
+    the current rules version and its key, so reading its state stays cheap. One that no longer passes is
     removed and its package is a Draft again, as when its content changes. Stale and Draft
     approvals are left as they are: they don't read Approved, so nothing is checked for them.
     """
     candidate = get_candidate(session)
     settled = 0
-    for application in session.scalars(select(Application).where(Application.approval_rules < APPROVAL_RULES)):
+    for application in session.scalars(select(Application)):
+        if _checked(application):
+            continue
         job = application.job
         if _recorded_state(job, application, candidate) is not ReviewState.APPROVED:
             continue
@@ -272,7 +295,7 @@ def upgrade_stored_approvals(session: Session) -> int:
             application.review_state = ReviewState.DRAFT.value
             application.updated_at = utcnow()
         else:
-            application.approval_rules = APPROVAL_RULES
+            _mark_checked(application)
         settled += 1
     session.commit()
     return settled
