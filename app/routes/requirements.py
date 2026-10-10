@@ -18,6 +18,7 @@ from ..services.requirements import RequirementsConflict, RequirementsInvalid, s
 from ..services.requirements_form import CRITERION_LABELS, parse_form, to_rows
 from ..schemas.requirements import CATEGORIES, IMPORTANCE
 from ..templating import templates
+from .forms import read_form
 from .jobs import _job_or_404, _render_workspace, reviewed_revision_of
 
 router = APIRouter(prefix="/jobs/{job_id}")
@@ -81,7 +82,7 @@ def edit_requirements(request: Request, job_id: int, proposal: int = 0, session:
 @router.post("/requirements")
 async def save_requirements(request: Request, job_id: int, session: Session = Depends(get_session)):
     job = _job_or_404(session, job_id)
-    form = await request.form()
+    form = await read_form(request)
     items = parse_form((k, v) for k, v in form.multi_items() if isinstance(v, str))
     raw_revision = form.get("base_revision")
     reviewed_revision = reviewed_revision_of(raw_revision, form.get("replace_revision"))
@@ -151,7 +152,7 @@ def _checklist_action(request: Request, session: Session, job: Job, req_id: str,
 @router.post("/requirements/{req_id}/evidence")
 async def link_evidence(request: Request, job_id: int, req_id: str, session: Session = Depends(get_session)):
     job = _job_or_404(session, job_id)
-    form = await request.form()
+    form = await read_form(request)
     sources = [v for v in form.getlist("sources") if isinstance(v, str)]
     reviewed_token = form.get("review_token", "")
     if not isinstance(reviewed_token, str):

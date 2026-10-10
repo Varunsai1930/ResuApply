@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import re
 
-from fastapi import APIRouter, Depends, Form, Request
+from fastapi import APIRouter, Depends, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from sqlalchemy.orm import Session
 
@@ -12,6 +12,7 @@ from ..db import get_session
 from ..services import outbound
 from ..services.profile import get_candidate
 from ..templating import templates
+from .forms import read_form
 
 router = APIRouter(prefix="/profile/sharing")
 
@@ -60,7 +61,7 @@ def preview(request: Request, next: str = "", msg: str = "", session: Session = 
 @router.post("")
 async def approve(request: Request, session: Session = Depends(get_session)):
     candidate = get_candidate(session)
-    form = await request.form()
+    form = await read_form(request)
     next_url = _safe_next(str(form.get("next") or ""))
     if candidate is None:
         return RedirectResponse("/profile", status_code=303)

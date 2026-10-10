@@ -8,14 +8,16 @@ from __future__ import annotations
 
 import json
 
-from fastapi import APIRouter, Depends, Form, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from sqlalchemy.orm import Session
+from starlette.concurrency import run_in_threadpool
 
 from ..db import get_session
 from ..services import profile as profile_service
 from ..services.profile_form import parse_form
 from ..templating import templates
+from .forms import read_form
 
 router = APIRouter(prefix="/profile")
 
@@ -49,9 +51,9 @@ def _render_form(request: Request, data: dict, errors=(), warnings=(), status_co
     )
 
 
-def _load_payload(payload: str) -> dict:
+def _load_payload(payload: object) -> dict:
     try:
-        data = json.loads(payload)
+        data = json.loads(payload) if isinstance(payload, str) else None
     except json.JSONDecodeError:
         data = None
     if not isinstance(data, dict):
@@ -75,14 +77,15 @@ def edit_profile(request: Request, session: Session = Depends(get_session)):
 
 
 @router.post("/edit", response_class=HTMLResponse)
-def back_to_edit(request: Request, payload: str = Form(...)):
+async def back_to_edit(request: Request):
     """Return from the review page to the form without losing the proposed edits."""
-    return _render_form(request, _load_payload(payload))
+    form = await read_form(request)
+    return _render_form(request, _load_payload(form.get("payload")))
 
 
 @router.post("/review", response_class=HTMLResponse)
 async def review_profile(request: Request, session: Session = Depends(get_session)):
-    form = await request.form()
+    form = await read_form(request)
     data = parse_form((k, v) for k, v in form.multi_items() if isinstance(v, str))
     try:
         result = profile_service.review(session, data)
@@ -100,13 +103,22 @@ async def review_profile(request: Request, session: Session = Depends(get_sessio
 
 
 @router.post("/save")
-def save_profile(
-    request: Request,
-    payload: str = Form(...),
-    base_revision: int = Form(...),
-    session: Session = Depends(get_session),
-):
-    data = _load_payload(payload)
+async def save_profile(request: Request, session: Session = Depends(get_session)):
+    form = await read_form(request)
+    raw_revision = form.get("base_revision")
+    try:
+        base_revision = int(raw_revision) if isinstance(raw_revision, str) else None
+    except ValueError:
+        base_revision = None
+    if base_revision is None:
+        raise HTTPException(422, "The reviewed profile has no valid revision. Edit the profile again.")
+    data = _load_payload(form.get("payload"))
+    # The form is read here with the editor's limits; the save itself runs in the thread pool,
+    # like other synchronous routes, so overlapping saves are serialized by the database.
+    return await run_in_threadpool(_save, request, session, data, base_revision)
+
+
+def _save(request: Request, session: Session, data: dict, base_revision: int):
     try:
         result = profile_service.save(session, data, base_revision=base_revision)
     except profile_service.ProfileInvalid as exc:

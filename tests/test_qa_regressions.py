@@ -1,0 +1,56 @@
+"""Edge cases found by black-box testing: form limits, odd input and error handling."""
+
+from __future__ import annotations
+
+import copy
+import re
+
+from tests.test_assessment_routes import editor_fields
+from tests.test_routes import create_job, profile_form, review_and_save
+
+
+def _editor_rows(client, job_id: int, count: int) -> dict[str, str]:
+    """``count`` requirement rows named and shaped exactly as the real editor submits them."""
+    fields = editor_fields(client.get(f"/jobs/{job_id}/requirements/edit").text)
+    key = next(k.split("-")[1] for k in fields if k.startswith("req-"))
+    blank = {k.removeprefix(f"req-{key}-"): v for k, v in fields.items() if k.startswith(f"req-{key}-")}
+    data = {"base_revision": fields["base_revision"]}
+    for i in range(count):
+        data |= {f"req-n{i}-{name}": value for name, value in blank.items()}
+        data |= {f"req-n{i}-text": f"Python {i}", f"req-n{i}-excerpt": "We need Python and SQL", f"req-n{i}-id": ""}
+    return data
+
+
+def test_requirements_editor_saves_more_rows_than_the_default_form_limit(client, sample_profile):
+    review_and_save(client, profile_form(sample_profile))
+    job_id = create_job(client)
+    data = _editor_rows(client, job_id, 60)
+    assert len(data) > 1000  # Starlette's default limit
+    response = client.post(f"/jobs/{job_id}/requirements", data=data, follow_redirects=False)
+    assert response.status_code == 303, response.text[:500]
+    assert len(re.findall(r'name="req-[^"]+-text"', client.get(f"/jobs/{job_id}/requirements/edit").text)) >= 60
+
+
+def test_too_many_requirements_get_a_message_and_keep_the_input(client, sample_profile):
+    from app.services.requirements import MAX_REQUIREMENTS
+
+    review_and_save(client, profile_form(sample_profile))
+    job_id = create_job(client)
+    response = client.post(f"/jobs/{job_id}/requirements", data=_editor_rows(client, job_id, MAX_REQUIREMENTS + 1),
+                           follow_redirects=False)
+    assert response.status_code == 422
+    assert f"Keep it to {MAX_REQUIREMENTS:,} or fewer" in response.text
+    assert f"Python {MAX_REQUIREMENTS}" in response.text  # the rows are still there to edit
+
+
+def test_large_profiles_can_be_reviewed_and_saved(client, sample_profile):
+    many = copy.deepcopy(sample_profile)
+    many["experience"] = [dict(sample_profile["experience"][0], organization=f"Org {i}",
+                               bullets=[f"Did task {i}.{j}" for j in range(14)]) for i in range(30)]
+    review, saved = review_and_save(client, profile_form(many))
+    assert saved.status_code == 303, saved.text[:300]
+
+    long = copy.deepcopy(sample_profile)
+    long["experience"][0]["bullets"] = [("Built services " * 9000)[:120_000] for _ in range(10)]
+    review, saved = review_and_save(client, profile_form(long))
+    assert saved.status_code == 303, saved.text[:300]  # the reviewed payload is over 1 MB

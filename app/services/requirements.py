@@ -29,6 +29,10 @@ from .text import date_key, is_valid_date, norm_text, today_key
 from .transactions import write
 
 
+# One job's checklist. Far more than any posting states, and well inside the editor's form limits.
+MAX_REQUIREMENTS = 200
+
+
 class RequirementsInvalid(Exception):
     """The proposed requirements break a rule. Nothing was saved."""
 
@@ -153,6 +157,11 @@ def validate_requirements(job: Job, items) -> tuple[list[Requirement], int]:
         items = items["requirements"]
     if not isinstance(items, list):
         raise RequirementsInvalid([FieldError("Requirements must be a list")])
+    if len(items) > MAX_REQUIREMENTS:
+        raise RequirementsInvalid([FieldError(
+            f"There are {len(items):,} requirements. Keep it to {MAX_REQUIREMENTS:,} or fewer: "
+            "remove repeated or minor ones, then save."
+        )])
     description = norm_text(job.description)
     errors: list[FieldError] = []
     clean: list[dict] = []
