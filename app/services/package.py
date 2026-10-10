@@ -34,6 +34,7 @@ from . import answers as answer_service
 from . import questions as q_rules
 from . import resume as resume_service
 from . import tracking, transactions
+from .profile import get_candidate
 from .text import content_hash
 
 RESUME_DOCUMENT_TEMPLATE = "_resume_document.html"
@@ -228,8 +229,8 @@ def rewrite_approvals_with_stored_rules(session: Session) -> int:
     return len(applications)
 
 
-def review_state(job: Job, application: Application, candidate: Candidate | None) -> ReviewState:
-    """Draft, Approved or Stale, computed from what was approved and what the package is now."""
+def _recorded_state(job: Job, application: Application, candidate: Candidate | None) -> ReviewState:
+    """Draft, Approved or Stale from the approval record and the package as it is now."""
     approval = application.approval
     if approval is None:
         return ReviewState.DRAFT
@@ -238,10 +239,43 @@ def review_state(job: Job, application: Application, candidate: Candidate | None
         return ReviewState.STALE
     if approval.content_hash != content_hash(resolved_package(job, application, candidate)):
         return ReviewState.DRAFT
-    # An approval from older, looser rules: a matching hash doesn't make the package pass now.
-    if application.approval_rules < APPROVAL_RULES and check(job, application, candidate)[0]:
-        return ReviewState.DRAFT
     return ReviewState.APPROVED
+
+
+def review_state(job: Job, application: Application, candidate: Candidate | None) -> ReviewState:
+    """Draft, Approved or Stale, computed from what was approved and what the package is now."""
+    state = _recorded_state(job, application, candidate)
+    # An approval from older, looser rules: a matching hash doesn't make the package pass now.
+    # upgrade_stored_approvals settles these at startup, so this check rarely runs.
+    if (state is ReviewState.APPROVED and application.approval_rules < APPROVAL_RULES
+            and check(job, application, candidate)[0]):
+        return ReviewState.DRAFT
+    return state
+
+
+def upgrade_stored_approvals(session: Session) -> int:
+    """Check approvals recorded under older rules once, at startup. Returns how many were settled.
+
+    An approval that would read Approved and still passes the current checks is marked with
+    the current rules version, so reading its state stays cheap. One that no longer passes is
+    removed and its package is a Draft again, as when its content changes. Stale and Draft
+    approvals are left as they are: they don't read Approved, so nothing is checked for them.
+    """
+    candidate = get_candidate(session)
+    settled = 0
+    for application in session.scalars(select(Application).where(Application.approval_rules < APPROVAL_RULES)):
+        job = application.job
+        if _recorded_state(job, application, candidate) is not ReviewState.APPROVED:
+            continue
+        if check(job, application, candidate)[0]:
+            application.approval = None
+            application.review_state = ReviewState.DRAFT.value
+            application.updated_at = utcnow()
+        else:
+            application.approval_rules = APPROVAL_RULES
+        settled += 1
+    session.commit()
+    return settled
 
 
 def sync_review_state(session: Session, job: Job, application: Application,

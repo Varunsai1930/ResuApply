@@ -111,3 +111,68 @@ def test_existing_database_gains_the_approval_rules_column(tmp_path):
     with engine.connect() as conn:
         assert conn.execute(text("SELECT approval_rules FROM applications")).scalar_one() == 1
     engine.dispose()
+
+
+def _old_approval(session, job, candidate):
+    """An approval recorded before the rules version existed."""
+    application = job.application
+    application.approval = Approval(
+        content_hash=content_hash(package.resolved_package(job, application, candidate)),
+        approved_at=utcnow(), profile_revision=candidate.revision, job_revision=job.revision,
+    )
+    application.approval_rules = 1
+    application.review_state = ReviewState.APPROVED.value
+    session.commit()
+
+
+def test_startup_marks_old_approvals_that_still_pass(session, sample_profile, monkeypatch):
+    from tests.test_package import accept_resume
+
+    candidate = profile.save(session, sample_profile).candidate
+    job = jobs.create(session, jobs.clean_input(**DEMO_JOB))
+    accept_resume(session, job, candidate)
+    _old_approval(session, job, candidate)
+
+    assert package.upgrade_stored_approvals(session) == 1
+    assert job.application.approval is not None
+    assert job.application.approval_rules == package.APPROVAL_RULES
+    calls = []
+    original = package.check
+    monkeypatch.setattr(package, "check", lambda *args: calls.append(1) or original(*args))
+    assert package.review_state(job, job.application, candidate) is ReviewState.APPROVED
+    assert calls == []
+    assert package.upgrade_stored_approvals(session) == 0  # nothing left to settle
+
+
+def test_startup_removes_old_approvals_that_no_longer_pass(session, sample_profile):
+    sample_profile["summary"] = "Previously supported 5,000 users on legacy services."
+    candidate = profile.save(session, sample_profile).candidate
+    job = jobs.create(session, jobs.clean_input(**DEMO_JOB))
+    record = resume.propose(session, job, candidate, resume.profile_draft(candidate.profile))
+    resume.accept(session, job, candidate, resume.proposal_token(record))
+    question = answers.add_question(session, job, "Describe a project")
+    job.application.answers = [Answer(
+        question_id=question.id, text="Built a Flask REST API in Python serving 5,000 users.",
+        origin="ai_draft", sources=["exp-1-b1"], at=utcnow(),
+    )]
+    _old_approval(session, job, candidate)
+
+    assert package.upgrade_stored_approvals(session) == 1
+    assert job.application.approval is None
+    assert job.application.review_state == ReviewState.DRAFT.value
+    assert package.review_state(job, job.application, candidate) is ReviewState.DRAFT
+
+
+def test_startup_leaves_stale_old_approvals_alone(session, sample_profile):
+    from tests.test_package import accept_resume
+
+    candidate = profile.save(session, sample_profile).candidate
+    job = jobs.create(session, jobs.clean_input(**DEMO_JOB))
+    accept_resume(session, job, candidate)
+    _old_approval(session, job, candidate)
+    edited = jobs.clean_input(**(DEMO_JOB | {"title": "Changed title"}))
+    jobs.update(session, job, edited)
+
+    assert package.upgrade_stored_approvals(session) == 0
+    assert job.application.approval is not None and job.application.approval_rules == 1
+    assert package.review_state(job, job.application, candidate) is ReviewState.STALE
