@@ -228,3 +228,39 @@ def test_errors_use_the_app_error_page(client, monkeypatch):
     response = quiet.get("/jobs")
     assert response.status_code == 500 and response.headers["content-type"].startswith("text/html")
     assert "Something unexpected went wrong" in response.text and "simulated failure" not in response.text
+
+
+def test_startup_problems_end_with_a_plain_message(tmp_path, monkeypatch):
+    import socket
+
+    import pytest
+
+    from app import __main__ as start
+    from app.config import HOST, Settings, get_settings
+
+    get_settings.cache_clear()
+    monkeypatch.setenv("RESUAPPLY_PORT", "abc")  # the environment wins over any .env file
+    with pytest.raises(SystemExit) as bad_setting:
+        start.load_settings()
+    assert "RESUAPPLY_PORT" in str(bad_setting.value) and "Traceback" not in str(bad_setting.value)
+    monkeypatch.delenv("RESUAPPLY_PORT")
+    get_settings.cache_clear()
+
+    a_file = tmp_path / "a-file"
+    a_file.write_text("")
+    corrupt = tmp_path / "corrupt"
+    corrupt.mkdir()
+    (corrupt / "resuapply.db").write_text("this is not sqlite")
+    for folder in (a_file, corrupt):
+        with pytest.raises(SystemExit) as storage:
+            start.check_storage(Settings(_env_file=None, data_dir=folder))
+        assert "can't use its data folder" in str(storage.value)
+    start.check_storage(Settings(_env_file=None, data_dir=tmp_path / "fresh"))  # a usable folder passes
+
+    with socket.socket() as busy:
+        busy.bind((HOST, 0))
+        busy.listen()
+        port = busy.getsockname()[1]
+        with pytest.raises(SystemExit) as in_use:
+            start.check_port(port)
+    assert f"Port {port} is already in use" in str(in_use.value)
