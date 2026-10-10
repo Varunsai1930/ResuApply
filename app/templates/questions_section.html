@@ -81,6 +81,9 @@
   {% if item.resolved and not item.skipped and item.text %}
     <div class="answer-text">{{ item.text }}</div>
     {% if row.cited %}<p class="sub-label">Built from your profile</p>{{ sources_list(row.cited) }}{% endif %}
+  {% elif q.category == 'unknown' and own_answer %}
+    <div class="answer-text">{{ item.answer.text }}</div>
+    <p class="sub-label">Your earlier answer. It stays when you set the category.</p>
   {% elif q.category in ['factual', 'sensitive_factual'] and item.value %}
     <p class="answer-line"><span class="muted">Profile value:</span> <strong>{{ item.value }}</strong></p>
   {% elif q.category in ['factual', 'sensitive_factual'] and row.manual_name_part %}

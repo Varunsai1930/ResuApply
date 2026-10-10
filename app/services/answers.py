@@ -187,8 +187,11 @@ def _content_changed(application: Application) -> None:
     application.updated_at = utcnow()
 
 
-def _drop(application: Application, qid: str) -> None:
-    application.answers = [a for a in application.answers if a.question_id != qid]
+def _drop(application: Application, qid: str, keep_own: bool = False) -> None:
+    """Remove a question's answer and draft. ``keep_own`` keeps what the user wrote or chose
+    (their own and bank answers, and explicit skips)."""
+    application.answers = [a for a in application.answers
+                           if a.question_id != qid or (keep_own and a.origin in USER_ORIGINS)]
     application.answer_drafts = [d for d in application.answer_drafts if d.question_id != qid]
 
 
@@ -247,7 +250,11 @@ def add_question(session: Session, job: Job, text: str, required: bool = True, l
 
 
 def set_category(session: Session, job: Job, application: Application, qid: str, category: str) -> Question:
-    """Change a question's category. Its answer and draft are dropped: they were made for the old one."""
+    """Change a question's category. Its answer and draft are dropped: they were made for the old one.
+
+    Leaving Unrecognized keeps the user's own answer: nothing is made for that category, so an
+    answer there was written for an earlier one, and the startup upgrade kept it on purpose.
+    """
     if category == q_rules.UNKNOWN:
         raise AnswerError("Choose a category; Unrecognized is only what the rules detect.")
     with transactions.write(session, job):
@@ -261,7 +268,7 @@ def set_category(session: Session, job: Job, application: Application, qid: str,
             "factual_key": key if category in (q_rules.FACTUAL, q_rules.SENSITIVE_FACTUAL) else None,
         })
         job.questions = [updated if q.id == qid else q for q in job.questions]
-        _drop(application, qid)
+        _drop(application, qid, keep_own=question.category == q_rules.UNKNOWN)
         _content_changed(application)
     return updated
 
@@ -295,19 +302,18 @@ def upgrade_stored_questions(session: Session) -> int:
 
     A question whose category changes loses what was made for the old category: a profile
     value (which must never become the answer to a sensitive question) and any AI draft. What
-    the user wrote or chose is kept, including an explicit skip: unlike ``set_category``, this
-    change isn't the user's, and their own words still answer the question.
+    the user wrote or chose is kept, including an explicit skip: this change isn't the user's,
+    and their own words still answer the question. A question that becomes Unrecognized shows
+    the kept answer, and ``set_category`` keeps it when the user chooses the category.
     """
     changed = 0
     for job in session.scalars(select(Job)):
         upgraded = [upgrade_factual_question(q) for q in job.questions]
         count = sum(new != old for new, old in zip(upgraded, job.questions))
         if count:
-            moved = {new.id for new, old in zip(upgraded, job.questions) if new.category != old.category}
-            application = job.application
-            application.answers = [a for a in application.answers
-                                   if a.question_id not in moved or a.origin in USER_ORIGINS]
-            application.answer_drafts = [d for d in application.answer_drafts if d.question_id not in moved]
+            for new, old in zip(upgraded, job.questions):
+                if new.category != old.category:
+                    _drop(job.application, new.id, keep_own=True)
             job.questions = upgraded
             _content_changed(job.application)
             changed += count

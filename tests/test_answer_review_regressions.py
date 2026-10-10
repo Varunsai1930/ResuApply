@@ -242,6 +242,35 @@ def test_upgrade_to_sensitive_keeps_what_the_user_wrote_or_chose(session, prepar
     assert resolved.resolved and resolved.text == answer["text"]
 
 
+@pytest.mark.parametrize("category", ["open", "sensitive"])
+def test_answer_kept_for_confirm_category_is_shown_and_survives_setting_it(client, sample_profile, category):
+    job_id = ready_job(client, sample_profile)
+    text = "Describe your email marketing experience"
+    with client.app.state.session_factory() as session:
+        job = jobs.get(session, job_id)
+        _save_legacy(session, job, text, "email")
+        job.application.answers = [*job.application.answers, Answer(
+            question_id="q99", text="Five years running email campaigns.", origin="user", at=utcnow())]
+        session.commit()
+        answers.upgrade_stored_questions(session)
+
+    shown = row(workspace(client, job_id), "q99")
+    assert "Confirm category" in shown and "Five years running email campaigns." in shown
+    assert post(client, job_id, "q99", "category", category=category).status_code == 303
+
+    shown = row(workspace(client, job_id), "q99")
+    assert "Five years running email campaigns." in shown and "User answer" in shown
+
+
+def test_setting_a_category_still_drops_answers_made_for_the_old_one(client, sample_profile):
+    job_id = ready_job(client, sample_profile)
+    qid = qid_of(add(client, job_id, "Why do you want this role?"))
+    assert post(client, job_id, qid, "answer", text="Because of the team.").status_code == 303
+    assert post(client, job_id, qid, "category", category="sensitive").status_code == 303
+    with client.app.state.session_factory() as session:
+        assert all(a.question_id != qid for a in jobs.get(session, job_id).application.answers)
+
+
 def test_upgrade_keeps_answers_when_only_the_key_changes(session, prepared):
     candidate, job, _ = prepared
     _save_legacy(session, job, "First name", "name")
