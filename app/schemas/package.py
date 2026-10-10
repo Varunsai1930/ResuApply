@@ -18,7 +18,7 @@ from __future__ import annotations
 from datetime import date, datetime
 from typing import Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field
 
 from .profile import Profile
 
@@ -77,14 +77,25 @@ class Approval(_Model):
     job_revision: int
     warnings: list[str] = Field(default_factory=list)
 
-    @model_validator(mode="before")
-    @classmethod
-    def _drop_stored_rules(cls, data: Any) -> Any:
-        # One release stored the rules version here. It lives in applications.approval_rules,
-        # outside this JSON, so earlier versions of the app can still read stored approvals.
-        if isinstance(data, dict) and "rules" in data:
-            data = {k: v for k, v in data.items() if k != "rules"}
-        return data
+
+def stored_approval(value: Any) -> Any:
+    """Read hook for a stored approval: drop the "rules" key one release wrote into it.
+
+    The rules version lives in applications.approval_rules, outside this JSON, so earlier
+    versions of the app can read stored approvals. Only stored data is adapted; an Approval
+    built in code still rejects unknown fields.
+    """
+    if isinstance(value, dict) and "rules" in value:
+        return {k: v for k, v in value.items() if k != "rules"}
+    return value
+
+
+def stored_snapshots(value: Any) -> Any:
+    """Read hook for stored snapshots: adapt the approval each one froze."""
+    if not isinstance(value, list):
+        return value
+    return [s | {"approval": stored_approval(s["approval"])} if isinstance(s, dict) and "approval" in s else s
+            for s in value]
 
 
 class SubmittedSnapshot(_Model):

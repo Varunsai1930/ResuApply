@@ -7,7 +7,7 @@ use ordinary columns.
 
 from __future__ import annotations
 
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
 from datetime import datetime, timezone
 from typing import Any
 
@@ -53,9 +53,15 @@ class PydanticJSON(TypeDecorator):
     impl = JSON
     cache_ok = True
 
-    def __init__(self, pydantic_type: Any):
+    def __init__(self, pydantic_type: Any, read_upgrade: Callable[[Any], Any] | None = None):
+        """``read_upgrade`` adapts stored JSON from an older shape before it is validated.
+
+        It runs only on values read from the database, so objects built in code are still
+        validated strictly.
+        """
         super().__init__()
         self.pydantic_type = pydantic_type
+        self.read_upgrade = read_upgrade
         self.adapter = TypeAdapter(pydantic_type)
 
     def process_bind_param(self, value, dialect):
@@ -64,7 +70,11 @@ class PydanticJSON(TypeDecorator):
         return self.adapter.dump_python(self.adapter.validate_python(value), mode="json", by_alias=True)
 
     def process_result_value(self, value, dialect):
-        return None if value is None else self.adapter.validate_python(value)
+        if value is None:
+            return None
+        if self.read_upgrade is not None:
+            value = self.read_upgrade(value)
+        return self.adapter.validate_python(value)
 
     def compare_values(self, x, y) -> bool:
         return x == y

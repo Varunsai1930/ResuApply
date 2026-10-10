@@ -87,7 +87,8 @@ def test_stored_rules_key_is_read_and_removed_at_startup(settings, sample_profil
             session.execute(text("UPDATE applications SET approval = :a"),
                             {"a": json.dumps(stored | {"rules": 2})})
             session.commit()
-            assert package.review_state(job, job.application, candidate) is ReviewState.APPROVED  # still readable
+            session.expire_all()  # read it back from the database
+            assert package.review_state(job, job.application, candidate) is ReviewState.APPROVED
 
     with TestClient(create_app(settings), base_url=BASE_URL) as restarted:
         with restarted.app.state.session_factory() as session:
@@ -207,3 +208,30 @@ def test_rules_stamp_does_not_carry_over_to_an_approval_recorded_elsewhere(sessi
     assert package.review_state(job, application, candidate) is ReviewState.DRAFT
     assert package.upgrade_stored_approvals(session) == 1
     assert application.approval is None
+
+
+def test_snapshots_with_a_stored_rules_key_are_readable(session, sample_profile):
+    import json
+
+    from sqlalchemy import text
+
+    from tests.test_package import accept_resume, approve, record_applied
+
+    candidate = profile.save(session, sample_profile).candidate
+    job = jobs.create(session, jobs.clean_input(**DEMO_JOB))
+    accept_resume(session, job, candidate)
+    approve(session, job, candidate)
+    record_applied(session, job, candidate)
+    snapshots = json.loads(session.execute(text("SELECT submitted_snapshots FROM applications")).scalar_one())
+    snapshots[0]["approval"]["rules"] = 2
+    session.execute(text("UPDATE applications SET submitted_snapshots = :s"), {"s": json.dumps(snapshots)})
+    session.commit()
+    session.expire_all()
+    assert job.application.submitted_snapshots[0].approval.content_hash == snapshots[0]["approval"]["content_hash"]
+
+
+def test_approvals_built_in_code_still_reject_unknown_fields():
+    from pydantic import ValidationError
+
+    with pytest.raises(ValidationError, match="rules"):
+        Approval(content_hash="x", approved_at=utcnow(), profile_revision=1, job_revision=1, rules=2)
