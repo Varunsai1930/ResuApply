@@ -243,6 +243,19 @@ def test_malformed_completion_envelope_is_a_friendly_http_error(ai_app_client, f
     assert len(fake_ai.requests) == 2
 
 
+def test_oversized_provider_integer_is_a_friendly_http_error(ai_app_client, fake_ai, sample_profile):
+    client = ai_app_client
+    job_id = setup(client, sample_profile)
+    malformed = tool_response("return_requirements", {})
+    malformed["choices"][0]["message"]["tool_calls"][0]["function"]["arguments"] = '{"n":' + "9" * 5000 + "}"
+    fake_ai.push(malformed, malformed)
+    response = client.post(f"/jobs/{job_id}/requirements/extract")
+    assert response.status_code == 502
+    assert "arguments were not valid JSON" in response.text
+    assert '<span class="badge check-met">Met 4</span>' in response.text
+    assert len(fake_ai.requests) == 2
+
+
 def test_ai_errors_are_shown_and_work_is_kept(ai_app_client, fake_ai, sample_profile):
     client = ai_app_client
     job_id = setup(client, sample_profile)

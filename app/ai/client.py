@@ -134,7 +134,7 @@ class OpenRouterClient:
     def _json(response: httpx.Response) -> dict:
         try:
             data = response.json()
-        except ValueError:
+        except (ValueError, RecursionError):
             data = None
         if not isinstance(data, dict):
             if response.status_code >= 400:
@@ -239,7 +239,7 @@ def _arguments(data: dict, tool_name: str) -> dict:
         raise AIError("invalid", f"The model did not call the {tool_name} tool.")
     try:
         parsed = json.loads(raw)
-    except json.JSONDecodeError:
+    except (ValueError, RecursionError):
         raise AIError("invalid", f"The {tool_name} arguments were not valid JSON.") from None
     if not isinstance(parsed, dict):
         raise AIError("invalid", f"The {tool_name} arguments must be a JSON object.")

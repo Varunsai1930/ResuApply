@@ -94,6 +94,25 @@ def test_repeated_malformed_envelopes_raise_an_ai_error(fake_ai, ai_client):
     assert len(fake_ai.requests) == 2
 
 
+@pytest.mark.parametrize("raw", [
+    '{"value":' + "9" * 5000 + "}",
+    '{"value":' + "[" * 10000 + "0" + "]" * 10000 + "}",
+], ids=["oversized-integer", "excessive-nesting"])
+@pytest.mark.parametrize("recover", [True, False])
+def test_json_decoder_limits_are_handled_as_invalid_output(fake_ai, ai_client, raw, recover):
+    malformed = tool_response("return_thing", {})
+    malformed["choices"][0]["message"]["tool_calls"][0]["function"]["arguments"] = raw
+    fake_ai.push(malformed, tool_response("return_thing", {"value": 4}) if recover else malformed)
+    if recover:
+        result = ai_client.structured("test_op", MESSAGES, TOOL, positive)
+        assert (result.value, result.attempts) == (4, 2)
+    else:
+        with pytest.raises(AIError) as exc:
+            ai_client.structured("test_op", MESSAGES, TOOL, positive)
+        assert exc.value.kind == "invalid"
+    assert len(fake_ai.requests) == 2
+
+
 def test_two_invalid_answers_raise_with_the_last_answer(fake_ai, ai_client):
     fake_ai.push(tool_response("return_thing", {"value": 0}), tool_response("return_thing", {"value": -5}))
     with pytest.raises(AIError) as exc:
