@@ -99,3 +99,19 @@ def test_damaged_profile_review_data_is_refused_not_crashed(client, sample_profi
         response = client.post("/profile/save", data={"payload": hidden(fresh.text, "payload"), "base_revision": revision},
                                follow_redirects=False)
         assert response.status_code == 409, (revision, response.status_code)
+
+
+def test_years_of_experience_must_be_a_finite_sensible_number(client, sample_profile):
+    review_and_save(client, profile_form(sample_profile))
+    job_id = create_job(client)
+    for years, ok in (("nan", False), ("inf", False), ("1e400", False), ("1e308", False), ("101", False),
+                      ("-1", False), ("2.5", True), ("0", True), ("100", True)):
+        data = _editor_rows(client, job_id, 1)
+        data |= {"req-n0-ctype": "years_experience", "req-n0-years": years, "req-n0-area": "backend"}
+        response = client.post(f"/jobs/{job_id}/requirements", data=data, follow_redirects=False)
+        assert (response.status_code == 303) is ok, (years, response.status_code)
+        if not ok:
+            assert "years must be a number from 0 to 100" in response.text
+    with client.app.state.session_factory() as session:
+        from app.models import Job
+        assert "NaN" not in str(session.get(Job, job_id).requirements)

@@ -14,6 +14,7 @@ The same validation runs for requirements the user types and for AI proposals.
 
 from __future__ import annotations
 
+import math
 import re
 
 from sqlalchemy.orm import Session
@@ -31,6 +32,7 @@ from .transactions import write
 
 # One job's checklist. Far more than any posting states, and well inside the editor's form limits.
 MAX_REQUIREMENTS = 200
+MAX_YEARS = 100  # years of experience a requirement can ask for
 
 
 class RequirementsInvalid(Exception):
@@ -137,8 +139,10 @@ def _validate_criterion(crit, label: str, item: dict, errors: list[FieldError]) 
         clean.update(start_by=start_by, start_from=start_from)
     elif kind == "years_experience":
         years = crit.get("years")
-        if isinstance(years, bool) or not isinstance(years, (int, float)) or years < 0:
-            errors.append(FieldError(f"{label}: years must be a non-negative number", _field(item, "years")))
+        # isfinite: float("nan") and float("inf") parse, and NaN even passes "years < 0".
+        if (isinstance(years, bool) or not isinstance(years, (int, float)) or not math.isfinite(years)
+                or not 0 <= years <= MAX_YEARS):
+            errors.append(FieldError(f"{label}: years must be a number from 0 to {MAX_YEARS}", _field(item, "years")))
             years = 0
         clean.update(years=years, area=str(crit.get("area") or "").strip())
     return clean
