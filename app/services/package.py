@@ -284,7 +284,9 @@ def upgrade_stored_approvals(session: Session) -> int:
     """
     candidate = get_candidate(session)
     settled = 0
-    for application in session.scalars(select(Application)):
+    # Only rows with an approval can need settling. A cleared approval is stored as JSON null.
+    approved = Application.approval.is_not(None) & (Application.approval.cast(String) != "null")
+    for application in session.scalars(select(Application).where(approved)):
         if _checked(application):
             continue
         job = application.job

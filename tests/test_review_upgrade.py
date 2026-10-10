@@ -235,3 +235,22 @@ def test_approvals_built_in_code_still_reject_unknown_fields():
 
     with pytest.raises(ValidationError, match="rules"):
         Approval(content_hash="x", approved_at=utcnow(), profile_revision=1, job_revision=1, rules=2)
+
+
+def test_startup_approval_check_only_visits_rows_with_an_approval(session, sample_profile, monkeypatch):
+    from tests.test_package import accept_resume, approve
+
+    candidate = profile.save(session, sample_profile).candidate
+    approved, never, cleared = (jobs.create(session, jobs.clean_input(**DEMO_JOB)) for _ in range(3))
+    for job in (approved, cleared):
+        accept_resume(session, job, candidate)
+        approve(session, job, candidate)
+    answers.add_question(session, cleared, "Describe a project")  # clears that approval
+    assert never.application.approval is None and cleared.application.approval is None
+
+    visited = []
+    original = package._checked
+    monkeypatch.setattr(package, "_checked", lambda application: visited.append(application.job_id)
+                        or original(application))
+    assert package.upgrade_stored_approvals(session) == 0
+    assert visited == [approved.id]
