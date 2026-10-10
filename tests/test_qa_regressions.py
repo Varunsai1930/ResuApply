@@ -274,3 +274,13 @@ def test_answer_length_is_counted_as_employer_forms_count_it():
     assert measure("line one\r\nline two", "chars") == len("line one\nline two")  # a break is one character
     assert measure("one—two–three four", "words") == 4 and measure("well-known  fact\n", "words") == 2
     assert check_length("😀" * 5, 10, "chars") is None and check_length("😀" * 6, 10, "chars") is not None
+
+
+def test_head_requests_are_answered_like_get_without_a_body(client):
+    job_id = create_job(client)
+    for path in ("/jobs", f"/jobs/{job_id}", "/profile", "/static/style.css", "/"):
+        head, get = client.head(path, follow_redirects=False), client.get(path, follow_redirects=False)
+        assert head.status_code == get.status_code, path
+        assert head.content == b"" and head.headers.get("content-type") == get.headers.get("content-type"), path
+    assert client.head("/missing").status_code == 404
+    assert client.post("/jobs", data={}, follow_redirects=False).status_code == 422  # other methods unchanged

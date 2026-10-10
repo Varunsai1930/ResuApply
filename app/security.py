@@ -60,3 +60,26 @@ class NoFramingMiddleware:
             await send(message)
 
         await self.app(scope, receive, send_with_headers)
+
+
+class HeadAsGetMiddleware:
+    """Answer HEAD like GET, without the body.
+
+    Routes are declared for GET only, so HEAD (used by link checkers and some browsers) was
+    refused with 405. A HEAD request now runs the GET route and gets its status and headers.
+    """
+
+    def __init__(self, app: ASGIApp):
+        self.app = app
+
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        if scope["type"] != "http" or scope["method"] != "HEAD":
+            await self.app(scope, receive, send)
+            return
+
+        async def send_without_body(message: Message) -> None:
+            if message["type"] == "http.response.body":
+                message = {**message, "body": b""}
+            await send(message)
+
+        await self.app({**scope, "method": "GET"}, receive, send_without_body)
