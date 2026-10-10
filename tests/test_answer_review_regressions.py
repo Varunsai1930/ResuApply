@@ -201,6 +201,37 @@ def test_legacy_name_key_becomes_the_name_part_and_sensitive_stays_sensitive(ses
     assert (upgraded.category, upgraded.detected_category, upgraded.factual_key) == ("sensitive", "sensitive", None)
 
 
+@pytest.mark.parametrize("text,category", [
+    ("Email address and date of birth", "sensitive"),
+    ("Describe your email marketing experience", "unknown"),
+])
+def test_upgrade_drops_answers_made_for_the_old_category(session, prepared, text, category):
+    candidate, job, _ = prepared
+    _save_legacy(session, job, text, "email")
+    # "Use the profile value" stored the profile email as this factual question's answer.
+    job.application.answers = [*job.application.answers, Answer(
+        question_id="q99", text=candidate.profile.contact.email, origin="profile", confirmed=True, at=utcnow())]
+    session.commit()
+
+    answers.upgrade_stored_questions(session)
+    upgraded = next(q for q in job.questions if q.id == "q99")
+    assert upgraded.category == category
+    assert all(a.question_id != "q99" for a in job.application.answers)
+    resolved = next(r for r in answers.resolve_all(job, job.application, candidate.profile) if r.question.id == "q99")
+    assert not resolved.resolved and candidate.profile.contact.email not in resolved.text
+    assert any(text[:20] in blocker for blocker in package.check(job, job.application, candidate)[0])
+
+
+def test_upgrade_keeps_answers_when_only_the_key_changes(session, prepared):
+    candidate, job, _ = prepared
+    _save_legacy(session, job, "First name", "name")
+    typed = Answer(question_id="q99", text="Jordan", origin="user", at=utcnow())
+    job.application.answers = [*job.application.answers, typed]
+    session.commit()
+    answers.upgrade_stored_questions(session)
+    assert typed in job.application.answers
+
+
 def test_upgrading_questions_clears_only_affected_approvals(session, prepared):
     from tests.test_package import accept_resume
 
