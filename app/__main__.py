@@ -53,7 +53,14 @@ def check_storage(settings: Settings) -> None:
 
 def check_port(port: int) -> None:
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as probe:
-        probe.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)  # as uvicorn does
+        if hasattr(socket, "SO_EXCLUSIVEADDRUSE"):
+            # Windows: SO_REUSEADDR would let the probe bind to a port another program is
+            # listening on, so the check would pass. Exclusive use fails exactly when it's taken.
+            probe.setsockopt(socket.SOL_SOCKET, socket.SO_EXCLUSIVEADDRUSE, 1)
+        else:
+            # Elsewhere, SO_REUSEADDR (as uvicorn sets it) only ignores leftover TIME_WAIT
+            # connections from a previous run; a listening port still refuses the bind.
+            probe.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         try:
             probe.bind((HOST, port))
         except OSError:

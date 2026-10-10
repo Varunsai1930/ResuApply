@@ -318,3 +318,37 @@ def test_bank_answers_never_stay_on_a_question_that_becomes_sensitive(client, sa
     with client.app.state.session_factory() as session:
         kept = {a.question_id: a.origin for a in jobs.get(session, job_id).application.answers}
     assert kept == {"q3": "bank"}  # kept for an open question, dropped for the sensitive one
+
+
+def test_port_probe_uses_exclusive_binding_where_windows_offers_it(monkeypatch):
+    import socket
+
+    from app import __main__ as start
+
+    options = []
+
+    class Probe:
+        def __init__(self, *args):
+            pass
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *exc):
+            return False
+
+        def setsockopt(self, level, option, value):
+            options.append(option)
+
+        def bind(self, address):
+            pass
+
+    monkeypatch.setattr(socket, "socket", Probe)
+    monkeypatch.setattr(socket, "SO_EXCLUSIVEADDRUSE", -5, raising=False)  # as on Windows
+    start.check_port(8000)
+    assert options == [-5]
+
+    options.clear()
+    monkeypatch.delattr(socket, "SO_EXCLUSIVEADDRUSE")  # as on macOS and Linux
+    start.check_port(8000)
+    assert options == [socket.SO_REUSEADDR]
