@@ -177,6 +177,13 @@ def _check_token(job: Job, application: Application, candidate: Candidate | None
         )
 
 
+# Raise this when approval checks get stricter. Approvals recorded under an older version are
+# checked against the current rules (an unchanged package may no longer pass); approvals made
+# under the current version passed these checks already, so reading their state stays cheap.
+# 2: AI answers are supported only by the sources they cite.
+APPROVAL_RULES = 2
+
+
 def approve(session: Session, job: Job, candidate: Candidate | None, token: str) -> Approval:
     """Approve the package the user reviewed. Refused while there are blockers; never changes tracking status.
 
@@ -194,6 +201,7 @@ def approve(session: Session, job: Job, candidate: Candidate | None, token: str)
             profile_revision=candidate.revision,
             job_revision=job.revision,
             warnings=warnings,
+            rules=APPROVAL_RULES,
         )
         application.approval = approval
         application.review_state = ReviewState.APPROVED.value
@@ -211,9 +219,8 @@ def review_state(job: Job, application: Application, candidate: Candidate | None
         return ReviewState.STALE
     if approval.content_hash != content_hash(resolved_package(job, application, candidate)):
         return ReviewState.DRAFT
-    # Stored approvals may predate stricter validation rules. A matching hash
-    # does not make an answer valid if its cited evidence no longer passes.
-    if check(job, application, candidate)[0]:
+    # An approval from older, looser rules: a matching hash doesn't make the package pass now.
+    if approval.rules < APPROVAL_RULES and check(job, application, candidate)[0]:
         return ReviewState.DRAFT
     return ReviewState.APPROVED
 

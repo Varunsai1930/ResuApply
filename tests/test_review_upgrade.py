@@ -39,3 +39,24 @@ def test_old_approval_cannot_submit_a_claim_supported_only_by_uncited_summary(se
         package.record_applied(session, job, candidate, token)
     assert application.submitted_snapshots == []
     assert application.tracking_status == "saved"
+
+
+def test_current_approvals_read_their_state_without_rerunning_the_package_check(session, sample_profile, monkeypatch):
+    from tests.test_package import accept_resume, approve
+
+    candidate = profile.save(session, sample_profile).candidate
+    job = jobs.create(session, jobs.clean_input(**DEMO_JOB))
+    accept_resume(session, job, candidate)
+    approval = approve(session, job, candidate)
+    assert approval.rules == package.APPROVAL_RULES
+
+    calls = []
+    original = package.check
+    monkeypatch.setattr(package, "check", lambda *args: calls.append(1) or original(*args))
+    assert package.review_state(job, job.application, candidate) is ReviewState.APPROVED
+    assert calls == []
+
+    # The same approval recorded under older rules is checked again.
+    job.application.approval = approval.model_copy(update={"rules": package.APPROVAL_RULES - 1})
+    assert package.review_state(job, job.application, candidate) is ReviewState.APPROVED
+    assert calls == [1]

@@ -76,6 +76,9 @@ class Approval(_Model):
     profile_revision: int
     job_revision: int
     warnings: list[str] = Field(default_factory=list)
+    # The approval rules version it passed (package.APPROVAL_RULES). Approvals saved before
+    # this was recorded read as 1, so they are checked against the current rules.
+    rules: int = 1
 
 
 class SubmittedSnapshot(_Model):
