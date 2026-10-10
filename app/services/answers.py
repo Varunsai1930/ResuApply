@@ -93,11 +93,28 @@ def draft_token(job: Job, question: Question, draft: AnswerDraft) -> str:
 
 # ---------------------------------------------------------------- length and validation
 
+# Em and en dashes separate words: "fast—reliable" is two words to most counters.
+_WORD_BREAKS = re.compile(r"[\s\u2013\u2014]+")
+
+
+def measure(text: str, unit: str) -> int:
+    """The text's length as an employer's form is likely to count it, never less.
+
+    Characters are UTF-16 code units, as HTML ``maxlength`` and JavaScript count them: an
+    emoji is 2, a family emoji 11. A line break is 1, as in a text box, even when it arrives
+    as "\r\n". Words are split on whitespace and on em and en dashes.
+    """
+    text = text.replace("\r\n", "\n")
+    if unit == "words":
+        return len([word for word in _WORD_BREAKS.split(text) if word])
+    return len(text.encode("utf-16-le")) // 2
+
+
 def check_length(text: str, limit: int | None, unit: str) -> str | None:
     """A message when the text is over the employer's limit, else None."""
     if not limit:
         return None
-    size = len(text.split()) if unit == "words" else len(text)
+    size = measure(text, unit)
     if size > limit:
         return f"{size} {unit} exceeds the limit of {limit}"
     return None

@@ -406,13 +406,13 @@ def test_answered_optional_questions_keep_the_skip_action(client, sample_profile
 
 @pytest.mark.skipif(shutil.which("node") is None, reason="Node.js is needed to exercise the browser script")
 @pytest.mark.parametrize("text", ["😀", "a😀", "e\u0301", "👨‍👩‍👧‍👦"])
-def test_browser_character_counter_matches_server_codepoints(text):
+def test_browser_character_counter_matches_server_count(text):
     script = r"""
 const fs = require('fs');
 const vm = require('vm');
 const handlers = {};
 const box = {id: 'answer', value: process.argv[2], matches: () => false, closest: () => null};
-const counter = {dataset: {limit: String(Array.from(box.value).length), unit: 'chars'},
+const counter = {dataset: {limit: String(box.value.length), unit: 'chars'},
   textContent: '', classList: {toggle: (name, active) => { counter.overLimit = active; }}};
 const document = {documentElement: {}, addEventListener: (name, fn) => {
   (handlers[name] ||= []).push(fn);
@@ -427,5 +427,7 @@ process.stdout.write(JSON.stringify({label: counter.textContent, overLimit: coun
     result = subprocess.run([shutil.which("node"), "-e", script, str(browser_script), text],
                             capture_output=True, check=True, text=True)
     observed = json.loads(result.stdout)
-    assert observed == {"label": f"{len(text)} of {len(text)} characters", "overLimit": False}
-    assert answers.check_length(text, len(text), "chars") is None
+    size = answers.measure(text, "chars")  # UTF-16 units, as employer forms count
+    assert observed == {"label": f"{size} of {size} characters", "overLimit": False}
+    assert answers.check_length(text, size, "chars") is None
+    assert answers.check_length(text, size - 1, "chars") is not None

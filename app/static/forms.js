@@ -126,7 +126,9 @@
     document.querySelectorAll("[data-counter-for='" + box.id + "']").forEach(function (counter) {
       const limit = Number(counter.dataset.limit);
       const words = counter.dataset.unit === "words";
-      const size = words ? (box.value.trim() ? box.value.trim().split(/\s+/).length : 0) : Array.from(box.value).length;
+      // As answers.measure does on the server: UTF-16 units (like maxlength), and words split on
+      // whitespace and em and en dashes.
+      const size = words ? box.value.split(/[\s\u2013\u2014]+/).filter(Boolean).length : box.value.length;
       counter.textContent = size + " of " + limit.toLocaleString() + " " + (words ? "words" : "characters");
       counter.classList.toggle("over-limit", size > limit);
     });

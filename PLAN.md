@@ -149,7 +149,7 @@ Questions are categorized by explicit rules:
 
 Answer labels: **From profile**, **AI draft**, **User answer**, **Missing information**, **User input required**. Approved non-sensitive answers can be saved to the answer bank and offered as a starting point for similar questions.
 
-Factual field requests are distinguished from narrative questions that mention those fields. AI answer validation uses only cited source text and those sources' technology lists; an uncited summary or unrelated skill cannot justify a claim. Optional accepted answers can still be explicitly skipped. Browser counters and server validation count characters as Unicode code points.
+Factual field requests are distinguished from narrative questions that mention those fields. AI answer validation uses only cited source text and those sources' technology lists; an uncited summary or unrelated skill cannot justify a claim. Optional accepted answers can still be explicitly skipped. Browser counters and server validation count characters as UTF-16 code units (as HTML maxlength does) and split words at whitespace and em and en dashes, so an accepted answer is never longer than an employer's form would count it.
 
 Preparation and tracking are kept separate:
 

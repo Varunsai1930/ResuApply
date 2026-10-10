@@ -264,3 +264,13 @@ def test_startup_problems_end_with_a_plain_message(tmp_path, monkeypatch):
         with pytest.raises(SystemExit) as in_use:
             start.check_port(port)
     assert f"Port {port} is already in use" in str(in_use.value)
+
+
+def test_answer_length_is_counted_as_employer_forms_count_it():
+    from app.services.answers import check_length, measure
+
+    assert measure("😀", "chars") == 2 and measure("👨‍👩‍👧‍👦", "chars") == 11 and measure("🇺🇸", "chars") == 4
+    assert measure("é", "chars") == 2 and measure("abc", "chars") == 3
+    assert measure("line one\r\nline two", "chars") == len("line one\nline two")  # a break is one character
+    assert measure("one—two–three four", "words") == 4 and measure("well-known  fact\n", "words") == 2
+    assert check_length("😀" * 5, 10, "chars") is None and check_length("😀" * 6, 10, "chars") is not None
