@@ -86,5 +86,5 @@ def test_removed_source_blocks_and_user_answers_are_not_rechecked(session, prepa
 def test_workspace_flags_the_unsupported_answer(client, session, prepared):
     candidate, job, _ = prepared
     _edit_bullet(session, candidate, "Built an internal reporting API")
-    page = client.get(f"/jobs/{job.id}").text
+    page = client.get(f"/jobs/{job.id}?step=questions").text
     assert "no longer supports this AI-drafted answer" in page

@@ -84,7 +84,7 @@ def generate(request: Request, job_id: int, force: int = Form(0), session: Sessi
     try:
         tailor_resume(session, client, request.app.state.settings, job, candidate, force=bool(force))
     except operations.ApprovalNeeded:
-        return RedirectResponse(f"/profile/sharing?next={quote(f'/jobs/{job.id}')}", status_code=303)
+        return RedirectResponse(f"/profile/sharing?next={quote(f'/jobs/{job.id}?step=resume')}", status_code=303)
     except AIError as exc:
         return _failure(request, session, job, exc.message, {"busy": 409, "not_configured": 400}.get(exc.kind, 502))
     except resume_service.ResumeError as exc:
@@ -139,7 +139,7 @@ def accept(request: Request, job_id: int, proposal_token: str = Form(""), sessio
         resume_service.accept(session, job, candidate, proposal_token=proposal_token)
     except resume_service.ResumeError as exc:
         return _failure(request, session, job, str(exc))
-    return RedirectResponse(f"/jobs/{job.id}?msg=resume_accepted#resume", status_code=303)
+    return RedirectResponse(f"/jobs/{job.id}?step=resume&msg=resume_accepted#resume", status_code=303)
 
 
 @router.get("/print", response_class=HTMLResponse)

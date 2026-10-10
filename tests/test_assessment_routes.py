@@ -58,7 +58,7 @@ def card(html: str, req_id: str) -> str:
 
 
 def evidence_token(client, job_id, req_id):
-    page = card(client.get(f"/jobs/{job_id}").text, req_id)
+    page = card(client.get(f"/jobs/{job_id}?step=requirements").text, req_id)
     form = re.search(r'<form[^>]+action="[^"]+/evidence" class="stack">(.*?)</form>', page, re.DOTALL)
     return re.search(r'name="review_token" value="([^"]+)"', form.group(1)).group(1)
 
@@ -67,7 +67,7 @@ def evidence_token(client, job_id, req_id):
 
 def test_manual_requirements_and_checklist_without_ai(client, sample_profile):
     job_id = setup(client, sample_profile)
-    page = client.get(f"/jobs/{job_id}?msg=requirements_saved").text
+    page = client.get(f"/jobs/{job_id}?step=requirements&msg=requirements_saved").text
     assert "Requirements saved." in page
     assert "AI is off" in page and "Extract requirements with AI" not in page
     assert '<span class="badge check-met">Met 4</span>' in page
@@ -151,25 +151,25 @@ def test_editor_rejects_bad_excerpts_and_keeps_input(client, sample_profile):
     assert "The requirements were not saved" in response.text
     assert 'href="#req-1-excerpt"' in response.text
     assert "PhD in Astrophysics required." in response.text
-    assert "No requirements yet" in client.get(f"/jobs/{job_id}").text
+    assert "No requirements yet" in client.get(f"/jobs/{job_id}?step=requirements").text
 
 
 def test_link_evidence_and_override_over_http(client, sample_profile):
     job_id = setup(client, sample_profile)
     linked = client.post(f"/jobs/{job_id}/requirements/r4/evidence", data={"sources": ["exp-1-b1", "proj-1-b1"], "review_token": evidence_token(client, job_id, "r4")}, follow_redirects=False)
     assert linked.status_code == 303
-    page = client.get(f"/jobs/{job_id}").text
+    page = client.get(f"/jobs/{job_id}?step=requirements").text
     apis = card(page, "r4")
     assert "check-met" in apis and "You confirmed supporting evidence" in apis
     assert "Built a Flask REST API in Python" in apis and "exp-1-b1" in apis
 
     client.post(f"/jobs/{job_id}/requirements/r4/evidence/remove", data={"source": "proj-1-b1"})
-    assert "proj-1-b1" not in card(client.get(f"/jobs/{job_id}").text, "r4").split("Link evidence")[0]
+    assert "proj-1-b1" not in card(client.get(f"/jobs/{job_id}?step=requirements").text, "r4").split("Link evidence")[0]
 
     missing_reason = client.post(f"/jobs/{job_id}/requirements/r5/override", data={"status": "met", "reason": ""})
     assert missing_reason.status_code == 422 and "An override needs a reason." in missing_reason.text
     client.post(f"/jobs/{job_id}/requirements/r5/override", data={"status": "met", "reason": "Kafka in a class project"})
-    java = card(client.get(f"/jobs/{job_id}").text, "r5")
+    java = card(client.get(f"/jobs/{job_id}?step=requirements").text, "r5")
     assert "check-met" in java and "Your override: Kafka in a class project (computed: Unknown)" in java
 
     bad = client.post(f"/jobs/{job_id}/requirements/r4/evidence", data={"sources": ["exp-9-b9"], "review_token": evidence_token(client, job_id, "r4")})
@@ -181,18 +181,18 @@ def test_link_evidence_and_override_over_http(client, sample_profile):
 def test_extract_then_review_then_save(ai_app_client, fake_ai, sample_profile):
     client = ai_app_client
     job_id = setup(client, sample_profile, requirements=False)
-    assert "Extract requirements with AI" in client.get(f"/jobs/{job_id}").text
+    assert "Extract requirements with AI" in client.get(f"/jobs/{job_id}?step=requirements").text
     fake_ai.push(tool_response("return_requirements", {"requirements": DEMO_REQUIREMENTS}))
     response = client.post(f"/jobs/{job_id}/requirements/extract", follow_redirects=False)
     assert response.headers["location"] == f"/jobs/{job_id}/requirements/edit?proposal=1"
     editor = client.get(response.headers["location"]).text
     assert "proposed by the AI model" in editor and "Strong experience with Python and SQL." in editor
-    assert "No requirements yet" in client.get(f"/jobs/{job_id}").text  # still only a proposal
-    assert "Review the AI proposal" in client.get(f"/jobs/{job_id}").text
+    assert "No requirements yet" in client.get(f"/jobs/{job_id}?step=requirements").text  # still only a proposal
+    assert "Review the AI proposal" in client.get(f"/jobs/{job_id}?step=requirements").text
 
     saved = client.post(f"/jobs/{job_id}/requirements", data=editor_fields(editor), follow_redirects=False)
     assert saved.headers["location"].endswith("msg=requirements_saved#requirements")
-    assert '<span class="badge check-met">Met 4</span>' in client.get(f"/jobs/{job_id}").text
+    assert '<span class="badge check-met">Met 4</span>' in client.get(f"/jobs/{job_id}?step=requirements").text
     assert len(fake_ai.requests) == 1
 
 
@@ -228,7 +228,7 @@ def test_rejected_criterion_types_render_a_correction_form(
     assert "still has problems after one correction attempt" in response.text
     assert f'name="req-0-{field}"' in response.text
     assert len(fake_ai.requests) == 2
-    assert "No requirements yet" in client.get(f"/jobs/{job_id}").text
+    assert "No requirements yet" in client.get(f"/jobs/{job_id}?step=requirements").text
 
 
 def test_malformed_completion_envelope_is_a_friendly_http_error(ai_app_client, fake_ai, sample_profile):
@@ -269,10 +269,10 @@ def test_ai_errors_are_shown_and_work_is_kept(ai_app_client, fake_ai, sample_pro
 def test_suggest_evidence_asks_for_sharing_approval_first(ai_app_client, fake_ai, sample_profile):
     client = ai_app_client
     job_id = setup(client, sample_profile)
-    page = client.get(f"/jobs/{job_id}").text
+    page = client.get(f"/jobs/{job_id}?step=requirements").text
     assert "Review what's shared, then suggest evidence" in page
     redirect = client.post(f"/jobs/{job_id}/evidence/suggest", follow_redirects=False)
-    assert redirect.headers["location"] == f"/profile/sharing?next=/jobs/{job_id}"
+    assert redirect.headers["location"] == f"/profile/sharing?next=/jobs/{job_id}%3Fstep%3Drequirements"
     assert fake_ai.requests == []
 
     preview = client.get(redirect.headers["location"]).text
@@ -284,7 +284,7 @@ def test_suggest_evidence_asks_for_sharing_approval_first(ai_app_client, fake_ai
             "include": [i for i in included if i != "proj-1-b2"],
             "text-exp-1-b1": "Built a REST API for reporting"}
     approved = client.post("/profile/sharing", data=form, follow_redirects=False)
-    assert approved.headers["location"] == f"/jobs/{job_id}?msg=sharing_approved#requirements"
+    assert approved.headers["location"] == f"/jobs/{job_id}?step=requirements&msg=sharing_approved#requirements"
 
     sharing = client.get("/profile/sharing").text
     assert "Approved" in sharing and "Exactly what is sent now" in sharing
@@ -298,11 +298,11 @@ def test_suggest_evidence_asks_for_sharing_approval_first(ai_app_client, fake_ai
     assert "Built a REST API for reporting" in sent and "Used by 3 student clubs" not in sent
     assert "jordan@example.com" not in sent
 
-    apis = card(client.get(f"/jobs/{job_id}").text, "r4")
+    apis = card(client.get(f"/jobs/{job_id}?step=requirements").text, "r4")
     assert "AI suggestions" in apis and "Model's reason: Describes building a REST API" in apis
     assert "check-unknown" in apis  # a suggestion is not evidence
     client.post(f"/jobs/{job_id}/requirements/r4/suggestions/accept", data={"source": "exp-1-b1", "review_token": evidence_token(client, job_id, "r4")})
-    apis = card(client.get(f"/jobs/{job_id}").text, "r4")
+    apis = card(client.get(f"/jobs/{job_id}?step=requirements").text, "r4")
     assert "check-met" in apis and "AI suggestions" not in apis
 
 
@@ -324,7 +324,7 @@ def test_sharing_rejects_outside_redirects_and_stale_reviews(ai_app_client, samp
 def test_ai_buttons_block_duplicates_in_the_page(ai_app_client, sample_profile):
     client = ai_app_client
     job_id = setup(client, sample_profile, requirements=False)
-    page = client.get(f"/jobs/{job_id}").text
+    page = client.get(f"/jobs/{job_id}?step=requirements").text
     assert 'class="inline-form" data-ai' in page
     assert 'data-busy-label="Working… this can take up to 90 seconds"' in page
 
@@ -373,9 +373,9 @@ def test_saved_requirements_demote_the_proposal_link(ai_app_client, fake_ai, sam
     job_id = setup(client, sample_profile, requirements=False)
     fake_ai.push(tool_response("return_requirements", {"requirements": DEMO_REQUIREMENTS}))
     client.post(f"/jobs/{job_id}/requirements/extract")
-    assert "Review the AI proposal" in client.get(f"/jobs/{job_id}").text
+    assert "Review the AI proposal" in client.get(f"/jobs/{job_id}?step=requirements").text
     client.post(f"/jobs/{job_id}/requirements", data=requirement_form(DEMO_REQUIREMENTS))
-    page = client.get(f"/jobs/{job_id}").text
+    page = client.get(f"/jobs/{job_id}?step=requirements").text
     assert "Review the AI proposal" not in page and "Start again from the AI proposal" in page
 
 

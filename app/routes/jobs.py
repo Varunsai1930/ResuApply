@@ -14,6 +14,7 @@ from ..models import Job
 from ..schemas.tracking import TrackingStatus
 from ..services import checklist, outbound, package, question_rows, tracking
 from ..services import jobs as job_service
+from ..services import workspace as guide_service
 from ..services.profile import get_candidate
 from ..services.questions import CATEGORIES, CATEGORY_LABELS, UNKNOWN
 from ..templating import templates
@@ -78,7 +79,24 @@ def _source_groups(candidate) -> list[dict]:
     return groups
 
 
-def _render_workspace(request: Request, session: Session, job: Job, msg: str = "", status_code: int = 200, **forms):
+# A re-rendered form opens the step it belongs to, so its error shows beside it.
+FORM_STEPS = {
+    "check_error": guide_service.Step.REQUIREMENTS,
+    "ai_error": guide_service.Step.REQUIREMENTS,
+    "ai_notice": guide_service.Step.REQUIREMENTS,
+    "resume_error": guide_service.Step.RESUME,
+    "resume_notice": guide_service.Step.RESUME,
+    "question_error": guide_service.Step.QUESTIONS,
+    "question_form": guide_service.Step.QUESTIONS,
+    "questions_notice": guide_service.Step.QUESTIONS,
+    "package_error": guide_service.Step.REVIEW,
+    "status_form": guide_service.Step.TRACK,
+    "note_form": guide_service.Step.TRACK,
+}
+
+
+def _render_workspace(request: Request, session: Session, job: Job, msg: str = "", status_code: int = 200,
+                      step: guide_service.Step | None = None, **forms):
     from .resume import presentation_state
 
     settings = request.app.state.settings
@@ -94,6 +112,9 @@ def _render_workspace(request: Request, session: Session, job: Job, msg: str = "
     else:
         review = package.review_state(job, application, candidate)
     blockers, warnings = package.check(job, application, candidate)
+    guide = guide_service.next_action(job, application, candidate)
+    if step is None:
+        step = next((FORM_STEPS[name] for name, value in forms.items() if value and name in FORM_STEPS), None)
     return templates.TemplateResponse(
         request,
         "job_workspace.html",
@@ -132,6 +153,9 @@ def _render_workspace(request: Request, session: Session, job: Job, msg: str = "
             "package_token": package.package_token(job, application, candidate),
             "snapshots": list(reversed(application.submitted_snapshots)),
             "has_proposal": operations.cached_proposal(session, job, settings.openrouter_model) is not None,
+            "guide": guide,
+            "step": step or guide.next.step,
+            "Step": guide_service.Step,
             "active": "jobs",
         },
         status_code=status_code,
@@ -172,8 +196,10 @@ def create_job(
 
 
 @router.get("/{job_id}", response_class=HTMLResponse)
-def workspace(request: Request, job_id: int, msg: str = "", session: Session = Depends(get_session)):
-    return _render_workspace(request, session, _job_or_404(session, job_id), msg)
+def workspace(request: Request, job_id: int, msg: str = "", step: guide_service.Step | None = None,
+              session: Session = Depends(get_session)):
+    """One step of the workspace; without ``step``, the step of the next action."""
+    return _render_workspace(request, session, _job_or_404(session, job_id), msg, step=step)
 
 
 @router.get("/{job_id}/edit", response_class=HTMLResponse)
@@ -249,7 +275,7 @@ def change_status(
         form["error"], form["error_field"] = str(exc), "snapshot"
         return _render_workspace(request, session, job, status_code=409, status_form=form)
     msg = "status_recorded" if save_package else "status_changed"
-    return RedirectResponse(f"/jobs/{job.id}?msg={msg}#tracking", status_code=303)
+    return RedirectResponse(f"/jobs/{job.id}?step=track&msg={msg}#tracking", status_code=303)
 
 
 @router.post("/{job_id}/notes")
@@ -260,4 +286,4 @@ def add_note(request: Request, job_id: int, text: str = Form(""), session: Sessi
     except tracking.TrackingError as exc:
         form = {"text": text, "error": str(exc)}
         return _render_workspace(request, session, job, status_code=422, note_form=form)
-    return RedirectResponse(f"/jobs/{job.id}?msg=note_added#notes", status_code=303)
+    return RedirectResponse(f"/jobs/{job.id}?step=track&msg=note_added#notes", status_code=303)

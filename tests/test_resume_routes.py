@@ -58,7 +58,7 @@ def stored(client, job_id):
 
 def test_manual_resume_review_accept_print_without_ai(client, sample_profile):
     job_id = setup(client, sample_profile)
-    workspace = client.get(f"/jobs/{job_id}").text
+    workspace = client.get(f"/jobs/{job_id}?step=resume").text
     assert "Use profile as-is" in workspace
     assert 'action="/jobs/%d/resume/generate"' % job_id not in workspace
     assert "Milestone 3" not in workspace
@@ -83,7 +83,7 @@ def test_manual_resume_review_accept_print_without_ai(client, sample_profile):
     assert SAMPLE_JOB["title"] not in printed.text and SAMPLE_JOB["company"] not in printed.text
     _, package, review_state, tracking_status = stored(client, job_id)
     assert package is not None and review_state == "draft" and tracking_status == "saved"
-    assert "Accepted resume" in client.get(f"/jobs/{job_id}").text
+    assert "Accepted resume" in client.get(f"/jobs/{job_id}?step=resume").text
 
 
 def test_resume_routes_require_profile_and_existing_job(client):
@@ -180,7 +180,7 @@ def test_ai_resume_requires_sharing_then_generates_review(ai_app_client, fake_ai
     client = ai_app_client
     job_id = setup(client, sample_profile)
     response = client.post(f"/jobs/{job_id}/resume/generate", follow_redirects=False)
-    assert response.headers["location"] == f"/profile/sharing?next=/jobs/{job_id}"
+    assert response.headers["location"] == f"/profile/sharing?next=/jobs/{job_id}%3Fstep%3Dresume"
     assert fake_ai.requests == []
     approval(client)
     proposal = draft(client)
@@ -298,10 +298,10 @@ def test_untrusted_ai_fixed_facts_are_rejected_without_replacing_proposal(ai_app
 def test_accepted_proposal_is_not_offered_for_review_again(client, sample_profile):
     job_id = setup(client, sample_profile)
     review = manual_proposal(client, job_id)
-    assert "Ready to review" in client.get(f"/jobs/{job_id}").text
+    assert "Ready to review" in client.get(f"/jobs/{job_id}?step=resume").text
     accept(client, job_id, review)
-    page = client.get(f"/jobs/{job_id}").text
+    page = client.get(f"/jobs/{job_id}?step=resume").text
     assert "Accepted resume" in page and "Print / save PDF" in page
     assert "Ready to review" not in page and "Review resume proposal" not in page
     manual_proposal(client, job_id)  # a new proposal is offered alongside the accepted one
-    assert "Review resume proposal" in client.get(f"/jobs/{job_id}").text
+    assert "Review resume proposal" in client.get(f"/jobs/{job_id}?step=resume").text

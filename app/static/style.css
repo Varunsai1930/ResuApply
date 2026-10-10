@@ -476,6 +476,50 @@ del { color: var(--unmet); text-decoration-thickness: 1px; }
   font-size: 0.92rem; line-height: 1.6; color: var(--ink-2);
 }
 
+/* Guided steps: the step list, the step card with the one Next button, and the job description. */
+.chips { display: flex; flex-wrap: wrap; gap: 8px; margin: 10px 0 0; }
+.chip {
+  display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px;
+  border: 1px solid var(--rule); border-radius: 999px; background: var(--surface);
+  font-size: 0.84rem; color: var(--ink-2);
+}
+.steps-nav { margin-bottom: 20px; }
+.steps {
+  list-style: none; margin: 0; padding: 8px; display: flex; flex-direction: column; gap: 2px;
+  background: var(--surface); border: 1px solid var(--rule); border-radius: var(--radius);
+}
+.step-link {
+  display: flex; gap: 12px; padding: 12px; border-radius: var(--radius-sm);
+  color: var(--ink); text-decoration: none;
+}
+.step-link:hover { background: var(--well); color: var(--ink); }
+.step-link.here { background: var(--accent-wash); }
+.step-mark {
+  flex: none; width: 26px; height: 26px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  border: 1px solid var(--rule-strong); color: var(--ink-2); font-size: 0.82rem; font-weight: 600;
+}
+.step-mark.done { border-color: transparent; background: var(--met-wash); color: var(--met); }
+.step-mark.here { border-color: var(--accent); background: var(--accent); color: var(--accent-ink); }
+.step-text strong { display: block; font-size: 0.9rem; }
+.step-status { display: block; font-size: 0.82rem; }
+.side-notes p { margin: 0 0 8px; overflow-wrap: anywhere; }
+.side-notes .timeline-date { display: block; }
+.step-card { display: flex; flex-wrap: wrap; gap: 16px 24px; align-items: center; }
+.step-card-text { flex: 1 1 320px; }
+.step-card-text .meta { margin: 0; }
+.step-card h2 { margin: 2px 0 4px; }
+.step-next { display: flex; flex-direction: column; align-items: flex-end; gap: 6px; }
+.step-next .btn-primary { min-height: 44px; padding: 0 20px; font-weight: 600; }
+.table-scroll { overflow-x: auto; }
+.approving { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
+.approving th, .approving td { text-align: left; vertical-align: top; padding: 10px 12px 10px 0; border-bottom: 1px solid var(--rule); }
+.approving thead th { font-size: 0.78rem; color: var(--ink-3); text-transform: uppercase; letter-spacing: 0.05em; }
+.approving tbody th { font-weight: 500; min-width: 12em; font-size: 0.9rem; color: var(--ink); text-transform: none; letter-spacing: 0; }
+.approving .answer-cell { white-space: pre-wrap; overflow-wrap: anywhere; min-width: 14em; }
+.job-description summary { cursor: pointer; font-weight: 600; }
+.job-description[open] summary { margin-bottom: 8px; }
+
 .timeline, .notes { list-style: none; margin: 0; padding: 0; }
 .timeline { position: relative; margin-top: 4px; }
 .timeline li { position: relative; display: flex; flex-wrap: wrap; gap: 4px 12px; align-items: baseline; padding: 0 0 14px 18px; }
@@ -657,6 +701,11 @@ details.card[open] summary::after { content: " −"; }
 @media (min-width: 920px) {
   .split { grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); }
   .workspace { grid-template-columns: minmax(0, 1fr) 320px; grid-template-areas: "main side"; }
+  .workspace.guided {
+    grid-template-columns: 280px minmax(0, 1fr); grid-template-rows: auto 1fr;
+    grid-template-areas: "side main" "notes main";
+  }
+  .workspace-notes { grid-area: notes; align-self: start; }
   .workspace-main { grid-area: main; }
   .workspace-side { grid-area: side; }
 }

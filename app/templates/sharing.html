@@ -14,7 +14,7 @@
 {%- endmacro %}
 
 {% block content %}
-{% if next_url %}<p class="crumbs"><a href="{{ next_url }}#requirements">← Back to the job</a></p>{% endif %}
+{% if next_url %}<p class="crumbs"><a href="{{ back_url }}">← Back to the job</a></p>{% endif %}
 <div class="page-head">
   <h1>What the AI model may see</h1>
   <p class="lead">AI features send a reduced copy of your career history to <strong>{{ settings.openrouter_model }}</strong> through OpenRouter. Review it, leave out anything confidential or identifying, and reword items if you like. Your saved profile is never changed here.</p>
@@ -108,7 +108,7 @@
 
   <div class="form-actions sticky">
     <button type="submit" class="btn-primary">Approve what is checked</button>
-    {% if next_url %}<a class="btn-link" href="{{ next_url }}#requirements">Cancel</a>{% endif %}
+    {% if next_url %}<a class="btn-link" href="{{ back_url }}">Cancel</a>{% endif %}
   </div>
 </form>
 

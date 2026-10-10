@@ -206,7 +206,7 @@ def approve_with(client, job_id, **data):
 
 def test_a_reviewed_package_token_approves(client, approvable):
     job_id, _ = approvable
-    token = page_token(review_part(workspace(client, job_id)), "package_token")
+    token = page_token(review_part(workspace(client, job_id, "review")), "package_token")
     assert approve_with(client, job_id, package_token=token).status_code == 303
     assert fingerprint(client, job_id)[2] is not None
 
@@ -226,17 +226,17 @@ def test_approval_with_another_jobs_package_token_is_refused(client, approvable)
     other_job = another_job(client)
     complete_package(client, other_job)
     before = fingerprint(client, job_id)
-    other_token = page_token(review_part(workspace(client, other_job)), "package_token")
+    other_token = page_token(review_part(workspace(client, other_job, "review")), "package_token")
     refused(approve_with(client, job_id, package_token=other_token), client, job_id, before)
 
 
 def test_approval_from_an_outdated_page_is_refused(client, approvable):
     job_id, why = approvable
-    old = page_token(review_part(workspace(client, job_id)), "package_token")
+    old = page_token(review_part(workspace(client, job_id, "review")), "package_token")
     assert post(client, job_id, why, "answer", text="An answer written in another tab.").status_code == 303
     before = fingerprint(client, job_id)
     page = refused(approve_with(client, job_id, package_token=old), client, job_id, before)
-    assert "An answer written in another tab." in row(page, why)
+    assert "An answer written in another tab." in review_part(page)  # the refused page shows the package as it is now
     current = page_token(review_part(page), "package_token")
     assert approve_with(client, job_id, package_token=current).status_code == 303
 
@@ -270,13 +270,13 @@ def test_recording_with_another_jobs_package_token_is_refused(client, approved):
     complete_package(client, other_job)
     assert approve_package(client, other_job).status_code == 303
     before = fingerprint(client, job_id)
-    other_token = page_token(workspace(client, other_job), "package_token")
+    other_token = page_token(workspace(client, other_job, "track"), "package_token")
     refused(record_with(client, job_id, package_token=other_token), client, job_id, before)
 
 
 def test_recording_from_an_outdated_page_is_refused(client, approved):
     job_id, why = approved
-    old = page_token(workspace(client, job_id), "package_token")
+    old = page_token(workspace(client, job_id, "track"), "package_token")
     # Another tab changes an answer and approves again: still Approved, but not the package on the old page.
     assert post(client, job_id, why, "answer", text="A later answer.").status_code == 303
     assert approve_package(client, job_id).status_code == 303
@@ -289,7 +289,7 @@ def test_recording_from_an_outdated_page_is_refused(client, approved):
 
 def test_tracking_notes_do_not_change_the_package_token(client, approved):
     job_id, _ = approved
-    token = page_token(workspace(client, job_id), "package_token")
+    token = page_token(workspace(client, job_id, "track"), "package_token")
     assert client.post(f"/jobs/{job_id}/notes", data={"text": "Recruiter called."}).status_code == 200
-    assert page_token(workspace(client, job_id), "package_token") == token
+    assert page_token(workspace(client, job_id, "track"), "package_token") == token
     assert record_with(client, job_id, package_token=token).status_code == 303

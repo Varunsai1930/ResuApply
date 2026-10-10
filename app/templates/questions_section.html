@@ -230,13 +230,13 @@
     {% if draft_count and settings.ai_configured %}
     <div class="ai-actions">
       {% if sharing and not sharing.ready %}
-        <a class="btn-secondary" href="/profile/sharing?next=/jobs/{{ job.id }}">Review what's shared, then draft answers</a>
+        <a class="btn-secondary" href="/profile/sharing?next=/jobs/{{ job.id }}%3Fstep%3Dquestions">Review what's shared, then draft answers</a>
       {% else %}
         <form method="post" action="/jobs/{{ job.id }}/questions/draft" class="inline-form" data-ai>
           {% if pending_drafts %}<input type="hidden" name="force" value="1">{% endif %}
           <button type="submit" class="btn-secondary" data-busy-label="Drafting… this can take up to 90 seconds">Draft open answers with AI</button>
         </form>
-        <a class="btn-link" href="/profile/sharing?next=/jobs/{{ job.id }}">What's shared?</a>
+        <a class="btn-link" href="/profile/sharing?next=/jobs/{{ job.id }}%3Fstep%3Dquestions">What's shared?</a>
       {% endif %}
     </div>
     <p class="hint">Drafts are proposals for open-ended questions only. Sensitive questions are never drafted.</p>

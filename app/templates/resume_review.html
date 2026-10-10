@@ -17,7 +17,7 @@
 </article>
 {% endmacro %}
 {% block content %}
-<p class="crumbs"><a href="/jobs/{{ job.id }}#resume">← Job workspace</a></p>
+<p class="crumbs"><a href="/jobs/{{ job.id }}?step=resume#resume">← Job workspace</a></p>
 <div class="page-head">
   <h1>Review resume</h1>
   <p class="lead">{{ job.title }} at {{ job.company }}</p>
@@ -28,7 +28,7 @@
     <h2>This proposal is out of date</h2>
     <p>The profile, job or AI inputs changed. Prepare a fresh proposal so its sources and fixed facts can be reviewed together.</p>
     <form method="post" action="/jobs/{{ job.id }}/resume/profile" class="inline-form"><button class="btn-secondary" type="submit">Use current profile as-is</button></form>
-    <p><a href="/jobs/{{ job.id }}#resume">Return to resume options</a></p>
+    <p><a href="/jobs/{{ job.id }}?step=resume#resume">Return to resume options</a></p>
   </section>
 {% elif rendered %}
   <section class="card">

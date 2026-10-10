@@ -27,7 +27,7 @@ AI_STATUS = {"busy": 409, "not_configured": 400}
 
 
 def _back(job: Job, msg: str) -> RedirectResponse:
-    return RedirectResponse(f"/jobs/{job.id}?msg={msg}#requirements", status_code=303)
+    return RedirectResponse(f"/jobs/{job.id}?step=requirements&msg={msg}#requirements", status_code=303)
 
 
 def _render_editor(request: Request, job: Job, items, errors=(), status_code: int = 200, notice: str = "",
@@ -126,7 +126,7 @@ def suggest(request: Request, job_id: int, force: int = Form(0), session: Sessio
     try:
         run = operations.suggest_evidence(session, client, request.app.state.settings, job, candidate, force=bool(force))
     except operations.ApprovalNeeded:
-        return RedirectResponse(f"/profile/sharing?next={quote(f'/jobs/{job.id}')}", status_code=303)
+        return RedirectResponse(f"/profile/sharing?next={quote(f'/jobs/{job.id}?step=requirements')}", status_code=303)
     except operations.NothingToDo as exc:
         return _render_workspace(request, session, job, ai_notice=str(exc))
     except AIError as exc:

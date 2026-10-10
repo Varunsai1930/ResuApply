@@ -51,7 +51,7 @@ def test_an_unsupported_answer_can_be_drafted_again_beside_the_accepted_one(ai_a
     page = workspace(client, job_id)
     assert "no longer supports this AI-drafted answer" in row(page, why)
     assert "Draft open answers with AI" in page  # the unsupported answer counts as one to draft
-    before_token = page_token(page, "package_token")
+    before_token = page_token(workspace(client, job_id, "review"), "package_token")
     before = answer_and_approval(client, job_id)
 
     drafted = draft_replacement(client, fake_ai, job_id, why)
@@ -68,9 +68,10 @@ def test_an_unsupported_answer_can_be_drafted_again_beside_the_accepted_one(ai_a
     assert 'name="draft_token"' in shown
     # Storing the replacement changed nothing that approval covers.
     assert answer_and_approval(client, job_id) == before
-    assert page_token(page, "package_token") == before_token
-    assert "no longer supported by your profile" in review_part(page)
-    assert "AI answer drafts waiting for your review" in review_part(page)
+    review = workspace(client, job_id, "review")
+    assert page_token(review, "package_token") == before_token
+    assert "no longer supported by your profile" in review_part(review)
+    assert "AI answer drafts waiting for your review" in review_part(review)
 
 
 def test_accepting_the_replacement_swaps_the_answer_and_clears_approval(ai_app_client, fake_ai, sample_profile):
@@ -80,7 +81,7 @@ def test_accepting_the_replacement_swaps_the_answer_and_clears_approval(ai_app_c
     draft_replacement(client, fake_ai, job_id, why)
 
     accepted = post(client, job_id, why, "draft/accept")
-    assert accepted.headers["location"] == f"/jobs/{job_id}?msg=draft_accepted#question-{why}"
+    assert accepted.headers["location"] == f"/jobs/{job_id}?step=questions&msg=draft_accepted#question-{why}"
     answers, approval_now = answer_and_approval(client, job_id)
     assert answers == [(REPLACEMENT, "ai_draft")] and approval_now is None
     assert stored_job(client, job_id)[1].answer_drafts == []
@@ -98,7 +99,7 @@ def test_discarding_the_replacement_keeps_the_accepted_answer(ai_app_client, fak
     draft_replacement(client, fake_ai, job_id, why)
 
     discarded = post(client, job_id, why, "draft/discard")
-    assert discarded.headers["location"] == f"/jobs/{job_id}?msg=draft_discarded#question-{why}"
+    assert discarded.headers["location"] == f"/jobs/{job_id}?step=questions&msg=draft_discarded#question-{why}"
     assert answer_and_approval(client, job_id) == before
     assert stored_job(client, job_id)[1].answer_drafts == []
     shown = row(workspace(client, job_id), why)

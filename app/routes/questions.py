@@ -42,7 +42,7 @@ def _parse_limit(raw: str) -> int | None:
 
 def _back(job: Job, msg: str, qid: str | None = None) -> RedirectResponse:
     anchor = f"question-{qid}" if qid else "questions"
-    return RedirectResponse(f"/jobs/{job.id}?msg={msg}#{anchor}", status_code=303)
+    return RedirectResponse(f"/jobs/{job.id}?step=questions&msg={msg}#{anchor}", status_code=303)
 
 
 def _failed(request: Request, session: Session, job: Job, message: str, status_code: int, qid: str | None = None,
@@ -159,7 +159,7 @@ def draft(request: Request, job_id: int, force: int = Form(0), session: Session 
     try:
         answers_ai.draft_answers(session, client, request.app.state.settings, job, candidate, force=bool(force))
     except operations.ApprovalNeeded:
-        return RedirectResponse(f"/profile/sharing?next={quote(f'/jobs/{job.id}')}", status_code=303)
+        return RedirectResponse(f"/profile/sharing?next={quote(f'/jobs/{job.id}?step=questions')}", status_code=303)
     except operations.NothingToDo as exc:
         return _render_workspace(request, session, job, questions_notice=str(exc))
     except AIError as exc:

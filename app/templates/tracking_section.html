@@ -1,0 +1,79 @@
+{# The Submit and track step of the Job Workspace: tracking status, history and notes. Included with the workspace's context. #}
+{% import "macros.html" as m with context %}
+<section class="card" id="tracking">
+  <h2>Tracking</h2>
+  <dl class="facts compact">
+    <dt>Status</dt><dd>{{ m.status_badge(application.status) }}</dd>
+    <dt>Review</dt><dd>{{ m.review_badge(review) }}</dd>
+    {% if application.applied_on %}<dt>Applied on</dt><dd>{{ application.applied_on.isoformat() }}</dd>{% endif %}
+  </dl>
+  <p class="hint">Review is whether the package is ready. Status is what you did; approving a package never marks a job Applied.</p>
+
+  {% if status_form.get('error') %}<p class="field-error" role="alert" tabindex="-1" data-focus>{{ status_form.error }}</p>{% endif %}
+  <form method="post" action="/jobs/{{ job.id }}/status" class="stack">
+    <div class="field">
+      <label for="status">New status</label>
+      <select id="status" name="status"{% if status_form.get('error_field') == 'status' %} class="invalid" aria-invalid="true"{% endif %}>
+        {% for s in TrackingStatus %}
+          {% set chosen = status_form.get('status') or application.status.value %}
+          <option value="{{ s.value }}" {% if s.value == chosen %}selected{% endif %}>{{ s.label }}{% if s == application.status %} (current){% endif %}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="field">
+      <label for="on">Date</label>
+      <input id="on" name="on" type="date" value="{{ status_form.get('on') or today }}" max="{{ today }}"{% if status_form.get('error_field') == 'on' %} class="invalid" aria-invalid="true"{% endif %}>
+    </div>
+    <div class="field">
+      <label for="status-note">Note <span class="muted">(optional)</span></label>
+      <input id="status-note" name="note" value="{{ status_form.get('note', '') }}" placeholder="e.g. Applied through the company site">
+    </div>
+    {% if review == ReviewState.APPROVED and application.status != TrackingStatus.APPLIED %}
+    <div class="field" data-when-status="applied">
+      <input type="hidden" name="package_token" value="{{ package_token }}">
+      <label class="check"><input type="checkbox" name="snapshot" value="1" {% if status_form.get('snapshot', true) %}checked{% endif %}> Save the approved package as what I submitted</label>
+      <small class="hint">Used only when you choose Applied. It keeps the resume, answers and job details exactly as approved, even if you edit your profile later.</small>
+    </div>
+    {% endif %}
+    <button type="submit" class="btn-primary">Update status</button>
+  </form>
+
+  <h3>History</h3>
+  <ol class="timeline">
+    {% for event in application.status_history | reverse %}
+      <li>
+        <span class="timeline-date">{{ event.on.isoformat() }}</span>
+        {{ m.status_badge(event.status) }}
+        {% if event.note %}<span class="timeline-note">{{ event.note }}</span>{% endif %}
+      </li>
+    {% endfor %}
+  </ol>
+
+  {% if snapshots %}
+  <h3>Submitted packages</h3>
+  <ul class="plain-list snapshot-list">
+    {% for s in snapshots %}
+      <li><a href="/jobs/{{ job.id }}/snapshots/{{ s.id }}">Submitted {{ s.submitted_on.isoformat() }}</a> <span class="muted">(recorded {{ s.recorded_at | local_datetime }})</span></li>
+    {% endfor %}
+  </ul>
+  {% endif %}
+</section>
+
+<section class="card" id="notes">
+  <h2>Notes</h2>
+  <form method="post" action="/jobs/{{ job.id }}/notes" class="stack">
+    <div class="field">
+      <label for="note-text">Add a note</label>
+      <textarea id="note-text" name="text" rows="3"{% if note_form.get('error') %} class="invalid" aria-invalid="true" aria-describedby="note-error"{% endif %}>{{ note_form.get('text', '') }}</textarea>
+      {% if note_form.get('error') %}<small id="note-error" class="field-error" tabindex="-1" data-focus>{{ note_form.error }}</small>{% endif %}
+    </div>
+    <button type="submit" class="btn-secondary">Add note</button>
+  </form>
+  {% if application.notes %}
+  <ul class="notes">
+    {% for note in application.notes | reverse %}
+      <li><span class="timeline-date">{{ note.at | local_datetime }}</span><p>{{ note.text }}</p></li>
+    {% endfor %}
+  </ul>
+  {% endif %}
+</section>

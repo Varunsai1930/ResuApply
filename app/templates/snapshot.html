@@ -2,7 +2,7 @@
 {% import "macros.html" as m with context %}
 {% block title %}Submitted package · {{ snapshot.job.title }}{% endblock %}
 {% block content %}
-<p class="crumbs"><a href="/jobs/{{ job.id }}#tracking">← Job workspace</a></p>
+<p class="crumbs"><a href="/jobs/{{ job.id }}?step=track#tracking">← Job workspace</a></p>
 <div class="page-head">
   <p class="eyebrow">{{ snapshot.job.company }}{% if snapshot.job.location %} · {{ snapshot.job.location }}{% endif %}</p>
   <h1>Submitted package</h1>

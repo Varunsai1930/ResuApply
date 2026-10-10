@@ -75,7 +75,7 @@
 {%- endmacro %}
 
 {% block content %}
-<p class="crumbs"><a href="/jobs/{{ job.id }}#requirements">← {{ job.title }} at {{ job.company }}</a></p>
+<p class="crumbs"><a href="/jobs/{{ job.id }}?step=requirements#requirements">← {{ job.title }} at {{ job.company }}</a></p>
 <div class="page-head">
   <h1>Requirements</h1>
   <p class="lead">One row per qualification, each with the words from the description that state it. Nothing is saved until every excerpt is found in the description.</p>
@@ -132,7 +132,7 @@
     <button type="button" class="btn-secondary" data-add="tpl-requirement" data-target="requirement-list">+ Add requirement</button>
     <div class="form-actions sticky">
       <button type="submit" class="btn-primary">Save requirements</button>
-      <a href="/jobs/{{ job.id }}#requirements" class="btn-link">Cancel</a>
+      <a href="/jobs/{{ job.id }}?step=requirements#requirements" class="btn-link">Cancel</a>
     </div>
   </form>
 

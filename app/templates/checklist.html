@@ -180,11 +180,11 @@
     {% if candidate and settings.ai_configured and counts.unknown %}
     <div class="ai-actions">
       {% if sharing and not sharing.ready %}
-        <a class="btn-secondary" href="/profile/sharing?next=/jobs/{{ job.id }}">Review what's shared, then suggest evidence</a>
+        <a class="btn-secondary" href="/profile/sharing?next=/jobs/{{ job.id }}%3Fstep%3Drequirements">Review what's shared, then suggest evidence</a>
       {% else %}
         {{ ai_button('/jobs/%d/evidence/suggest' % job.id, 'Suggest evidence with AI') }}
         {% if suggestions.run and not suggestions.out_of_date %}{{ ai_button('/jobs/%d/evidence/suggest' % job.id, 'Ask again', force=true) }}{% endif %}
-        <a class="btn-link" href="/profile/sharing?next=/jobs/{{ job.id }}">What's shared?</a>
+        <a class="btn-link" href="/profile/sharing?next=/jobs/{{ job.id }}%3Fstep%3Drequirements">What's shared?</a>
       {% endif %}
     </div>
     {% if suggestions.out_of_date %}

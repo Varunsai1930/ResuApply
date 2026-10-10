@@ -16,7 +16,7 @@
       <header class="question-head"><h4>{{ e.entry.question }}</h4><span class="tag">{{ e.category }}</span></header>
       <div class="answer-text">{{ e.entry.answer }}</div>
       <p class="hint">
-        {% if e.job %}From <a href="/jobs/{{ e.job.id }}#questions">{{ e.job.title }} at {{ e.job.company }}</a>{% else %}From a job that was removed{% endif %}
+        {% if e.job %}From <a href="/jobs/{{ e.job.id }}?step=questions#questions">{{ e.job.title }} at {{ e.job.company }}</a>{% else %}From a job that was removed{% endif %}
         · saved {{ e.entry.created_at | local_datetime }}
       </p>
       <form method="post" action="/answers/{{ e.entry.id }}/delete" class="inline-form">

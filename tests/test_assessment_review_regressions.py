@@ -72,7 +72,7 @@ def test_old_evidence_forms_do_not_confirm_unreviewed_content(ai_app_client, fak
         _approve_sharing(client)
         _suggest(client, fake_ai, job_id)
         route = f"/jobs/{job_id}/requirements/r4/suggestions/accept"
-    page = card(client.get(f"/jobs/{job_id}").text, "r4")
+    page = card(client.get(f"/jobs/{job_id}?step=requirements").text, "r4")
     fields = _form(page, route, source="exp-1-b1" if action != "link" else None, bulk=action == "link")
     if action == "link":
         fields["sources"] = "exp-1-b1"
@@ -272,7 +272,7 @@ def test_identical_jobs_have_visible_independent_evidence_suggestions(ai_app_cli
     _suggest(client, fake_ai, second_id)
     assert len(fake_ai.requests) == 2
     for job_id in (first_id, second_id):
-        page = card(client.get(f"/jobs/{job_id}").text, "r4")
+        page = card(client.get(f"/jobs/{job_id}?step=requirements").text, "r4")
         assert "AI suggestions" in page and "REST API experience" in page
         assert f'/jobs/{job_id}/requirements/r4/suggestions/accept' in page
         # Repeat stays within that job's cache and never calls the provider.

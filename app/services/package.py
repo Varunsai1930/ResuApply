@@ -124,6 +124,24 @@ def package_token(job: Job, application: Application, candidate: Candidate | Non
     }))
 
 
+def answer_blocker(item: answer_service.ResolvedAnswer) -> str | None:
+    """Why an unresolved answer stops approval, or None when it is only a warning (an optional question)."""
+    if item.resolved:
+        return None
+    question = item.question
+    name = f'"{_short(question.text)}"'
+    if item.problem:  # even when optional: the value is there, but can't be submitted as it is
+        return f"{name} ({item.label}): {answer_service.too_long_message(question, item.problem)}"
+    if question.category in q_rules.SENSITIVE_CATEGORIES:
+        return (f"{name} ({item.label}): sensitive questions need your own answer, "
+                "your confirmation or an explicit skip.")
+    if question.category == q_rules.UNKNOWN:
+        return f"{name}: confirm the question's category."
+    if question.required:
+        return f"{name} ({item.label}): this required question has no accepted answer."
+    return None
+
+
 def check(job: Job, application: Application, candidate: Candidate | None) -> tuple[list[str], list[str]]:
     """Blockers (approval refused) and warnings (approval recorded with them) for the package."""
     blockers: list[str] = []
@@ -140,19 +158,11 @@ def check(job: Job, application: Application, candidate: Candidate | None) -> tu
     for item in items:
         if item.resolved:
             continue
-        question = item.question
-        name = f'"{_short(question.text)}"'
-        if item.problem:  # even when optional: the value is there, but can't be submitted as it is
-            blockers.append(f"{name} ({item.label}): {answer_service.too_long_message(question, item.problem)}")
-        elif question.category in q_rules.SENSITIVE_CATEGORIES:
-            blockers.append(f"{name} ({item.label}): sensitive questions need your own answer, "
-                            "your confirmation or an explicit skip.")
-        elif question.category == q_rules.UNKNOWN:
-            blockers.append(f"{name}: confirm the question's category.")
-        elif question.required:
-            blockers.append(f"{name} ({item.label}): this required question has no accepted answer.")
+        blocker = answer_blocker(item)
+        if blocker:
+            blockers.append(blocker)
         else:
-            warnings.append(f"{name} ({item.label}): this optional question is unanswered.")
+            warnings.append(f'"{_short(item.question.text)}" ({item.label}): this optional question is unanswered.')
     if candidate is not None:
         for item in items:
             problems = answer_service.answer_problems(job, item.question, item.answer, candidate.profile)

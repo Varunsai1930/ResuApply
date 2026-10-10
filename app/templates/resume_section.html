@@ -33,13 +33,13 @@
       </form>
       {% if settings.ai_configured %}
         {% if sharing and not sharing.ready %}
-          <a class="btn-secondary" href="/profile/sharing?next=/jobs/{{ job.id }}">Review what's shared, then tailor a resume</a>
+          <a class="btn-secondary" href="/profile/sharing?next=/jobs/{{ job.id }}%3Fstep%3Dresume">Review what's shared, then tailor a resume</a>
         {% else %}
           <form method="post" action="/jobs/{{ job.id }}/resume/generate" class="inline-form" data-ai>
             {% if resume_state.proposal %}<input type="hidden" name="force" value="1">{% endif %}
             <button type="submit" class="btn-secondary" data-busy-label="Tailoring… this can take up to 90 seconds">{{ 'Regenerate with AI' if resume_state.proposal else 'Tailor with AI' }}</button>
           </form>
-          <a class="btn-link" href="/profile/sharing?next=/jobs/{{ job.id }}">What's shared?</a>
+          <a class="btn-link" href="/profile/sharing?next=/jobs/{{ job.id }}%3Fstep%3Dresume">What's shared?</a>
         {% endif %}
       {% else %}
         <span class="hint">AI is off. You can review and print your saved profile as a resume.</span>

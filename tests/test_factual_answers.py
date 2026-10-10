@@ -132,7 +132,7 @@ def test_over_limit_rows_offer_a_manual_answer_or_a_skip_over_http(client, sampl
         assert "/confirm" not in shown and "<details open><summary>Answer it myself instead" in shown
     assert "Skip this optional question" in row(page, optional)
     assert "Skip this optional question" not in row(page, required)
-    review = review_part(page)
+    review = review_part(workspace(client, job_id, "review"))
     assert "2 words exceeds the limit of 1" in review and "Approve package</button>" not in review
     refused = post(client, job_id, optional, "confirm", confirmation_token="0")
     assert refused.status_code == 422 and "too long" in refused.text

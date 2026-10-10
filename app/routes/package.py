@@ -32,7 +32,7 @@ def approve(request: Request, job_id: int, package_token: str = Form(""), sessio
         session.rollback()
         error = {"message": str(exc), "details": exc.details}
         return _render_workspace(request, session, job, status_code=409, package_error=error)
-    return RedirectResponse(f"/jobs/{job.id}?msg=package_approved#review", status_code=303)
+    return RedirectResponse(f"/jobs/{job.id}?step=review&msg=package_approved#review", status_code=303)
 
 
 @router.get("/snapshots/{snapshot_id}", response_class=HTMLResponse)

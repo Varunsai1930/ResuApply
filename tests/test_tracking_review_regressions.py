@@ -245,7 +245,7 @@ def test_old_snapshot_form_cannot_record_an_unreviewed_job_url(client, sample_pr
     job_id = ready_job(client, sample_profile)
     complete_package(client, job_id)
     assert approve_package(client, job_id).status_code == 303
-    old_token = page_token(workspace(client, job_id), "package_token")
+    old_token = page_token(workspace(client, job_id, "track"), "package_token")
     reviewed = job_review(client, job_id)
     changed = client.post(f"/jobs/{job_id}/edit", data=SAMPLE_JOB | reviewed | {"url": "https://example.com/replacement"},
                           follow_redirects=False)

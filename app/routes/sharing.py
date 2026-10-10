@@ -11,19 +11,27 @@ from sqlalchemy.orm import Session
 from ..db import get_session
 from ..services import outbound
 from ..services.profile import get_candidate
+from ..services.workspace import Step
 from ..templating import templates
 from .forms import read_form
 
 router = APIRouter(prefix="/profile/sharing")
 
 # fullmatch and [0-9]: "$" would also match before a trailing newline, and \d matches any
-# script's digits ("/jobs/١"), neither of which is a job URL.
-_SAFE_NEXT = re.compile(r"/jobs/[0-9]+")
+# script's digits ("/jobs/١"), neither of which is a job URL. The step, if any, is one of a fixed set.
+_SAFE_NEXT = re.compile(r"/jobs/[0-9]+(?:\?step=(?:%s))?" % "|".join(s.value for s in Step))
 
 
 def _safe_next(value: str) -> str:
     """Only return to a job workspace in this app; anything else goes back to the preview."""
     return value if _SAFE_NEXT.fullmatch(value or "") else ""
+
+
+def _back_to(next_url: str, msg: str = "") -> str:
+    """The workspace step that sent the user here; Requirements for a link without a step."""
+    path, _, query = next_url.partition("?")
+    step = Step(query.removeprefix("step=")) if query else Step.REQUIREMENTS
+    return f"{path}?step={step.value}{f'&msg={msg}' if msg else ''}#{step.anchor}"
 
 
 def _render(request: Request, session: Session, candidate, next_url: str = "", error: str = "", status_code: int = 200,
@@ -47,6 +55,7 @@ def _render(request: Request, session: Session, candidate, next_url: str = "", e
             "always_removed": outbound.ALWAYS_REMOVED,
             "settings": request.app.state.settings,
             "next_url": next_url,
+            "back_url": _back_to(next_url) if next_url else "",
             "error": error,
             "msg": msg,
             "active": "profile",
@@ -74,7 +83,7 @@ async def approve(request: Request, session: Session = Depends(get_session)):
     except outbound.OutboundError as exc:
         return _render(request, session, candidate, next_url, error=str(exc), status_code=409)
     if next_url:
-        return RedirectResponse(f"{next_url}?msg=sharing_approved#requirements", status_code=303)
+        return RedirectResponse(_back_to(next_url, "sharing_approved"), status_code=303)
     return RedirectResponse("/profile/sharing?msg=sharing_approved", status_code=303)
 
 

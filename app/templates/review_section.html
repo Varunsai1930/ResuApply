@@ -22,7 +22,7 @@
       <ul class="plain-list">{% for w in approval.warnings %}<li>{{ w }}</li>{% endfor %}</ul>
     {% endif %}
     {% if application.tracking_status != 'applied' %}
-    <p class="hint">When you have submitted it, record Applied under Tracking and keep the approved package as what you submitted.</p>
+    <p class="hint">When you have submitted it, record Applied in <a href="/jobs/{{ job.id }}?step=track#tracking">step 5, Submit and track</a>, and keep the approved package as what you submitted.</p>
     {% endif %}
   {% else %}
     {% if review == ReviewState.STALE %}
@@ -53,5 +53,38 @@
     {% else %}
       <p class="hint">Approve package becomes available once the items above are done.</p>
     {% endif %}
+  {% endif %}
+</section>
+
+<section class="card" id="review-contents" aria-labelledby="review-contents-title">
+  <h2 id="review-contents-title">What you're approving</h2>
+  <p>
+    {% if resume_state.accepted %}
+      {{ m.status_line(Meaning(Status.NEEDS_YOU, "the accepted resume is out of date") if resume_state.accepted_stale else Meaning(Status.DONE, "Resume accepted")) }}
+      · <a href="/jobs/{{ job.id }}/resume/print">Open the resume to print</a>
+    {% else %}
+      {{ m.status_line(Meaning(Status.BLOCKED, "No accepted resume yet")) }}
+      · <a href="/jobs/{{ job.id }}?step=resume#resume">Prepare one in step 2</a>
+    {% endif %}
+  </p>
+  {% if question_rows %}
+  <div class="table-scroll" tabindex="0">
+    <table class="approving">
+      <caption class="visually-hidden">Questions and the answers in this package</caption>
+      <thead><tr><th scope="col">Question</th><th scope="col">Answer</th><th scope="col">From</th></tr></thead>
+      <tbody>
+        {% for r in question_rows %}
+          {% set item = r.item %}
+          <tr>
+            <th scope="row">{{ item.question.text }}</th>
+            <td class="answer-cell">{% if item.resolved and item.text %}{{ item.text }}{% elif item.resolved %}<span class="muted">None</span>{% else %}<span class="muted">Not answered yet</span>{% endif %}</td>
+            <td>{{ m.status_line(answer_meaning(item)) }}</td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+    <p class="hint">No questions added. Approval covers the resume only; add any questions the employer's form asks in <a href="/jobs/{{ job.id }}?step=questions#questions">step 3</a>.</p>
   {% endif %}
 </section>
