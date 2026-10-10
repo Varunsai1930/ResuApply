@@ -284,3 +284,37 @@ def test_head_requests_are_answered_like_get_without_a_body(client):
         assert head.content == b"" and head.headers.get("content-type") == get.headers.get("content-type"), path
     assert client.head("/missing").status_code == 404
     assert client.post("/jobs", data={}, follow_redirects=False).status_code == 422  # other methods unchanged
+
+
+def test_bank_answers_never_stay_on_a_question_that_becomes_sensitive(client, sample_profile):
+    from app.db import utcnow
+    from app.schemas.package import Answer, Question
+    from app.services import answers, jobs, package
+    from app.services.profile import get_candidate
+
+    review_and_save(client, profile_form(sample_profile))
+    job_id = create_job(client)
+    with client.app.state.session_factory() as session:
+        job = jobs.get(session, job_id)
+        job.questions = [
+            Question(id="q1", text="Email address and date of birth", category="factual",  # upgrade -> sensitive
+                     detected_category="factual", factual_key="email", added_at=utcnow()),
+            Question(id="q2", text="Describe your email marketing experience", category="unknown",
+                     detected_category="open", added_at=utcnow()),
+            Question(id="q3", text="Describe your email marketing work", category="unknown",
+                     detected_category="open", added_at=utcnow()),
+        ]
+        job.application.answers = [Answer(question_id=q, text=f"Bank text {q}", origin="bank", at=utcnow())
+                                   for q in ("q1", "q2", "q3")]
+        session.commit()
+        answers.upgrade_stored_questions(session)
+        assert [a.question_id for a in job.application.answers] == ["q2", "q3"]
+        assert any("date of birth" in b for b in package.check(job, job.application, get_candidate(session))[0])
+
+    assert client.post(f"/jobs/{job_id}/questions/q2/category", data={"category": "sensitive"},
+                       follow_redirects=False).status_code == 303
+    assert client.post(f"/jobs/{job_id}/questions/q3/category", data={"category": "open"},
+                       follow_redirects=False).status_code == 303
+    with client.app.state.session_factory() as session:
+        kept = {a.question_id: a.origin for a in jobs.get(session, job_id).application.answers}
+    assert kept == {"q3": "bank"}  # kept for an open question, dropped for the sensitive one

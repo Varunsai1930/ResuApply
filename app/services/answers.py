@@ -204,11 +204,19 @@ def _content_changed(application: Application) -> None:
     application.updated_at = utcnow()
 
 
-def _drop(application: Application, qid: str, keep_own: bool = False) -> None:
-    """Remove a question's answer and draft. ``keep_own`` keeps what the user wrote or chose
-    (their own and bank answers, and explicit skips)."""
-    application.answers = [a for a in application.answers
-                           if a.question_id != qid or (keep_own and a.origin in USER_ORIGINS)]
+def _drop(application: Application, qid: str, keep_for: str | None = None) -> None:
+    """Remove a question's answer and draft.
+
+    ``keep_for`` is the question's new category when what the user wrote or chose is kept:
+    their own answers and explicit skips always, bank answers only if the new category isn't
+    sensitive, since the answer bank never answers a sensitive question.
+    """
+    def kept(answer: Answer) -> bool:
+        if keep_for is None:
+            return False
+        return answer.origin == "user" or (answer.origin == "bank" and keep_for not in q_rules.SENSITIVE_CATEGORIES)
+
+    application.answers = [a for a in application.answers if a.question_id != qid or kept(a)]
     application.answer_drafts = [d for d in application.answer_drafts if d.question_id != qid]
 
 
@@ -272,6 +280,7 @@ def set_category(session: Session, job: Job, application: Application, qid: str,
 
     Leaving Unrecognized keeps the user's own answer: nothing is made for that category, so an
     answer there was written for an earlier one, and the startup upgrade kept it on purpose.
+    A bank answer is kept only if the chosen category isn't sensitive.
     """
     if category == q_rules.UNKNOWN:
         raise AnswerError("Choose a category; Unrecognized is only what the rules detect.")
@@ -286,7 +295,7 @@ def set_category(session: Session, job: Job, application: Application, qid: str,
             "factual_key": key if category in (q_rules.FACTUAL, q_rules.SENSITIVE_FACTUAL) else None,
         })
         job.questions = [updated if q.id == qid else q for q in job.questions]
-        _drop(application, qid, keep_own=question.category == q_rules.UNKNOWN)
+        _drop(application, qid, keep_for=category if question.category == q_rules.UNKNOWN else None)
         _content_changed(application)
     return updated
 
@@ -321,7 +330,8 @@ def upgrade_stored_questions(session: Session) -> int:
     A question whose category changes loses what was made for the old category: a profile
     value (which must never become the answer to a sensitive question) and any AI draft. What
     the user wrote or chose is kept, including an explicit skip: this change isn't the user's,
-    and their own words still answer the question. A question that becomes Unrecognized shows
+    and their own words still answer the question. A bank answer is kept too, unless the
+    question becomes sensitive (see ``_drop``). A question that becomes Unrecognized shows
     the kept answer, and ``set_category`` keeps it when the user chooses the category.
     """
     changed = 0
@@ -331,7 +341,7 @@ def upgrade_stored_questions(session: Session) -> int:
         if count:
             for new, old in zip(upgraded, job.questions):
                 if new.category != old.category:
-                    _drop(job.application, new.id, keep_own=True)
+                    _drop(job.application, new.id, keep_for=new.category)
             job.questions = upgraded
             _content_changed(job.application)
             changed += count

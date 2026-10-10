@@ -224,9 +224,8 @@ def test_upgrade_drops_answers_made_for_the_old_category(session, prepared, text
 
 @pytest.mark.parametrize("answer", [
     {"text": "My own answer", "origin": "user"},
-    {"text": "Saved earlier", "origin": "bank"},
     {"text": "", "origin": "user", "skipped": True},
-])
+])  # a bank answer is dropped instead: the bank never answers a sensitive question
 def test_upgrade_to_sensitive_keeps_what_the_user_wrote_or_chose(session, prepared, answer):
     candidate, job, _ = prepared
     _save_legacy(session, job, "Email address and date of birth", "email")
