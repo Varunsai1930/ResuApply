@@ -54,3 +54,11 @@ def test_large_profiles_can_be_reviewed_and_saved(client, sample_profile):
     long["experience"][0]["bullets"] = [("Built services " * 9000)[:120_000] for _ in range(10)]
     review, saved = review_and_save(client, profile_form(long))
     assert saved.status_code == 303, saved.text[:300]  # the reviewed payload is over 1 MB
+
+
+def test_no_page_may_be_framed_by_another_site(client):
+    for response in (client.get("/jobs"), client.get("/static/style.css"), client.get("/missing"),
+                     client.get("/jobs", headers={"host": "evil.example"}),
+                     client.post("/jobs", data={}, headers={"origin": "https://evil.example"})):
+        assert response.headers["x-frame-options"] == "DENY", response.request.url
+        assert response.headers["content-security-policy"] == "frame-ancestors 'none'"

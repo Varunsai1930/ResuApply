@@ -3,6 +3,9 @@
 - Only loopback Host headers are accepted (configured in ``main``), which blocks DNS rebinding.
 - State-changing requests from another site are refused. A page on any website could
   otherwise post a hidden form to 127.0.0.1 and change the profile or a job.
+- No page may be shown inside another site's frame. A framed page's own buttons post from
+  the app's origin, so the check above can't stop a site that tricks the user into clicking
+  them (clickjacking).
 """
 
 from __future__ import annotations
@@ -11,7 +14,7 @@ from urllib.parse import urlsplit
 
 from starlette.datastructures import Headers
 from starlette.responses import PlainTextResponse
-from starlette.types import ASGIApp, Receive, Scope, Send
+from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
 SAFE_METHODS = {"GET", "HEAD", "OPTIONS"}
 
@@ -32,3 +35,28 @@ class SameOriginMiddleware:
                 await response(scope, receive, send)
                 return
         await self.app(scope, receive, send)
+
+
+FRAME_HEADERS = [
+    (b"x-frame-options", b"DENY"),
+    (b"content-security-policy", b"frame-ancestors 'none'"),
+]
+
+
+class NoFramingMiddleware:
+    """Tell browsers never to show any of the app's responses inside a frame."""
+
+    def __init__(self, app: ASGIApp):
+        self.app = app
+
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        if scope["type"] != "http":
+            await self.app(scope, receive, send)
+            return
+
+        async def send_with_headers(message: Message) -> None:
+            if message["type"] == "http.response.start":
+                message["headers"] = [*message.get("headers", []), *FRAME_HEADERS]
+            await send(message)
+
+        await self.app(scope, receive, send_with_headers)

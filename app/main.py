@@ -18,7 +18,7 @@ from .config import ALLOWED_HOSTS, Settings, get_settings
 from .ai.client import OpenRouterClient
 from .db import init_db, make_engine, make_session_factory
 from .routes import answers, jobs, package, profile, questions, requirements, resume, sharing
-from .security import SameOriginMiddleware
+from .security import NoFramingMiddleware, SameOriginMiddleware
 from .services.answers import upgrade_stored_questions
 from .services.package import rewrite_approvals_with_stored_rules, upgrade_stored_approvals
 from .templating import STATIC_DIR, templates
@@ -51,6 +51,7 @@ def create_app(settings: Settings | None = None, ai_transport: httpx.BaseTranspo
     app.state.settings = settings
     app.add_middleware(SameOriginMiddleware)
     app.add_middleware(TrustedHostMiddleware, allowed_hosts=ALLOWED_HOSTS)
+    app.add_middleware(NoFramingMiddleware)  # added last, so it is outermost and covers every response
     app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
     app.include_router(sharing.router)
     app.include_router(profile.router)
