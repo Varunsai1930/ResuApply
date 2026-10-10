@@ -30,6 +30,7 @@ from ..services import profile as profile_service
 from ..services.profile import FieldError
 from ..services.requirements import RequirementsInvalid, validate_requirements
 from ..services.text import canonical_json
+from ..services.transactions import lock_and_reload
 from . import prompts
 from .client import AIError, OpenRouterClient, ResultProblem
 
@@ -243,9 +244,25 @@ def suggest_evidence(session: Session, client: OpenRouterClient, settings: Setti
         raise NothingToDo("Every requirement is already Met, Unmet or overridden, so there is nothing to suggest.")
     keys = _suggestion_keys(client.model, job, context, targets)
     key = keys[0]
+    profile_revision, job_revision = candidate.revision, job.revision
+    context_hash = state.context_hash
 
     allowed = outbound.source_ids(context)
     target_ids = {t["id"] for t in targets}
+
+    def assert_current() -> None:
+        session.refresh(candidate)
+        session.refresh(job)
+        approval = outbound.get_approval(session, candidate)
+        if approval is not None:
+            session.refresh(approval)
+        current = outbound.state(session, settings, candidate)
+        if current.context_hash != context_hash:
+            raise ApprovalNeeded()
+        if (candidate.revision != profile_revision or job.revision != job_revision
+                or evidence_targets(job, candidate) != targets):
+            raise AIError("invalid", "Your profile, job or evidence changed while suggestions were being generated. "
+                                     "Review the current information and suggest again. Nothing was saved.")
 
     def validate(arguments: dict) -> list[dict]:
         parsed = EvidenceSuggestions.model_validate(arguments)
@@ -274,14 +291,22 @@ def suggest_evidence(session: Session, client: OpenRouterClient, settings: Setti
                 run.input_revisions = dict(run.input_revisions) | {"targets": targets}
                 session.commit()
             return run
-        result = client.structured(
-            SUGGEST_EVIDENCE, prompts.suggest_evidence_messages(context, targets), prompts.SUGGEST_EVIDENCE_TOOL, validate,
-        )
-        return _store(session, operation=SUGGEST_EVIDENCE, key=key, job=job, model=client.model,
-                      prompt_revision=prompts.SUGGEST_EVIDENCE_REVISION,
-                      input_revisions={"job": job.revision, "profile": candidate.revision,
-                                       "outbound": state.context_hash, "targets": targets},
-                      result={"suggestions": result.value}, usage=result.usage, attempts=result.attempts)
+        try:
+            result = client.structured(
+                SUGGEST_EVIDENCE, prompts.suggest_evidence_messages(context, targets),
+                prompts.SUGGEST_EVIDENCE_TOOL, validate, before_attempt=assert_current,
+            )
+            # Hold the writer lock only for the final permission check and save.
+            lock_and_reload(session, job, candidate)
+            assert_current()
+            return _store(session, operation=SUGGEST_EVIDENCE, key=key, job=job, model=client.model,
+                          prompt_revision=prompts.SUGGEST_EVIDENCE_REVISION,
+                          input_revisions={"job": job_revision, "profile": profile_revision,
+                                           "outbound": context_hash, "targets": targets},
+                          result={"suggestions": result.value}, usage=result.usage, attempts=result.attempts)
+        except Exception:
+            session.rollback()
+            raise
 
 
 @dataclass(frozen=True)
