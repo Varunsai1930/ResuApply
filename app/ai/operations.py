@@ -212,6 +212,26 @@ def evidence_targets(job: Job, candidate: Candidate) -> list[dict]:
     ]
 
 
+def _suggestion_keys(model: str, job: Job, context: dict, requirements: list[dict]) -> tuple[str, str]:
+    """The cache key for an evidence-suggestion request, and the key used before it included the job.
+
+    A run stored under the older key is still this job's result when its ``job_id`` is this job:
+    reusing it keeps suggestions the user hasn't reviewed yet, without a new AI request.
+    """
+    inputs = {"context": context, "requirements": requirements}
+    return (cache_key(SUGGEST_EVIDENCE, prompts.SUGGEST_EVIDENCE_REVISION, model, {"job_id": job.id} | inputs),
+            cache_key(SUGGEST_EVIDENCE, prompts.SUGGEST_EVIDENCE_REVISION, model, inputs))
+
+
+def _own_run(session: Session, job: Job, keys: tuple[str, str]) -> AIRun | None:
+    """The stored run for these keys that belongs to this job, preferring the current key."""
+    key, legacy = keys
+    run = find_run(session, key)
+    if run is None:
+        run = find_run(session, legacy)
+    return run if run is not None and run.job_id == job.id else None
+
+
 def suggest_evidence(session: Session, client: OpenRouterClient, settings: Settings, job: Job,
                      candidate: Candidate, force: bool = False) -> AIRun:
     state = outbound.state(session, settings, candidate)
@@ -221,8 +241,8 @@ def suggest_evidence(session: Session, client: OpenRouterClient, settings: Setti
     targets = evidence_targets(job, candidate)
     if not targets:
         raise NothingToDo("Every requirement is already Met, Unmet or overridden, so there is nothing to suggest.")
-    inputs = {"job_id": job.id, "context": context, "requirements": targets}
-    key = cache_key(SUGGEST_EVIDENCE, prompts.SUGGEST_EVIDENCE_REVISION, client.model, inputs)
+    keys = _suggestion_keys(client.model, job, context, targets)
+    key = keys[0]
 
     allowed = outbound.source_ids(context)
     target_ids = {t["id"] for t in targets}
@@ -247,7 +267,7 @@ def suggest_evidence(session: Session, client: OpenRouterClient, settings: Setti
         return [s for s in merged.values() if s["source_ids"]]
 
     with exclusive(SUGGEST_EVIDENCE, job.id):
-        if not force and (run := find_run(session, key)):
+        if not force and (run := _own_run(session, job, keys)):
             if "targets" not in run.input_revisions:
                 # An older cached run with this exact key already has current inputs.
                 # Record its targets so it can pass the display freshness check too.
@@ -300,17 +320,13 @@ def current_suggestions(session: Session, job: Job, candidate: Candidate | None,
                 and candidate_run.prompt_revision == prompts.SUGGEST_EVIDENCE_REVISION
                 and candidate_run.input_revisions.get("outbound") == context_hash
                 and all(target in sent_targets for target in targets)
-                and candidate_run.cache_key == cache_key(
-                    SUGGEST_EVIDENCE, prompts.SUGGEST_EVIDENCE_REVISION, settings.openrouter_model,
-                    {"job_id": job.id, "context": context, "requirements": sent_targets},
-                ))
+                and candidate_run.job_id == job.id
+                and candidate_run.cache_key in _suggestion_keys(settings.openrouter_model, job, context, sent_targets))
 
     # Reusing an older exact cache hit after reverting sharing/model choices must
     # display that result, even when a newer run exists for different inputs.
-    exact = find_run(session, cache_key(
-        SUGGEST_EVIDENCE, prompts.SUGGEST_EVIDENCE_REVISION, settings.openrouter_model,
-        {"job_id": job.id, "context": context, "requirements": targets},
-    )) if context is not None else None
+    exact = _own_run(session, job, _suggestion_keys(settings.openrouter_model, job, context, targets)) \
+        if context is not None else None
     matching = exact if exact is not None and matches(exact) else None
     if matching is None and context is not None:
         runs = session.scalars(

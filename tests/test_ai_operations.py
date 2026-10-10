@@ -417,6 +417,42 @@ def test_legacy_cached_suggestions_acquire_current_input_metadata(
     assert len(fake_ai.requests) == 1
 
 
+def _store_under_pre_job_key(session, run, assessed, candidate, trusted, owner):
+    """Rewrite a run as the version before the cache key included the job stored it."""
+    context = outbound.state(session, trusted, candidate).context
+    run.cache_key = operations.cache_key(operations.SUGGEST_EVIDENCE, prompts.SUGGEST_EVIDENCE_REVISION,
+                                         trusted.openrouter_model,
+                                         {"context": context, "requirements": run.input_revisions["targets"]})
+    run.job_id = owner
+    session.commit()
+
+
+def test_suggestions_stored_before_job_scoped_keys_stay_visible_and_reused(
+    session, assessed, candidate, fake_ai, ai_client, trusted,
+):
+    fake_ai.push(suggestions({"requirement_id": "r4", "source_ids": ["exp-1-b1"], "reason": "Stored earlier"}))
+    run = operations.suggest_evidence(session, ai_client, trusted, assessed, candidate)
+    _store_under_pre_job_key(session, run, assessed, candidate, trusted, owner=assessed.id)
+
+    view = operations.current_suggestions(session, assessed, candidate, trusted)
+    assert not view.out_of_date and view.by_requirement["r4"][0].reason == "Stored earlier"
+    assert operations.suggest_evidence(session, ai_client, trusted, assessed, candidate).id == run.id
+    assert len(fake_ai.requests) == 1
+
+
+def test_pre_job_key_suggestions_from_another_job_are_not_shown(
+    session, assessed, candidate, fake_ai, ai_client, trusted,
+):
+    fake_ai.push(suggestions({"requirement_id": "r4", "source_ids": ["exp-1-b1"], "reason": "Other job"}))
+    run = operations.suggest_evidence(session, ai_client, trusted, assessed, candidate)
+    _store_under_pre_job_key(session, run, assessed, candidate, trusted, owner=None)
+
+    assert operations.current_suggestions(session, assessed, candidate, trusted).by_requirement == {}
+    fake_ai.push(suggestions({"requirement_id": "r4", "source_ids": ["exp-1-b1"], "reason": "This job"}))
+    fresh = operations.suggest_evidence(session, ai_client, trusted, assessed, candidate)
+    assert fresh.id != run.id and len(fake_ai.requests) == 2
+
+
 @pytest.mark.parametrize("change", ["sharing", "model"])
 def test_reverting_inputs_displays_the_reused_older_run(
     session, assessed, candidate, fake_ai, ai_client, trusted, tmp_path, change,
