@@ -137,3 +137,21 @@ def test_date_ranges_that_end_before_they_start_are_rejected(client, sample_prof
         assert response.status_code == 422 and message in response.text, ctype
     data = _editor_rows(client, job_id, 1) | {"req-n0-ctype": "graduation_window", "req-n0-from": "2026-05", "req-n0-to": "2026"}
     assert client.post(f"/jobs/{job_id}/requirements", data=data, follow_redirects=False).status_code == 303
+
+
+def test_control_characters_are_removed_from_every_form_value(client, sample_profile):
+    review_and_save(client, profile_form(sample_profile))
+    job_id = create_job(client, title="Back\x00end\x07 Intern\x1b", description="We need Python\x0band SQL.\x0cThanks\x00")
+    client.post(f"/jobs/{job_id}/notes", data={"text": "Called\x00 back\x7f\ttoday"})
+    with client.app.state.session_factory() as session:
+        from app.models import Job
+        job = session.get(Job, job_id)
+        assert job.title == "Backend Intern"
+        assert job.description == "We need Python\nand SQL.\nThanks"
+        assert job.application.notes[-1].text == "Called back\ttoday"
+    # Unicode text, plus signs and ampersands survive the rewrite untouched.
+    job_id = create_job(client, title="C++ & Go — Ünïcødé 😀 Intern", description="Line one\r\nLine two & more")
+    with client.app.state.session_factory() as session:
+        from app.models import Job
+        job = session.get(Job, job_id)
+        assert job.title == "C++ & Go — Ünïcødé 😀 Intern" and job.description == "Line one\nLine two & more"

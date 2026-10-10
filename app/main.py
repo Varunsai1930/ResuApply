@@ -18,6 +18,7 @@ from .config import ALLOWED_HOSTS, Settings, get_settings
 from .ai.client import OpenRouterClient
 from .db import init_db, make_engine, make_session_factory
 from .routes import answers, jobs, package, profile, questions, requirements, resume, sharing
+from .input_cleaning import ControlCharacterMiddleware
 from .security import NoFramingMiddleware, SameOriginMiddleware
 from .services.answers import upgrade_stored_questions
 from .services.package import rewrite_approvals_with_stored_rules, upgrade_stored_approvals
@@ -49,6 +50,7 @@ def create_app(settings: Settings | None = None, ai_transport: httpx.BaseTranspo
 
     app = FastAPI(title="ResuApply", version=__version__, lifespan=lifespan, docs_url=None, redoc_url=None, openapi_url=None)
     app.state.settings = settings
+    app.add_middleware(ControlCharacterMiddleware)  # innermost: routes only ever see cleaned forms
     app.add_middleware(SameOriginMiddleware)
     app.add_middleware(TrustedHostMiddleware, allowed_hosts=ALLOWED_HOSTS)
     app.add_middleware(NoFramingMiddleware)  # added last, so it is outermost and covers every response
