@@ -96,10 +96,15 @@ def create_app(settings: Settings | None = None, ai_transport: httpx.BaseTranspo
 
     @app.exception_handler(RequestValidationError)
     async def invalid_request(request: Request, exc: RequestValidationError):
-        # A malformed number in the address (/jobs/abc) names no page; anything else is a
-        # damaged or incomplete form, which only a hand-made request can produce.
-        if any(error.get("loc", ("",))[0] == "path" for error in exc.errors()):
+        # A malformed number in the address (/jobs/abc) names no page; a bad value after "?"
+        # (?proposal=abc) is a bad link; only a body error is a damaged or incomplete form,
+        # which only a hand-made request can produce.
+        places = {error.get("loc", ("",))[0] for error in exc.errors()}
+        if "path" in places:
             return error_page(request, 404, "There is no page at this address.")
+        if "body" not in places:
+            return error_page(request, 400, "This link has a value the page can't use. "
+                                            "Go back and follow the link from the page again.")
         return error_page(request, 422, "The form arrived incomplete or damaged, so nothing was saved. "
                                         "Go back, reload the page and try again.")
 

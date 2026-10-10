@@ -352,3 +352,14 @@ def test_port_probe_uses_exclusive_binding_where_windows_offers_it(monkeypatch):
     monkeypatch.delattr(socket, "SO_EXCLUSIVEADDRUSE")  # as on macOS and Linux
     start.check_port(8000)
     assert options == [socket.SO_REUSEADDR]
+
+
+def test_a_bad_value_in_a_link_is_not_called_a_damaged_form(client):
+    job_id = create_job(client)
+    response = client.get(f"/jobs/{job_id}/requirements/edit?proposal=abc")
+    from html import unescape
+
+    assert response.status_code == 400 and "This link has a value the page can't use." in unescape(response.text)
+    assert "nothing was saved" not in response.text
+    damaged = client.post(f"/jobs/{job_id}/requirements/extract", data={"force": "abc"})
+    assert damaged.status_code == 422 and "incomplete or damaged" in damaged.text  # body errors keep their wording
