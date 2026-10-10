@@ -346,6 +346,27 @@ def test_other_parentheticals_and_formats_stay_unrecognized(question):
     assert classify(question) == ("unknown", None)
 
 
+@pytest.mark.parametrize("text", ["GitHub username", "Please enter your GitHub username (optional)"])
+def test_github_username_is_not_filled_with_a_profile_link(session, prepared, text):
+    candidate, job, _ = prepared
+    question = answers.add_question(session, job, text)
+    assert question.category == "unknown"
+    resolved = answers.resolve_answer(question, None, None, candidate.profile)
+    assert not resolved.resolved and not resolved.text
+
+
+def test_saved_github_username_mapping_requires_category_confirmation(session, prepared):
+    candidate, job, _ = prepared
+    _save_legacy(session, job, "GitHub username", "github")
+    job.application.answers = [Answer(question_id="q99", text=candidate.profile.contact.links.github,
+                                      origin="profile", confirmed=True, at=utcnow())]
+    session.commit()
+    assert answers.upgrade_stored_questions(session) == 1
+    upgraded = next(q for q in job.questions if q.id == "q99")
+    assert upgraded.category == "unknown" and upgraded.factual_key is None
+    assert job.application.answers == []
+
+
 def test_saved_factual_question_with_a_format_hint_keeps_its_profile_value(prepared):
     candidate, _, _ = prepared
     question = "Phone Number (with country code)"

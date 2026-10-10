@@ -68,7 +68,7 @@ _FIELD_LABELS = [
     ("email", r"(?:(?:primary|personal|contact|work) )?e-?mail(?: address)?"),
     ("phone", r"(?:(?:primary|contact|mobile|cell|home) )?(?:phone|mobile|telephone|cell)(?: number| no)?"),
     ("linkedin", r"linkedin(?: profile)?(?: url| link)?"),
-    ("github", r"github(?: profile)?(?: url| link| username)?"),
+    ("github", r"github(?: profile)?(?: url| link)?"),
     ("portfolio", rf"(?:portfolio website|{_SITE}(?:{_OR}{_SITE})?)(?: url| link)?"),
     ("graduation_date", r"(?:(?:expected|anticipated) )?graduation(?: date)?"),
     ("start_date", r"(?:start|(?:earliest |available )?start date|availability(?: date)?)"),
