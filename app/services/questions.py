@@ -15,7 +15,8 @@ These rules are stricter than ResuSkill's:
 - Work authorization looks for an explicit country name before an abbreviation, and only the
   capitalized ``US`` (or ``U.S.``, ``USA``) counts as one: "Tell us ..." names no country.
 - Factual fields require an explicit field request. Mentioning email, school or location
-  inside a narrative or a commute question never supplies a profile value.
+  inside a narrative or a commute question never supplies a profile value. Questions saved
+  under the older keyword rules are re-read at startup (``answers.upgrade_stored_questions``).
 """
 
 from __future__ import annotations
@@ -249,8 +250,6 @@ def factual_value(key: str, question: str, profile: Profile | dict) -> str | Non
     latest = education[0] if education else {}
     if name_part(key, question):
         return None  # typed by the user: the stored full name is never split
-    if key not in ("authorization", "sponsorship") and classify(question) != (FACTUAL, key):
-        return None  # older keyword mappings must not fill narratives or ambiguous requests
     if key in ("name", "email", "phone", "location"):
         return contact.get(key) or None
     if key in ("linkedin", "github", "portfolio"):

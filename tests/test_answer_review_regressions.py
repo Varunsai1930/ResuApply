@@ -16,6 +16,7 @@ from app.models import AIRun, Job
 from app.schemas.package import Answer, Question
 from app.services import answers, jobs, outbound, package, profile, resume
 from app.services.questions import classify, factual_value
+from app.services.text import content_hash
 from tests.conftest import SAMPLE_JOB, make_settings, tool_response
 from tests.test_answers import accept, make_draft
 from tests.test_package import approve
@@ -160,18 +161,81 @@ def test_explicit_field_requests_are_still_factual(question, key):
     assert classify(question) == ("factual", key)
 
 
+def _save_legacy(session, job, text, key, category="factual"):
+    """A question stored by the older keyword rules, before upgrade_stored_questions existed."""
+    legacy = Question(id="q99", text=text, category=category, detected_category=category, factual_key=key,
+                      added_at=utcnow())
+    job.questions = [*job.questions, legacy]
+    session.commit()
+    return legacy
+
+
 @pytest.mark.parametrize("question,key", [
     ("Describe your email marketing experience", "email"),
     ("Describe a project you built at university", "school"),
     ("Can you commute to this office location?", "location"),
 ])
-def test_legacy_keyword_mappings_no_longer_fill_the_wrong_value(prepared, question, key):
-    candidate, _, _ = prepared
-    legacy = Question(id="q99", text=question, category="factual", detected_category="factual", factual_key=key,
-                      added_at=utcnow())
-    assert factual_value(key, question, candidate.profile) is None
-    resolved = answers.resolve_answer(legacy, None, None, candidate.profile)
-    assert not resolved.resolved and resolved.value is None and resolved.text == ""
+def test_legacy_keyword_mappings_are_upgraded_to_confirm_category(session, prepared, question, key):
+    candidate, job, _ = prepared
+    _save_legacy(session, job, question, key)
+    assert answers.upgrade_stored_questions(session) == 1
+    upgraded = next(q for q in job.questions if q.id == "q99")
+    assert (upgraded.category, upgraded.factual_key) == ("unknown", None)
+    resolved = answers.resolve_answer(upgraded, None, None, candidate.profile)
+    assert not resolved.resolved and resolved.text == "" and resolved.label == answers.LABELS["category"]
+    assert answers.upgrade_stored_questions(session) == 0  # already current
+
+
+def test_legacy_name_key_becomes_the_name_part_and_sensitive_stays_sensitive(session, prepared):
+    candidate, job, _ = prepared
+    _save_legacy(session, job, "First name", "name")
+    assert answers.upgrade_stored_questions(session) == 1
+    upgraded = next(q for q in job.questions if q.id == "q99")
+    assert (upgraded.category, upgraded.factual_key) == ("factual", "first_name")
+    assert factual_value(upgraded.factual_key, upgraded.text, candidate.profile) is None
+
+    job.questions = [q for q in job.questions if q.id != "q99"]
+    _save_legacy(session, job, "Email address and date of birth", "email")
+    answers.upgrade_stored_questions(session)
+    upgraded = next(q for q in job.questions if q.id == "q99")
+    assert (upgraded.category, upgraded.detected_category, upgraded.factual_key) == ("sensitive", "sensitive", None)
+
+
+def test_upgrading_questions_clears_only_affected_approvals(session, prepared):
+    from tests.test_package import accept_resume
+
+    candidate, job, _ = prepared
+    other = jobs.create(session, jobs.clean_input(**SAMPLE_JOB))
+    for target in (job, other):
+        accept_resume(session, target, candidate)
+        answers.add_question(session, target, "Email address")
+        target.application.approval = package.Approval(
+            content_hash=content_hash(package.resolved_package(target, target.application, candidate)),
+            approved_at=utcnow(), profile_revision=candidate.revision, job_revision=target.revision,
+            rules=package.APPROVAL_RULES,
+        )
+    session.commit()
+    _save_legacy(session, job, "Describe your email marketing experience", "email")
+    assert answers.upgrade_stored_questions(session) == 1
+    assert job.application.approval is None and job.application.review_state == "draft"
+    assert other.application.approval is not None
+
+
+def test_startup_upgrades_questions_saved_by_older_rules(settings):
+    from fastapi.testclient import TestClient
+
+    from app.main import create_app
+    from tests.conftest import BASE_URL
+
+    with TestClient(create_app(settings), base_url=BASE_URL) as first:
+        with first.app.state.session_factory() as session:
+            job = jobs.create(session, jobs.clean_input(**SAMPLE_JOB))
+            _save_legacy(session, job, "Describe your email marketing experience", "email")
+            job_id = job.id
+    with TestClient(create_app(settings), base_url=BASE_URL) as restarted:
+        with restarted.app.state.session_factory() as session:
+            stored = next(q for q in jobs.get(session, job_id).questions if q.id == "q99")
+            assert (stored.category, stored.factual_key) == ("unknown", None)
 
 
 @pytest.mark.parametrize("question,key", [

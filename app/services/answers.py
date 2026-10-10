@@ -266,6 +266,45 @@ def set_category(session: Session, job: Job, application: Application, qid: str,
     return updated
 
 
+def upgrade_factual_question(question: Question) -> Question:
+    """The question as the current rules would store it, when it is saved as factual.
+
+    The factual rules only get stricter, so a factual question saved under older rules can
+    stop matching its stored field. Its key follows the current rules (for example ``name``
+    becomes ``first_name``). One the rules no longer read as factual is never answered from
+    the profile again: it becomes sensitive when that is what the rules detect, otherwise it
+    asks the user to confirm its category.
+    """
+    if question.category != q_rules.FACTUAL:
+        return question
+    detected, key = q_rules.classify(question.text)
+    if detected == q_rules.FACTUAL:
+        return question if key == question.factual_key else question.model_copy(update={"factual_key": key})
+    category = detected if detected in q_rules.SENSITIVE_CATEGORIES else q_rules.UNKNOWN
+    return question.model_copy(update={
+        "category": category, "detected_category": detected,
+        "factual_key": key if category == q_rules.SENSITIVE_FACTUAL else None,
+    })
+
+
+def upgrade_stored_questions(session: Session) -> int:
+    """Store every saved question as the current rules read it. Returns how many changed.
+
+    Runs once at startup, so reading an answer can trust the stored category and key. A job
+    whose questions change goes back to Draft: its approval covered the old definitions.
+    """
+    changed = 0
+    for job in session.scalars(select(Job)):
+        upgraded = [upgrade_factual_question(q) for q in job.questions]
+        count = sum(new != old for new, old in zip(upgraded, job.questions))
+        if count:
+            job.questions = upgraded
+            _content_changed(job.application)
+            changed += count
+    session.commit()
+    return changed
+
+
 def remove_question(session: Session, job: Job, application: Application, qid: str) -> None:
     """Remove a question with its answer and draft. Its ID is never issued again."""
     with transactions.write(session, job):
