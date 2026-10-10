@@ -255,7 +255,7 @@ CHECKS = {
 }
 
 
-def _source_hashes(profile: Profile | dict | None) -> dict[str, str]:
+def source_hashes(profile: Profile | dict | None) -> dict[str, str]:
     """Bind confirmations to source content, including its relevant entry context."""
     prof = profile.model_dump() if isinstance(profile, Profile) else profile or {}
     hashes = {}
@@ -272,22 +272,27 @@ def _source_hashes(profile: Profile | dict | None) -> dict[str, str]:
     return hashes
 
 
-def confirmed_source_ids(link: EvidenceLink | None, profile: Profile | dict | None) -> list[str]:
-    """Current confirmed source IDs; legacy links require an explicit confirmation."""
+def confirmed_source_ids(link: EvidenceLink | None, profile: Profile | dict | None,
+                         hashes: dict[str, str] | None = None) -> list[str]:
+    """Current confirmed source IDs; legacy links require an explicit confirmation.
+
+    Pass ``hashes`` (from ``source_hashes``) when checking many links against one profile.
+    """
     if link is None:
         return []
-    hashes = _source_hashes(profile)
+    hashes = source_hashes(profile) if hashes is None else hashes
     return [i for i in link.sources if i in hashes and link.source_hashes.get(i) == hashes[i]]
 
 
 def review_token(job: Job, profile: Profile | dict | None, req_id: str,
-                 source_ids: list[str] | None = None) -> str:
+                 source_ids: list[str] | None = None, hashes: dict[str, str] | None = None) -> str:
     """Bind an evidence action to the displayed requirement and full source content.
 
     The selector form covers every displayed source; single-source forms cover that
-    source only. The ID, text and entry context are all included by _source_hashes.
+    source only. The ID, text and entry context are all included by source_hashes.
+    Pass ``hashes`` (from ``source_hashes``) when building many tokens for one profile.
     """
-    return _review_token(job, req_id, _source_hashes(profile), source_ids)
+    return _review_token(job, req_id, source_hashes(profile) if hashes is None else hashes, source_ids)
 
 
 def _review_token(job: Job, req_id: str, hashes: dict[str, str], source_ids: list[str] | None = None) -> str:
@@ -302,7 +307,7 @@ def evaluate(job: Job, profile: Profile | None) -> list[CheckResult]:
     """The checklist for a job against the current profile. Without a profile everything is Unknown."""
     prof = profile.model_dump() if profile else {}
     sources = profile_service.sources(prof)
-    hashes = _source_hashes(prof)
+    hashes = source_hashes(prof)
     results = []
     for req in job.requirements:
         link = job.evidence.get(req.id)
@@ -366,7 +371,7 @@ def link(session: Session, job: Job, candidate: Candidate | None, req_id: str, s
         source_ids = [s.strip() for s in source_ids if s and s.strip()]
         if not source_ids:
             raise ChecklistError("Choose at least one profile item as evidence.")
-        hashes = _source_hashes(candidate.profile)
+        hashes = source_hashes(candidate.profile)
         if not reviewed_token or reviewed_token not in (
             _review_token(job, req_id, hashes, source_ids),
             _review_token(job, req_id, hashes),

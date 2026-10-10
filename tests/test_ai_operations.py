@@ -306,6 +306,22 @@ def test_suggestions_are_shown_but_change_nothing_until_accepted(session, assess
     assert {r.id: r.status for r in checklist.evaluate(assessed, candidate.profile)}["r4"] == "met"
 
 
+def test_suggestion_tokens_hash_the_profile_once_per_view(session, assessed, candidate, fake_ai, ai_client, trusted,
+                                                          monkeypatch):
+    fake_ai.push(suggestions({"requirement_id": "r4", "source_ids": ["exp-1-b1", "exp-1", "proj-1-b1"], "reason": "r"}))
+    operations.suggest_evidence(session, ai_client, trusted, assessed, candidate)
+    calls = []
+    original = checklist.source_hashes
+    monkeypatch.setattr(checklist, "source_hashes", lambda profile: calls.append(1) or original(profile))
+
+    view = operations.current_suggestions(session, assessed, candidate, trusted)
+    pending = view.by_requirement["r4"]
+    assert len(pending) == 3
+    assert len(calls) == 2  # once to find the targets, once for every token in the view
+    for item in pending:
+        assert item.review_token == checklist.review_token(assessed, candidate.profile, "r4", [item.id])
+
+
 def test_invented_source_ids_are_rejected(session, assessed, candidate, fake_ai, ai_client, trusted):
     invented = suggestions({"requirement_id": "r4", "source_ids": ["exp-7-b1"], "reason": "made up"})
     fake_ai.push(invented, invented)

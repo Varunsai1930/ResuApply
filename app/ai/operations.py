@@ -324,20 +324,21 @@ def current_suggestions(session: Session, job: Job, candidate: Candidate | None,
         return SuggestionView({}, run, True)
     run = matching
     sources = profile_service.sources(candidate.profile)
+    hashes = checklist.source_hashes(candidate.profile)  # once, not per suggestion
     target_ids = {target["id"] for target in targets}
     view: dict[str, list[SuggestedSource]] = {}
     for item in run.result.get("suggestions", []):
         if item["requirement_id"] not in target_ids:
             continue
         link = job.evidence.get(item["requirement_id"])
-        decided = set(checklist.confirmed_source_ids(link, candidate.profile))
+        decided = set(checklist.confirmed_source_ids(link, candidate.profile, hashes))
         if link:
             decided.update(link.rejected)
         if job.overrides.get(item["requirement_id"]):
             continue
         pending = [
             SuggestedSource(i, sources[i].text, item.get("reason", ""),
-                            checklist.review_token(job, candidate.profile, item["requirement_id"], [i]))
+                            checklist.review_token(job, candidate.profile, item["requirement_id"], [i], hashes))
             for i in item["source_ids"] if i in sources and i not in decided
         ]
         if pending:
