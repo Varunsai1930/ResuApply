@@ -175,8 +175,49 @@ def test_startup_leaves_stale_old_approvals_alone(session, sample_profile):
     jobs.update(session, job, edited)
 
     assert package.upgrade_stored_approvals(session) == 0
-    assert job.application.approval is not None and job.application.approval_rules == 1
-    assert package.review_state(job, job.application, candidate) is ReviewState.STALE
+    application = job.application
+    assert application.approval is not None and not package._checked(application)
+    assert application.approval_rules_for == "seen:" + package.approval_key(application.approval)
+    assert package.review_state(job, application, candidate) is ReviewState.STALE
+
+
+def test_startup_does_not_revisit_approvals_it_has_seen(session, sample_profile, monkeypatch):
+    from tests.test_package import accept_resume
+
+    candidate = profile.save(session, sample_profile).candidate
+    job = jobs.create(session, jobs.clean_input(**DEMO_JOB))
+    accept_resume(session, job, candidate)
+    _old_approval(session, job, candidate)
+    jobs.update(session, job, jobs.clean_input(**(DEMO_JOB | {"title": "Changed title"})))  # now Stale
+    package.upgrade_stored_approvals(session)
+
+    states = []
+    original = package._recorded_state
+    monkeypatch.setattr(package, "_recorded_state", lambda *args: states.append(1) or original(*args))
+    package.upgrade_stored_approvals(session)
+    assert states == []
+
+
+def test_a_seen_approval_that_reads_approved_again_is_still_checked(session, sample_profile):
+    """Marking an approval as seen never vouches for it."""
+    sample_profile["summary"] = "Previously supported 5,000 users on legacy services."
+    candidate = profile.save(session, sample_profile).candidate
+    job = jobs.create(session, jobs.clean_input(**DEMO_JOB))
+    record = resume.propose(session, job, candidate, resume.profile_draft(candidate.profile))
+    resume.accept(session, job, candidate, resume.proposal_token(record))
+    question = answers.add_question(session, job, "Describe a project")
+    supported = Answer(question_id=question.id, text="Built a Flask REST API in Python serving 5,000 users.",
+                       origin="ai_draft", sources=["exp-1-b1"], at=utcnow())
+    job.application.answers = [supported]
+    _old_approval(session, job, candidate)
+    job.application.answers = []  # edited after approval: reads Draft at startup
+    session.commit()
+    package.upgrade_stored_approvals(session)
+    assert job.application.approval_rules_for.startswith("seen:")
+
+    job.application.answers = [supported]  # the edit is reverted: the hash matches again
+    session.commit()
+    assert package.review_state(job, job.application, candidate) is ReviewState.DRAFT
 
 
 def test_rules_stamp_does_not_carry_over_to_an_approval_recorded_elsewhere(session, sample_profile):
@@ -249,8 +290,8 @@ def test_startup_approval_check_only_visits_rows_with_an_approval(session, sampl
     assert never.application.approval is None and cleared.application.approval is None
 
     visited = []
-    original = package._checked
-    monkeypatch.setattr(package, "_checked", lambda application: visited.append(application.job_id)
+    original = package._settled
+    monkeypatch.setattr(package, "_settled", lambda application: visited.append(application.job_id)
                         or original(application))
     assert package.upgrade_stored_approvals(session) == 0
     assert visited == [approved.id]

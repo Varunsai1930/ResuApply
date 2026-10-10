@@ -198,6 +198,23 @@ def _mark_checked(application: Application) -> None:
     application.approval_rules_for = approval_key(application.approval)
 
 
+def _mark_seen(application: Application) -> None:
+    """Record that startup looked at the current approval without vouching for it.
+
+    Used for approvals that don't read Approved: nothing needs checking now, and the startup
+    pass skips them next time. The marker differs from ``_mark_checked``, so if such an approval
+    reads Approved again (an edit reverted), it is still checked when its state is read.
+    """
+    application.approval_rules = APPROVAL_RULES
+    application.approval_rules_for = "seen:" + approval_key(application.approval)
+
+
+def _settled(application: Application) -> bool:
+    """Whether startup has nothing left to do for the current approval under the current rules."""
+    key = approval_key(application.approval)
+    return application.approval_rules >= APPROVAL_RULES and application.approval_rules_for in (key, "seen:" + key)
+
+
 def _checked(application: Application) -> bool:
     """Whether the current approval is known to pass the current rules.
 
@@ -280,17 +297,19 @@ def upgrade_stored_approvals(session: Session) -> int:
     An approval that would read Approved and still passes the current checks is marked with
     the current rules version and its key, so reading its state stays cheap. One that no longer passes is
     removed and its package is a Draft again, as when its content changes. Stale and Draft
-    approvals are left as they are: they don't read Approved, so nothing is checked for them.
+    approvals are left as they are, since they don't read Approved, and only marked as seen so
+    later starts skip them.
     """
     candidate = get_candidate(session)
     settled = 0
     # Only rows with an approval can need settling. A cleared approval is stored as JSON null.
     approved = Application.approval.is_not(None) & (Application.approval.cast(String) != "null")
     for application in session.scalars(select(Application).where(approved)):
-        if _checked(application):
+        if _settled(application):
             continue
         job = application.job
         if _recorded_state(job, application, candidate) is not ReviewState.APPROVED:
+            _mark_seen(application)
             continue
         if check(job, application, candidate)[0]:
             application.approval = None
