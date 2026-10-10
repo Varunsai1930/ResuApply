@@ -192,3 +192,11 @@ def test_profile_links_must_be_web_addresses(client, sample_profile):
     project["projects"][0]["link"] = "javascript:alert(1)"
     response = client.post("/profile/review", data=profile_form(project))
     assert response.status_code == 422 and "link must be a web address" in response.text
+
+
+def test_sharing_only_returns_to_a_plain_job_url():
+    from app.routes.sharing import _safe_next
+
+    assert _safe_next("/jobs/12") == "/jobs/12"
+    for value in ("/jobs/12\n", "/jobs/12\r\nSet-Cookie: x=1", "/jobs/١", "//evil.example", "/jobs/12/../x", "javascript:alert(1)", ""):
+        assert _safe_next(value) == "", repr(value)

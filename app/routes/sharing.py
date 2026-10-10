@@ -16,12 +16,14 @@ from .forms import read_form
 
 router = APIRouter(prefix="/profile/sharing")
 
-_SAFE_NEXT = re.compile(r"^/jobs/\d+$")
+# fullmatch and [0-9]: "$" would also match before a trailing newline, and \d matches any
+# script's digits ("/jobs/١"), neither of which is a job URL.
+_SAFE_NEXT = re.compile(r"/jobs/[0-9]+")
 
 
 def _safe_next(value: str) -> str:
     """Only return to a job workspace in this app; anything else goes back to the preview."""
-    return value if _SAFE_NEXT.match(value or "") else ""
+    return value if _SAFE_NEXT.fullmatch(value or "") else ""
 
 
 def _render(request: Request, session: Session, candidate, next_url: str = "", error: str = "", status_code: int = 200,
