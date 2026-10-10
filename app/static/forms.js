@@ -126,7 +126,7 @@
     document.querySelectorAll("[data-counter-for='" + box.id + "']").forEach(function (counter) {
       const limit = Number(counter.dataset.limit);
       const words = counter.dataset.unit === "words";
-      const size = words ? (box.value.trim() ? box.value.trim().split(/\s+/).length : 0) : box.value.length;
+      const size = words ? (box.value.trim() ? box.value.trim().split(/\s+/).length : 0) : Array.from(box.value).length;
       counter.textContent = size + " of " + limit.toLocaleString() + " " + (words ? "words" : "characters");
       counter.classList.toggle("over-limit", size > limit);
     });

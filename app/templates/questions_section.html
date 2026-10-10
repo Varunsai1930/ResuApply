@@ -155,7 +155,7 @@
         <button type="submit" class="btn-small">Save to answer bank</button>
       </form>
     {% endif %}
-    {% if not q.required and q.category != 'unknown' and not item.resolved %}
+    {% if not q.required and q.category != 'unknown' and not item.skipped %}
       <form method="post" action="/jobs/{{ job.id }}/questions/{{ q.id }}/skip" class="inline-form">
         <button type="submit" class="btn-small">Skip this optional question</button>
       </form>

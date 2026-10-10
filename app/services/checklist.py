@@ -24,6 +24,7 @@ from .countries import normalize_country
 from .requirements import degree_level, excerpt_found, requirement
 from .skills import canon
 from .text import content_hash, date_key, norm_text, today_key
+from .transactions import write
 
 MET, UNMET, UNKNOWN = "met", "unmet", "unknown"
 STATUSES = (MET, UNMET, UNKNOWN)
@@ -34,10 +35,15 @@ class ChecklistError(Exception):
     pass
 
 
+class EvidenceReviewChanged(ChecklistError):
+    """Evidence or its requirement changed after the displayed confirmation form."""
+
+
 @dataclass(frozen=True)
 class Evidence:
     id: str
     text: str
+    review_token: str = ""
 
 
 @dataclass
@@ -56,6 +62,7 @@ class CheckResult:
     override: Override | None = None
     excerpt_found: bool = True  # False when the description was edited and no longer contains it
     has_criterion: bool = False
+    review_token: str = ""
 
     @property
     def label(self) -> str:
@@ -273,6 +280,24 @@ def confirmed_source_ids(link: EvidenceLink | None, profile: Profile | dict | No
     return [i for i in link.sources if i in hashes and link.source_hashes.get(i) == hashes[i]]
 
 
+def review_token(job: Job, profile: Profile | dict | None, req_id: str,
+                 source_ids: list[str] | None = None) -> str:
+    """Bind an evidence action to the displayed requirement and full source content.
+
+    The selector form covers every displayed source; single-source forms cover that
+    source only. The ID, text and entry context are all included by _source_hashes.
+    """
+    return _review_token(job, req_id, _source_hashes(profile), source_ids)
+
+
+def _review_token(job: Job, req_id: str, hashes: dict[str, str], source_ids: list[str] | None = None) -> str:
+    selected = hashes if source_ids is None else {i: hashes.get(i) for i in sorted(set(source_ids))}
+    req = requirement(job, req_id)
+    return content_hash({"action": "confirm_evidence", "job_id": job.id, "job_revision": job.revision,
+                         "requirement": req.model_dump(mode="json", by_alias=True) if req else req_id,
+                         "sources": selected})
+
+
 def evaluate(job: Job, profile: Profile | None) -> list[CheckResult]:
     """The checklist for a job against the current profile. Without a profile everything is Unknown."""
     prof = profile.model_dump() if profile else {}
@@ -283,9 +308,10 @@ def evaluate(job: Job, profile: Profile | None) -> list[CheckResult]:
         link = job.evidence.get(req.id)
         linked = link.sources if link else []
         confirmed = [i for i in linked if i in hashes and link.source_hashes.get(i) == hashes[i]]
-        evidence = [Evidence(i, sources[i].text) for i in confirmed]
+        evidence = [Evidence(i, sources[i].text, _review_token(job, req.id, hashes, [i])) for i in confirmed]
         stale = [i for i in linked if i not in sources]
-        changed = [Evidence(i, sources[i].text) for i in linked if i in sources and i not in confirmed]
+        changed = [Evidence(i, sources[i].text, _review_token(job, req.id, hashes, [i]))
+                   for i in linked if i in sources and i not in confirmed]
         crit = req.criterion_dict()
         if not prof:
             status, basis = UNKNOWN, "No profile saved yet"
@@ -309,6 +335,7 @@ def evaluate(job: Job, profile: Profile | None) -> list[CheckResult]:
             status=status, basis=basis, computed_status=computed, evidence=evidence, stale_links=stale,
             changed_evidence=changed,
             override=override, excerpt_found=excerpt_found(job, req), has_criterion=crit is not None,
+            review_token=_review_token(job, req.id, hashes),
         ))
     return results
 
@@ -330,78 +357,86 @@ def _require(job: Job, req_id: str):
     return req
 
 
-def link(session: Session, job: Job, candidate: Candidate | None, req_id: str, source_ids: list[str]) -> None:
+def link(session: Session, job: Job, candidate: Candidate | None, req_id: str, source_ids: list[str],
+         reviewed_token: str = "") -> None:
     """Record evidence the user confirmed for a requirement."""
-    _require(job, req_id)
-    if candidate is None:
-        raise ChecklistError("Create your profile before linking evidence.")
-    source_ids = [s.strip() for s in source_ids if s and s.strip()]
-    if not source_ids:
-        raise ChecklistError("Choose at least one profile item as evidence.")
-    known = profile_service.sources(candidate.profile)
-    unknown = [s for s in source_ids if s not in known]
-    if unknown:
-        raise ChecklistError(f"Unknown profile item(s): {', '.join(unknown)}.")
-    current = job.evidence.get(req_id) or EvidenceLink()
-    merged = list(dict.fromkeys([*current.sources, *source_ids]))
-    rejected = [s for s in current.rejected if s not in source_ids]
-    hashes = _source_hashes(candidate.profile)
-    confirmed_hashes = current.source_hashes | {i: hashes[i] for i in source_ids}
-    job.evidence = job.evidence | {req_id: EvidenceLink(
-        sources=merged, source_hashes=confirmed_hashes, rejected=rejected,
-        confirmed_at=utcnow(), profile_revision=candidate.revision,
-    )}
-    job.updated_at = utcnow()
-    session.commit()
+    with write(session, job, candidate):
+        if candidate is None:
+            raise ChecklistError("Create your profile before linking evidence.")
+        source_ids = [s.strip() for s in source_ids if s and s.strip()]
+        if not source_ids:
+            raise ChecklistError("Choose at least one profile item as evidence.")
+        hashes = _source_hashes(candidate.profile)
+        if not reviewed_token or reviewed_token not in (
+            _review_token(job, req_id, hashes, source_ids),
+            _review_token(job, req_id, hashes),
+        ):
+            raise EvidenceReviewChanged(
+                "The evidence or requirement changed while you were reviewing it. "
+                "Review the current content, then confirm it again."
+            )
+        _require(job, req_id)
+        known = profile_service.sources(candidate.profile)
+        unknown = [s for s in source_ids if s not in known]
+        if unknown:
+            raise ChecklistError(f"Unknown profile item(s): {', '.join(unknown)}.")
+        current = job.evidence.get(req_id) or EvidenceLink()
+        merged = list(dict.fromkeys([*current.sources, *source_ids]))
+        rejected = [s for s in current.rejected if s not in source_ids]
+        confirmed_hashes = current.source_hashes | {i: hashes[i] for i in source_ids}
+        job.evidence = job.evidence | {req_id: EvidenceLink(
+            sources=merged, source_hashes=confirmed_hashes, rejected=rejected,
+            confirmed_at=utcnow(), profile_revision=candidate.revision,
+        )}
+        job.updated_at = utcnow()
 
 
 def unlink(session: Session, job: Job, req_id: str, source_id: str) -> None:
     """Remove one confirmed evidence link."""
-    _require(job, req_id)
-    current = job.evidence.get(req_id)
-    if current is None or source_id not in current.sources:
-        raise ChecklistError("That evidence is not linked to this requirement.")
-    remaining = [s for s in current.sources if s != source_id]
-    evidence = dict(job.evidence)
-    if remaining or current.rejected:
-        evidence[req_id] = current.model_copy(update={
-            "sources": remaining, "source_hashes": {k: v for k, v in current.source_hashes.items() if k != source_id},
-        })
-    else:
-        evidence.pop(req_id)
-    job.evidence = evidence
-    job.updated_at = utcnow()
-    session.commit()
+    with write(session, job):
+        _require(job, req_id)
+        current = job.evidence.get(req_id)
+        if current is None or source_id not in current.sources:
+            raise ChecklistError("That evidence is not linked to this requirement.")
+        remaining = [s for s in current.sources if s != source_id]
+        evidence = dict(job.evidence)
+        if remaining or current.rejected:
+            evidence[req_id] = current.model_copy(update={
+                "sources": remaining, "source_hashes": {k: v for k, v in current.source_hashes.items() if k != source_id},
+            })
+        else:
+            evidence.pop(req_id)
+        job.evidence = evidence
+        job.updated_at = utcnow()
 
 
 def reject_suggestion(session: Session, job: Job, req_id: str, source_id: str) -> None:
     """Remember that the user turned down a suggested source, so it isn't offered again."""
-    _require(job, req_id)
-    current = job.evidence.get(req_id) or EvidenceLink()
-    if source_id in current.sources:
-        raise ChecklistError("That item is already linked; unlink it instead.")
-    if source_id not in current.rejected:
-        job.evidence = job.evidence | {req_id: current.model_copy(update={"rejected": [*current.rejected, source_id]})}
-        job.updated_at = utcnow()
-        session.commit()
+    with write(session, job):
+        _require(job, req_id)
+        current = job.evidence.get(req_id) or EvidenceLink()
+        if source_id in current.sources:
+            raise ChecklistError("That item is already linked; unlink it instead.")
+        if source_id not in current.rejected:
+            job.evidence = job.evidence | {req_id: current.model_copy(update={"rejected": [*current.rejected, source_id]})}
+            job.updated_at = utcnow()
 
 
 def set_override(session: Session, job: Job, req_id: str, status: str, reason: str) -> None:
     """Set a manual status with a recorded explanation, or clear it with status "clear"."""
-    _require(job, req_id)
-    if status == "clear":
-        if req_id in job.overrides:
-            job.overrides = {k: v for k, v in job.overrides.items() if k != req_id}
-            job.updated_at = utcnow()
-            session.commit()
-        return
-    if status not in STATUSES:
-        raise ChecklistError("Choose Met, Unmet or Unknown.")
-    reason = (reason or "").strip()
-    if not reason:
-        raise ChecklistError("An override needs a reason.")
-    if len(reason) > 1000:
-        raise ChecklistError("Keep the reason under 1,000 characters.")
-    job.overrides = job.overrides | {req_id: Override(status=status, reason=reason, at=utcnow())}
-    job.updated_at = utcnow()
-    session.commit()
+    with write(session, job):
+        _require(job, req_id)
+        if status == "clear":
+            if req_id in job.overrides:
+                job.overrides = {k: v for k, v in job.overrides.items() if k != req_id}
+                job.updated_at = utcnow()
+            return
+        if status not in STATUSES:
+            raise ChecklistError("Choose Met, Unmet or Unknown.")
+        reason = (reason or "").strip()
+        if not reason:
+            raise ChecklistError("An override needs a reason.")
+        if len(reason) > 1000:
+            raise ChecklistError("Keep the reason under 1,000 characters.")
+        job.overrides = job.overrides | {req_id: Override(status=status, reason=reason, at=utcnow())}
+        job.updated_at = utcnow()

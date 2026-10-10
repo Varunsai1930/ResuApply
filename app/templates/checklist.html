@@ -53,6 +53,7 @@
           <span class="id-badge">{{ e.id }}</span> <span class="evidence-text">{{ e.text }}</span>
           <form method="post" action="/jobs/{{ job.id }}/requirements/{{ r.id }}/evidence" class="inline-form">
             <input type="hidden" name="sources" value="{{ e.id }}">
+            <input type="hidden" name="review_token" value="{{ e.review_token }}">
             <button type="submit" class="btn-small" aria-label="Reconfirm evidence {{ e.id }}">Reconfirm</button>
           </form>
           <form method="post" action="/jobs/{{ job.id }}/requirements/{{ r.id }}/evidence/remove" class="inline-form">
@@ -75,6 +76,7 @@
         <div class="suggestion-actions">
           <form method="post" action="/jobs/{{ job.id }}/requirements/{{ r.id }}/suggestions/accept" class="inline-form">
             <input type="hidden" name="source" value="{{ s.id }}">
+            <input type="hidden" name="review_token" value="{{ s.review_token }}">
             <button type="submit" class="btn-small">Accept</button>
           </form>
           <form method="post" action="/jobs/{{ job.id }}/requirements/{{ r.id }}/suggestions/reject" class="inline-form">
@@ -94,6 +96,7 @@
     <details>
       <summary>Link evidence</summary>
       <form method="post" action="/jobs/{{ job.id }}/requirements/{{ r.id }}/evidence" class="stack">
+        <input type="hidden" name="review_token" value="{{ r.review_token }}">
         {% set linked = r.evidence | map(attribute='id') | list %}
         {% for group in source_groups %}
           <fieldset class="source-group">

@@ -16,6 +16,7 @@ from sqlalchemy.orm import Session, selectinload
 from ..db import utcnow
 from ..models import Application, Job
 from ..schemas.tracking import ReviewState, StatusEvent, TrackingStatus
+from . import transactions
 from .profile import get_candidate
 
 LIMITS = {"title": 200, "company": 200, "location": 200, "url": 2000, "description": 100_000}
@@ -27,6 +28,10 @@ class JobInvalid(Exception):
     def __init__(self, errors: dict[str, str]):
         super().__init__("Job is invalid; nothing was saved.")
         self.errors = errors  # form field name -> message
+
+
+class JobChanged(Exception):
+    """The job changed after the edit form was opened. Nothing was saved."""
 
 
 @dataclass(frozen=True)
@@ -87,17 +92,27 @@ def create(session: Session, data: JobInput, today: date | None = None) -> Job:
     return job
 
 
-def update(session: Session, job: Job, data: JobInput) -> bool:
-    """Apply edits. Returns False when nothing changed. The revision increases on relevant changes."""
-    changed = [name for name, value in vars(data).items() if getattr(job, name) != value]
-    if not changed:
-        return False
-    for name in changed:
-        setattr(job, name, getattr(data, name))
-    if any(name in REVISION_FIELDS for name in changed):
-        job.revision += 1
-    job.updated_at = utcnow()
-    session.commit()
+def update(session: Session, job: Job, data: JobInput, base_revision: int | None = None) -> bool:
+    """Apply edits only to the reviewed revision, including when the form appears unchanged.
+
+    Service callers may omit ``base_revision``: their loaded revision is captured before the
+    writer lock reloads the row. HTTP callers provide the revision shown by the edit form.
+    """
+    expected_revision = job.revision if base_revision is None else base_revision
+    with transactions.write(session, job):
+        if expected_revision != job.revision:
+            raise JobChanged(
+                f"The job changed since you opened the edit form (revision {expected_revision} → {job.revision}). "
+                "Compare your changes with the saved job before saving again."
+            )
+        changed = [name for name, value in vars(data).items() if getattr(job, name) != value]
+        if not changed:
+            return False
+        for name in changed:
+            setattr(job, name, getattr(data, name))
+        if any(name in REVISION_FIELDS for name in changed):
+            job.revision += 1
+        job.updated_at = utcnow()
     return True
 
 

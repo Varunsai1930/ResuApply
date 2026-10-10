@@ -21,8 +21,25 @@
   <ul>{% for name, message in errors.items() %}<li><a href="#{{ name }}">{{ message }}</a></li>{% endfor %}</ul>
 </div>
 {% endif %}
+{% set conflict = job and errors.get('base_revision') %}
+{% if conflict %}
+<section class="card" aria-labelledby="saved-job">
+  <h2 id="saved-job">The job as it is saved now (revision {{ job.revision }})</h2>
+  <p class="meta">Title: {{ job.title }} · Company: {{ job.company }}{% if job.location %} · Location: {{ job.location }}{% endif %}</p>
+  <p class="meta">Posting URL: {{ job.url or 'none' }}</p>
+  <details>
+    <summary>Saved job description</summary>
+    <div class="description" tabindex="0">{{ job.description }}</div>
+  </details>
+  <p class="hint">Your entered values are in the form below. Compare them with this version, then save yours over it, or <a href="/jobs/{{ job.id }}/edit">start again from the saved version</a>.</p>
+</section>
+{% endif %}
 
 <form method="post" action="{{ '/jobs/%d/edit' % job.id if job else '/jobs' }}" class="card" data-guard novalidate>
+  {% if job %}<input type="hidden" name="base_revision" value="{{ values.get('base_revision', job.revision) }}">{% endif %}
+  {% if conflict %}
+  <label class="check"><input type="checkbox" id="base_revision" name="replace_revision" value="{{ job.revision }}"> I compared my changes with the saved version above. Save mine over it.</label>
+  {% endif %}
   <div class="grid">
     <div class="field">
       <label for="title">Job title <span class="req" aria-hidden="true">*</span></label>

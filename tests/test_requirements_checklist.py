@@ -20,6 +20,11 @@ from app.templating import templates
 from tests.conftest import DEMO_JOB, DEMO_REQUIREMENTS, SAMPLE_PROFILE
 
 
+def _link(session, job, candidate, req_id, source_ids):
+    checklist.link(session, job, candidate, req_id, source_ids,
+                   reviewed_token=checklist.review_token(job, candidate.profile, req_id, source_ids))
+
+
 def seed(session, profile: dict | None = SAMPLE_PROFILE, requirements: list | None = DEMO_REQUIREMENTS):
     if profile is not None:
         profile_service.save(session, copy.deepcopy(profile))
@@ -278,7 +283,7 @@ def test_years_of_experience_stays_unknown_until_evidence(session):
 def test_confirmed_evidence_makes_experience_met_and_is_shown(session):
     job = seed(session)
     candidate = profile_service.get_candidate(session)
-    checklist.link(session, job, candidate, "r4", ["exp-1-b1"])
+    _link(session, job, candidate, "r4", ["exp-1-b1"])
     result = evaluate(session, job)["r4"]
     assert result.status == "met" and result.basis == "You confirmed supporting evidence"
     assert result.evidence[0].id == "exp-1-b1"
@@ -289,7 +294,7 @@ def test_confirmed_evidence_makes_experience_met_and_is_shown(session):
 
 def test_evidence_never_turns_unmet_into_met(session):
     job = seed(session)
-    checklist.link(session, job, profile_service.get_candidate(session), "r6", ["proj-1-b1"])
+    _link(session, job, profile_service.get_candidate(session), "r6", ["proj-1-b1"])
     assert evaluate(session, job)["r6"].status == "unmet"
 
 
@@ -297,18 +302,18 @@ def test_evidence_link_rejects_unknown_or_empty_sources(session):
     job = seed(session)
     candidate = profile_service.get_candidate(session)
     with pytest.raises(checklist.ChecklistError, match="exp-9-b9"):
-        checklist.link(session, job, candidate, "r4", ["exp-9-b9"])
+        _link(session, job, candidate, "r4", ["exp-9-b9"])
     with pytest.raises(checklist.ChecklistError):
-        checklist.link(session, job, candidate, "r4", [])
+        _link(session, job, candidate, "r4", [])
     with pytest.raises(checklist.ChecklistError):
-        checklist.link(session, job, candidate, "r404", ["exp-1-b1"])
+        _link(session, job, candidate, "r404", ["exp-1-b1"])
     assert job.evidence == {}
 
 
 def test_unlink_and_reject(session):
     job = seed(session)
     candidate = profile_service.get_candidate(session)
-    checklist.link(session, job, candidate, "r4", ["exp-1-b1", "exp-1-b2"])
+    _link(session, job, candidate, "r4", ["exp-1-b1", "exp-1-b2"])
     checklist.unlink(session, job, "r4", "exp-1-b1")
     assert job.evidence["r4"].sources == ["exp-1-b2"]
     checklist.unlink(session, job, "r4", "exp-1-b2")
@@ -317,14 +322,14 @@ def test_unlink_and_reject(session):
     assert job.evidence["r4"].rejected == ["proj-1-b1"]
     assert evaluate(session, job)["r4"].status == "unknown"
     # Linking a rejected item later is the user's choice and clears the rejection.
-    checklist.link(session, job, candidate, "r4", ["proj-1-b1"])
+    _link(session, job, candidate, "r4", ["proj-1-b1"])
     assert job.evidence["r4"].rejected == []
 
 
 def test_evidence_removed_from_the_profile_is_reported(session):
     job = seed(session)
     candidate = profile_service.get_candidate(session)
-    checklist.link(session, job, candidate, "r4", ["exp-1-b1"])
+    _link(session, job, candidate, "r4", ["exp-1-b1"])
     edited = candidate.profile.model_dump()
     edited["experience"][0]["bullets"].pop(0)
     profile_service.save(session, edited)
@@ -336,7 +341,7 @@ def test_evidence_removed_from_the_profile_is_reported(session):
 def test_changed_evidence_requires_reconfirmation(session, change):
     job = seed(session)
     candidate = profile_service.get_candidate(session)
-    checklist.link(session, job, candidate, "r4", ["exp-1-b1"])
+    _link(session, job, candidate, "r4", ["exp-1-b1"])
     old_hash = job.evidence["r4"].source_hashes["exp-1-b1"]
     edited = candidate.profile.model_dump()
     entry = edited["experience"][0]
@@ -354,7 +359,7 @@ def test_changed_evidence_requires_reconfirmation(session, change):
     assert [e.id for e in result.changed_evidence] == ["exp-1-b1"]
     assert "needs confirmation" in result.basis
     assert checklist.confirmed_source_ids(job.evidence["r4"], candidate.profile) == []
-    checklist.link(session, job, candidate, "r4", ["exp-1-b1"])
+    _link(session, job, candidate, "r4", ["exp-1-b1"])
     assert job.evidence["r4"].source_hashes["exp-1-b1"] != old_hash
     assert evaluate(session, job)["r4"].status == checklist.MET
     assert not evaluate(session, job)["r4"].changed_evidence
@@ -363,7 +368,7 @@ def test_changed_evidence_requires_reconfirmation(session, change):
 def test_confirmation_survives_unrelated_contact_and_sibling_bullet_edits(session):
     job = seed(session)
     candidate = profile_service.get_candidate(session)
-    checklist.link(session, job, candidate, "r4", ["exp-1-b1"])
+    _link(session, job, candidate, "r4", ["exp-1-b1"])
     edited = candidate.profile.model_dump()
     edited["contact"]["phone"] = "+1 555 0199"
     edited["experience"][0]["bullets"][1]["text"] = "Automated customer reports"
@@ -376,7 +381,7 @@ def test_confirmation_survives_unrelated_contact_and_sibling_bullet_edits(sessio
 def test_entry_evidence_is_invalidated_when_its_bullets_change(session):
     job = seed(session)
     candidate = profile_service.get_candidate(session)
-    checklist.link(session, job, candidate, "r4", ["exp-1"])
+    _link(session, job, candidate, "r4", ["exp-1"])
     edited = candidate.profile.model_dump()
     edited["experience"][0]["bullets"][0]["text"] = "Answered customer support phone calls"
     profile_service.save(session, edited)
@@ -386,12 +391,12 @@ def test_entry_evidence_is_invalidated_when_its_bullets_change(session):
 def test_linking_another_source_does_not_reconfirm_changed_existing_evidence(session):
     job = seed(session)
     candidate = profile_service.get_candidate(session)
-    checklist.link(session, job, candidate, "r4", ["exp-1-b1"])
+    _link(session, job, candidate, "r4", ["exp-1-b1"])
     old_hash = job.evidence["r4"].source_hashes["exp-1-b1"]
     edited = candidate.profile.model_dump()
     edited["experience"][0]["bullets"][0]["text"] = "Answered customer support phone calls"
     profile_service.save(session, edited)
-    checklist.link(session, job, candidate, "r4", ["proj-1-b1"])
+    _link(session, job, candidate, "r4", ["proj-1-b1"])
     assert job.evidence["r4"].source_hashes["exp-1-b1"] == old_hash
     result = evaluate(session, job)["r4"]
     assert [e.id for e in result.evidence] == ["proj-1-b1"]
@@ -406,7 +411,7 @@ def test_legacy_links_load_conservatively_and_can_be_reconfirmed(session):
     session.refresh(job)
     assert evaluate(session, job)["r4"].status == checklist.UNKNOWN
     assert [e.id for e in evaluate(session, job)["r4"].changed_evidence] == ["exp-1-b1"]
-    checklist.link(session, job, candidate, "r4", ["exp-1-b1"])
+    _link(session, job, candidate, "r4", ["exp-1-b1"])
     session.refresh(job)
     assert evaluate(session, job)["r4"].status == checklist.MET
     assert job.evidence["r4"].source_hashes["exp-1-b1"]

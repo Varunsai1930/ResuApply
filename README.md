@@ -20,7 +20,11 @@ Create profile → Add job → Review requirements
 
 ## Run it
 
-Requires Python 3.12. These are the commands used to verify the app on macOS.
+Requires Python 3.12 and Git. Nothing else is installed system-wide: the app keeps its packages in a `.venv` folder inside the project and its data in `data/`.
+
+### macOS and Linux
+
+These are the commands used to verify the app on macOS. Linux uses the same ones.
 
 ```bash
 git clone https://github.com/Varunsai1930/ResuApply.git
@@ -40,6 +44,35 @@ Run the tests:
 ```bash
 .venv/bin/python -m pytest
 ```
+
+### Windows
+
+The app has no platform-specific code, but it has not yet been verified on Windows. If a step fails, please [open an issue](https://github.com/Varunsai1930/ResuApply/issues) with the command and its output.
+
+1. Install **Python 3.12** from [python.org](https://www.python.org/downloads/windows/) (keep **py launcher** selected in the installer), or run `winget install Python.Python.3.12`. Install [Git for Windows](https://git-scm.com/download/win) if you don't have it.
+2. In **PowerShell** or **Command Prompt**, run:
+
+```powershell
+git clone https://github.com/Varunsai1930/ResuApply.git
+cd ResuApply
+py -3.12 -m venv .venv
+.venv\Scripts\python -m pip install -r requirements-dev.txt
+copy .env.example .env
+.venv\Scripts\python -m app
+```
+
+Then open <http://127.0.0.1:8000>. Stop the server with Ctrl+C.
+
+Run the tests with `.venv\Scripts\python -m pytest`.
+
+Notes for Windows:
+
+- The commands call `.venv\Scripts\python` directly, so you don't need to activate the environment. This also avoids PowerShell's script execution policy, which blocks `Activate.ps1` by default.
+- `py -3.12` picks Python 3.12 even if another version is your default. If `py` isn't found, reinstall Python with the py launcher option, or use the full path to `python.exe`.
+- With [uv](https://docs.astral.sh/uv/): `uv venv --python 3.12 .venv`, then `uv pip install --python .venv\Scripts\python.exe -r requirements-dev.txt`.
+- Edit `.env` in any text editor (for example `notepad .env`) to add your OpenRouter key.
+- To start over, stop the app and delete `data\resuapply.db`.
+- Wherever this README sets a variable in front of a command (for example `RESUAPPLY_DATA_DIR=data/demo` for the local AI stand-in), set it first. In PowerShell: `$env:RESUAPPLY_DATA_DIR = "data\demo"`. In Command Prompt: `set RESUAPPLY_DATA_DIR=data\demo`. Then run the command with `.venv\Scripts\python` in place of `.venv/bin/python`. The variable lasts until you close that window.
 
 ### Configuration
 
@@ -91,7 +124,7 @@ Regenerating creates a separate proposal and leaves the accepted resume availabl
 
 ### Answer questions, approve and record what you submitted
 
-Open a job's **Questions** section and add the questions from the employer's form, one at a time, with **Required** (ticked by default) and an optional length limit in characters or words. Each question is sorted by fixed keyword rules into a category, shown beside it:
+Open a job's **Questions** section and add the questions from the employer's form, one at a time, with **Required** (ticked by default) and an optional length limit in characters or words. Each question is sorted by fixed rules into a category, shown beside it. Factual answers require a request for a specific field: mentioning email or university in a narrative question does not fill in contact or school details. A field label may carry a format hint such as **(MM/YYYY)**, **(optional)**, **(with country code)** or **(City, State)**; any other bracketed text, like "Name (of your reference)", leaves the question for you to categorize. A **Graduation year** question is yours to answer, because the profile stores a date.
 
 - **Factual** (name, email, school, graduation date and similar): filled from your profile every time and labelled **From profile**. If the profile has no value, the row links to **Profile** to add it; you can also answer it yourself. **First name** and **Last name** questions are the exception: your profile stores your full name only, and ResuApply never splits it, so you type the part asked for. Questions added before this rule follow it too.
 - **Sensitive-factual** (work authorization, sponsorship): the profile value is shown but nothing is filled in until you press **Confirm this answer**. Until then the label is **User input required**. If the profile value changes later, you confirm again. The value comes from your authorization record for the country the question names: an explicit country name first, then the abbreviations **US**, **U.S.** or **USA** (an ordinary "Tell us …" never counts as the US). A question that names several countries, or a place ResuApply can't map to one country, stays unknown for you to answer. Only a question that names no country is answered from your single record, when you have exactly one.
@@ -99,7 +132,9 @@ Open a job's **Questions** section and add the questions from the employer's for
 - **Open-ended** (why do you want this role, describe a project): write an answer, or choose **Draft open answers with AI**. Drafts use the same approved, reduced context as tailoring, cite the profile items they are built from, and are checked against your profile and the question's length limit. A draft is labelled **AI draft (pending review)** and is not an answer until you press **Accept draft** (or **Discard draft**); accepting checks it again against your current profile. If you edit your profile so that it no longer supports an AI answer you accepted, **Draft open answers with AI** drafts that question again. The new draft appears as a **Replacement AI draft** below your accepted answer, which stays as it is: **Accept replacement** swaps it in (and clears the approval), **Discard replacement** keeps what you had, and a failed AI request changes nothing.
 - **Unrecognized**: shown as **Confirm category** until you choose one with **Set category**. The app refuses changes that would let it answer a question it must not (for example, a sensitive question becoming factual). **Change category** and **Remove question** are under each row; removing a question never reuses its ID.
 
-**Length limits.** A profile value longer than the question's limit is shown in full, labelled **Over the length limit**, with the count that exceeds it. ResuApply never shortens it: write a shorter answer yourself, or skip the question if it is optional. Until you do, it blocks approval, even on an optional question, and it can't be confirmed. A later profile edit that makes a value too long has the same effect.
+**Length limits.** A profile value longer than the question's limit is shown in full, labelled **Over the length limit**, with the count that exceeds it. ResuApply never shortens it: write a shorter answer yourself, or skip the question if it is optional. Until you do, it blocks approval, even on an optional question, and it can't be confirmed. A later profile edit that makes a value too long has the same effect. Character counters and server validation count Unicode code points consistently, including emoji.
+
+**Cited evidence.** An AI answer's numbers, credentials and technologies are checked against the sources it actually cites, including those entries' technology lists. Facts in an uncited summary or an unrelated entry do not support the answer. These checks run when drafting, accepting and approving. Optional questions can be explicitly skipped even after you accepted an answer, including a sensitive answer you decide to omit.
 
 Labels you will see on a question: **From profile**, **AI draft**, **User answer**, **Missing information**, **User input required**, **Over the length limit**, **Skipped (optional)**, **Confirm category** and **AI draft (pending review)**.
 
@@ -109,7 +144,7 @@ Labels you will see on a question: **From profile**, **AI draft**, **User answer
 
 **Record what you submitted.** Submit the application yourself on the employer's site. Then, under **Tracking**, choose **Applied**; while the package is Approved, **Save the approved package as what I submitted** is ticked by default. Recording it saves a **submitted package**: the job details and description, the resume exactly as rendered, the answers and the profile and job revisions, listed under **Submitted packages** in the history. Open one to see it as submitted, including **Open the resume as submitted** for a print view of the frozen resume. Later changes to your profile or the job never alter it, though they mark the unsubmitted package Stale. Choose Applied with the box unticked, or without an approved package, to record a plain status change.
 
-**Pages that are out of date.** **Confirm this answer**, **Accept draft**, **Approve package** and **Save the approved package as what I submitted** each apply to exactly what your page showed. If something changed since you opened it (in another tab, or by a profile or job edit), the action is refused, nothing is saved, and the workspace shows the current content with a message to review it again before repeating the action. Two tabs adding questions or answers at the same time both keep their changes, and question IDs are never repeated.
+**Pages that are out of date.** **Confirm this answer**, **Accept draft**, **Approve package** and **Save the approved package as what I submitted** each apply to exactly what your page showed. Evidence confirmations also cover the source content you saw: if it changed, review it again before linking or reconfirming it. Job and requirement editors reject saves against an older revision. They keep your entered values, show the version saved now beside them, and save yours over it only when you tick **Save mine over it** (or **Save mine over them**). If it changed yet again, you compare again. Submitted-package review includes the saved job URL; changing only that URL requires a fresh review before recording a snapshot, without requiring a new resume. Overlapping question, answer, evidence, override, status and note saves preserve unrelated changes, and question and requirement IDs are never repeated.
 
 ## What's included
 

@@ -104,8 +104,9 @@ def package_token(job: Job, application: Application, candidate: Candidate | Non
     """What an approve or record button vouches for.
 
     The resolved package, the question definitions, the accepted resume record, and the
-    candidate and job with their revisions. Pending drafts, unaccepted resume proposals and
-    tracking notes are left out: they don't change what would be approved or submitted.
+    candidate and every job field frozen in a snapshot, with their revisions. Pending drafts,
+    unaccepted resume proposals and tracking notes are left out: they don't change what would
+    be approved or submitted.
     """
     package = application.accepted_package
     return content_hash(_jsonable({
@@ -116,6 +117,7 @@ def package_token(job: Job, application: Application, candidate: Candidate | Non
         "profile_revision": candidate.revision if candidate else None,
         "job": job.id,
         "job_revision": job.revision,
+        "job_details": {name: getattr(job, name) for name in ("title", "company", "location", "url", "description")},
     }))
 
 
@@ -208,6 +210,10 @@ def review_state(job: Job, application: Application, candidate: Candidate | None
     if candidate is None or approval.profile_revision != candidate.revision or approval.job_revision != job.revision:
         return ReviewState.STALE
     if approval.content_hash != content_hash(resolved_package(job, application, candidate)):
+        return ReviewState.DRAFT
+    # Stored approvals may predate stricter validation rules. A matching hash
+    # does not make an answer valid if its cited evidence no longer passes.
+    if check(job, application, candidate)[0]:
         return ReviewState.DRAFT
     return ReviewState.APPROVED
 

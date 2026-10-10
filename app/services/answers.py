@@ -40,6 +40,7 @@ from . import profile as profile_service
 from . import questions as q_rules
 from . import transactions
 from .claims import claim_problems, detection_terms
+from .skills import canon
 from .text import content_hash, norm_text
 
 QUESTION_LIMIT = 2000  # characters of question text
@@ -128,16 +129,24 @@ def validate_answer(profile: Profile | dict, job: Job | dict, text: str, cited: 
     if bad:
         problems.append(f"unknown sources {', '.join(bad)}")
     else:
-        problems.extend(claim_problems(
-            text,
-            [sources[s].text for s in cited] + [prof.get("summary") or ""],
-            profile_service.skill_keys(prof),
-            detection_terms(prof, job),
-        ))
+        problems.extend(cited_claim_problems(text, sources, cited, detection_terms(prof, job)))
     length = check_length(text, limit, unit)
     if length:
         problems.append(length)
     return problems
+
+
+def cited_claim_problems(text: str, sources: dict[str, profile_service.Source], cited: list[str],
+                         extra_terms=()) -> list[str]:
+    """Check claims against only the cited text and its entry technologies.
+
+    Both canonical and shared-content validation use this rule. The summary and unrelated
+    skills cannot support a claim unless they are present in the cited evidence itself.
+    Callers validate source IDs before calling this helper.
+    """
+    evidence = [sources[source_id] for source_id in cited]
+    allowed = {canon(technology) for source in evidence for technology in source.technologies}
+    return claim_problems(text, [source.text for source in evidence], allowed, extra_terms)
 
 
 # ---------------------------------------------------------------- helpers

@@ -7,13 +7,15 @@ Sensitive, Open-ended or Unrecognized purely by keyword rules.
 Differences from ResuSkill: the profile is our ``Profile`` model (or its dict), and the
 graduation date comes from an education entry's ``end`` (there is no ``graduation`` field).
 
-Two rules are stricter than ResuSkill's:
+These rules are stricter than ResuSkill's:
 
 - First-name and last-name questions have their own keys and no profile value. The profile
   stores one full name, and splitting it is guesswork, so the user types name parts. Questions
   saved earlier with the key ``name`` are read through their text the same way.
 - Work authorization looks for an explicit country name before an abbreviation, and only the
   capitalized ``US`` (or ``U.S.``, ``USA``) counts as one: "Tell us ..." names no country.
+- Factual fields require an explicit field request. Mentioning email, school or location
+  inside a narrative or a commute question never supplies a profile value.
 """
 
 from __future__ import annotations
@@ -49,24 +51,61 @@ _AUTH = re.compile(
     r"(authori[sz]ed to work|work authori[sz]ation|eligible to work|right to work|"
     r"legally (?:able|permitted|allowed|entitled) to work)"
 )
-_FACTUAL = [
-    ("name", re.compile(
-        r"\b(full name|first name|last name|legal name|your name|preferred name|given name|family name|"
-        r"surname|forename)\b"
-    )),
-    ("email", re.compile(r"\be-?mail\b")),
-    ("phone", re.compile(r"\b(phone|mobile|telephone)\b")),
-    ("linkedin", re.compile(r"\blinkedin\b")),
-    ("github", re.compile(r"\bgithub\b")),
-    ("portfolio", re.compile(r"\b(portfolio|personal website|website)\b")),
-    ("graduation_date", re.compile(r"\bgraduat\w*\b")),
-    ("start_date", re.compile(r"\b(start date|available to start|earliest start|when can you start|availability)\b")),
-    ("gpa", re.compile(r"\b(gpa|grade point)\b")),
-    ("major", re.compile(r"\b(major|field of study|area of study)\b")),
-    ("degree", re.compile(r"\bdegree\b")),
-    ("school", re.compile(r"\b(school|university|college|institution)\b")),
-    ("location", re.compile(r"\b(where are you (?:currently )?(?:located|based)|current location|city|location)\b")),
+# Match the whole request, rather than a field word anywhere in it. In particular,
+# "email marketing experience" and "a project at university" ask for narratives.
+_FIELD_PREFIX = (
+    r"(?:please )?(?:(?:enter|provide|list|give(?: us)?|share|tell us|what is|what's|"
+    r"what are|which is)(?: your| the)? )?(?:your )?"
+)
+_OR = r" ?(?:/|or|and|&|,) ?"  # "Portfolio / Website", "City, State", "Major or field of study"
+_SITE = r"(?:portfolio|(?:personal )?website)"
+_STUDY = r"(?:major|field of study|area of study|concentration)"
+_FIELD_LABELS = [
+    ("name", r"(?:(?:legal|preferred) )?(?:name|full name|first name|last name|given name|"
+             r"family name|surname|forename|first (?:and|&|/) last name|first name / last name|"
+             r"full legal name|legal full name)"),
+    ("email", r"(?:(?:primary|personal|contact|work) )?e-?mail(?: address)?"),
+    ("phone", r"(?:(?:primary|contact|mobile|cell|home) )?(?:phone|mobile|telephone|cell)(?: number| no)?"),
+    ("linkedin", r"linkedin(?: profile)?(?: url| link)?"),
+    ("github", r"github(?: profile)?(?: url| link| username)?"),
+    ("portfolio", rf"(?:portfolio website|{_SITE}(?:{_OR}{_SITE})?)(?: url| link)?"),
+    ("graduation_date", r"(?:(?:expected|anticipated) )?graduation(?: date)?"),
+    ("start_date", r"(?:start|(?:earliest |available )?start date|availability(?: date)?)"),
+    ("gpa", r"(?:(?:current|cumulative) )?(?:gpa|grade point(?: average)?)"),
+    ("major", rf"(?:major|field of study|area of study)(?:{_OR}{_STUDY})?"),
+    ("degree", r"(?:degree|degree level)"),
+    ("school", r"(?:(?:school|university|college|institution)(?: name)?|"
+               r"name of (?:your |the )?(?:school|university|college|institution))"),
+    ("location", rf"(?:(?:current|home|residential) )?(?:location|city(?:{_OR}(?:state|province|country))?)"
+                 r"(?: of residence)?"),
 ]
+# Format hints employers append to a field label: "(MM/YYYY)", "(optional)", "(with country
+# code)". Only these are removed before matching; any other parenthetical keeps the request
+# unmatched, because "Name (of your reference)" is not asking for the candidate's name.
+_LOCATION_PART = r"(?:city|state|province|country|region|zip(?: code)?|postal code)"
+_TRAILING_HINT = re.compile(
+    r"\s*\((?:optional|required|if (?:any|applicable)|url|link|full url|"
+    r"(?:e\.g\.?|i\.e\.?|eg|ie|example|format)[:,]? [^()]*|"
+    r"[mdy]{1,4}(?: ?[/.-] ?[mdy]{1,4}){1,2}|"
+    r"(?:with|including|include) (?:the |your )?(?:country|area) code|"
+    r"(?:out of|on a) [\d.]+(?: scale)?|"
+    rf"{_LOCATION_PART}(?: ?(?:,|/|and|&) ?{_LOCATION_PART})+)\)$"
+)
+_FACTUAL = [(key, re.compile(_FIELD_PREFIX + label)) for key, label in _FIELD_LABELS]
+_FACTUAL.extend([
+    ("graduation_date", re.compile(
+        r"when (?:(?:do|will) you (?:expect to )?graduate|(?:is|was) your (?:expected )?graduation(?: date)?)"
+    )),
+    ("start_date", re.compile(
+        r"(?:when (?:can|could|are) you (?:available to )?start|what is the earliest (?:date )?you can start)"
+    )),
+    ("school", re.compile(
+        r"(?:which|what) (?:school|university|college|institution) "
+        r"(?:do you attend|are you attending|did you attend|did you graduate from)"
+    )),
+    ("degree", re.compile(r"what degree (?:are you pursuing|do you hold|have you earned)")),
+    ("location", re.compile(r"where are you (?:currently )?(?:located|based|living)")),
+])
 _RELOCATE = re.compile(r"\breloca\w*\b")
 _OPEN = re.compile(
     r"^(why|what|how|describe|tell us|explain|share|walk us|give an example|please describe)\b|"
@@ -109,6 +148,14 @@ def name_part(key: str, question: str) -> str | None:
     return None
 
 
+def _field_request(q: str) -> str:
+    """A normalized question without trailing punctuation, required markers or format hints."""
+    q = q.rstrip(" ?.!:*")
+    while match := _TRAILING_HINT.search(q):
+        q = q[:match.start()].rstrip(" ?.!:*")
+    return q
+
+
 def classify(text: str) -> tuple[str, str | None]:
     """Return (category, factual key) using explicit keyword rules."""
     q = norm_text(text)
@@ -122,8 +169,9 @@ def classify(text: str) -> tuple[str, str | None]:
         return SENSITIVE_FACTUAL, "sponsorship"
     if _RELOCATE.search(q):
         return UNKNOWN, None
+    request = _field_request(q)
     for key, regex in _FACTUAL:
-        if regex.search(q):
+        if regex.fullmatch(request):
             return FACTUAL, name_part(key, text) or key
     if _OPEN.search(q):
         return OPEN, None
@@ -201,6 +249,8 @@ def factual_value(key: str, question: str, profile: Profile | dict) -> str | Non
     latest = education[0] if education else {}
     if name_part(key, question):
         return None  # typed by the user: the stored full name is never split
+    if key not in ("authorization", "sponsorship") and classify(question) != (FACTUAL, key):
+        return None  # older keyword mappings must not fill narratives or ambiguous requests
     if key in ("name", "email", "phone", "location"):
         return contact.get(key) or None
     if key in ("linkedin", "github", "portfolio"):

@@ -26,6 +26,7 @@ from ..schemas.requirements import (
 from .countries import normalize_country
 from .profile import FieldError
 from .text import date_key, is_valid_date, norm_text, today_key
+from .transactions import write
 
 
 class RequirementsInvalid(Exception):
@@ -34,6 +35,10 @@ class RequirementsInvalid(Exception):
     def __init__(self, errors: list[FieldError]):
         super().__init__("Requirements rejected; nothing was saved.")
         self.errors = errors
+
+
+class RequirementsConflict(Exception):
+    """The full editor was opened against a different saved revision."""
 
 
 def _field(item: dict, name: str) -> str | None:
@@ -199,25 +204,31 @@ def validate_requirements(job: Job, items) -> tuple[list[Requirement], int]:
     return [Requirement.model_validate(r) for r in clean], counter
 
 
-def set_requirements(session: Session, job: Job, items) -> bool:
+def set_requirements(session: Session, job: Job, items, base_revision: int | None = None) -> bool:
     """Validate and save the job's requirements. Returns False when nothing changed.
 
     The job revision increases when the requirements change. Evidence links and
     overrides are kept only for requirements that are unchanged.
     """
-    reqs, counter = validate_requirements(job, items)
-    if reqs == job.requirements:
-        return False
-    old = {r.id: r for r in job.requirements}
-    unchanged = {r.id for r in reqs if old.get(r.id) == r}
-    job.requirements = reqs
-    job.evidence = {k: v for k, v in job.evidence.items() if k in unchanged}
-    job.overrides = {k: v for k, v in job.overrides.items() if k in unchanged}
-    job.requirement_counter = counter
-    job.revision += 1
-    job.updated_at = utcnow()
-    session.commit()
-    return True
+    reviewed_revision = job.revision if base_revision is None else base_revision
+    with write(session, job):
+        if reviewed_revision != job.revision:
+            raise RequirementsConflict(
+                "The job or requirements changed while you were editing. Your input is kept below. "
+                "Compare it with the saved requirements and the current description before saving again."
+            )
+        reqs, counter = validate_requirements(job, items)
+        if reqs == job.requirements:
+            return False
+        old = {r.id: r for r in job.requirements}
+        unchanged = {r.id for r in reqs if old.get(r.id) == r}
+        job.requirements = reqs
+        job.evidence = {k: v for k, v in job.evidence.items() if k in unchanged}
+        job.overrides = {k: v for k, v in job.overrides.items() if k in unchanged}
+        job.requirement_counter = counter
+        job.revision += 1
+        job.updated_at = utcnow()
+        return True
 
 
 def requirement(job: Job, req_id: str) -> Requirement | None:

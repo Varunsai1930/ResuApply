@@ -221,7 +221,7 @@ def suggest_evidence(session: Session, client: OpenRouterClient, settings: Setti
     targets = evidence_targets(job, candidate)
     if not targets:
         raise NothingToDo("Every requirement is already Met, Unmet or overridden, so there is nothing to suggest.")
-    inputs = {"context": context, "requirements": targets}
+    inputs = {"job_id": job.id, "context": context, "requirements": targets}
     key = cache_key(SUGGEST_EVIDENCE, prompts.SUGGEST_EVIDENCE_REVISION, client.model, inputs)
 
     allowed = outbound.source_ids(context)
@@ -269,6 +269,7 @@ class SuggestedSource:
     id: str
     text: str
     reason: str
+    review_token: str = ""
 
 
 @dataclass
@@ -301,14 +302,14 @@ def current_suggestions(session: Session, job: Job, candidate: Candidate | None,
                 and all(target in sent_targets for target in targets)
                 and candidate_run.cache_key == cache_key(
                     SUGGEST_EVIDENCE, prompts.SUGGEST_EVIDENCE_REVISION, settings.openrouter_model,
-                    {"context": context, "requirements": sent_targets},
+                    {"job_id": job.id, "context": context, "requirements": sent_targets},
                 ))
 
     # Reusing an older exact cache hit after reverting sharing/model choices must
     # display that result, even when a newer run exists for different inputs.
     exact = find_run(session, cache_key(
         SUGGEST_EVIDENCE, prompts.SUGGEST_EVIDENCE_REVISION, settings.openrouter_model,
-        {"context": context, "requirements": targets},
+        {"job_id": job.id, "context": context, "requirements": targets},
     )) if context is not None else None
     matching = exact if exact is not None and matches(exact) else None
     if matching is None and context is not None:
@@ -335,7 +336,8 @@ def current_suggestions(session: Session, job: Job, candidate: Candidate | None,
         if job.overrides.get(item["requirement_id"]):
             continue
         pending = [
-            SuggestedSource(i, sources[i].text, item.get("reason", ""))
+            SuggestedSource(i, sources[i].text, item.get("reason", ""),
+                            checklist.review_token(job, candidate.profile, item["requirement_id"], [i]))
             for i in item["source_ids"] if i in sources and i not in decided
         ]
         if pending:

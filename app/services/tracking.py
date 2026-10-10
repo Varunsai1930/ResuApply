@@ -13,6 +13,7 @@ from sqlalchemy.orm import Session
 from ..db import utcnow
 from ..models import Application
 from ..schemas.tracking import Note, StatusEvent, TrackingStatus
+from . import transactions
 
 NOTE_LIMIT = 5000
 
@@ -32,8 +33,10 @@ def change_status(
     today: date | None = None,
 ) -> StatusEvent:
     """Record a new tracking status with the date it happened (default today) and an optional note."""
-    event = apply_status(application, status, on, note, today)
-    session.commit()
+    with session.no_autoflush:
+        job = application.job
+    with transactions.write(session, job):
+        event = apply_status(application, status, on, note, today)
     return event
 
 
@@ -44,7 +47,7 @@ def apply_status(
     note: str = "",
     today: date | None = None,
 ) -> StatusEvent:
-    """Validate and apply a status change without committing, for callers that save more with it."""
+    """Stage a validated status change; the caller must already hold the application writer lock."""
     today = today or date.today()
     try:
         new_status = TrackingStatus((status or "").strip().lower())
@@ -75,9 +78,11 @@ def add_note(session: Session, application: Application, text: str) -> Note:
         raise TrackingError("Write a note first.", "text")
     if len(text) > NOTE_LIMIT:
         raise TrackingError(f"Keep the note under {NOTE_LIMIT:,} characters.", "text")
-    now = utcnow()
-    note = Note(text=text, at=now)
-    application.notes = [*application.notes, note]
-    application.updated_at = now
-    session.commit()
+    with session.no_autoflush:
+        job = application.job
+    with transactions.write(session, job):
+        now = utcnow()
+        note = Note(text=text, at=now)
+        application.notes = [*application.notes, note]
+        application.updated_at = now
     return note

@@ -37,6 +37,19 @@ def _render_job_form(request: Request, values: dict, errors: dict | None = None,
     )
 
 
+def reviewed_revision_of(base_revision: object, replace_revision: object = None) -> int | None:
+    """The saved revision an editor's input was reviewed against, or None when the form has none.
+
+    ``base_revision`` is the revision the editor was opened at. After a conflict, the editor
+    shows the saved version and offers ``replace_revision``: ticking it means the user compared
+    their input with that newer revision, so it takes precedence.
+    """
+    for raw in (replace_revision, base_revision):
+        if isinstance(raw, str) and raw.isascii() and raw.isdigit() and int(raw) >= 1:
+            return int(raw)
+    return None
+
+
 def _source_groups(candidate) -> list[dict]:
     """Profile items the user can link as evidence, grouped by entry, in profile order."""
     if candidate is None:
@@ -159,6 +172,7 @@ def workspace(request: Request, job_id: int, msg: str = "", session: Session = D
 def edit_job(request: Request, job_id: int, session: Session = Depends(get_session)):
     job = _job_or_404(session, job_id)
     values = {name: getattr(job, name) for name in ("title", "company", "description", "location", "url")}
+    values["base_revision"] = job.revision
     return _render_job_form(request, values, job=job)
 
 
@@ -171,15 +185,24 @@ def update_job(
     description: str = Form(""),
     location: str = Form(""),
     url: str = Form(""),
+    base_revision: str = Form(""),
+    replace_revision: str = Form(""),
     session: Session = Depends(get_session),
 ):
     job = _job_or_404(session, job_id)
-    values = {"title": title, "company": company, "description": description, "location": location, "url": url}
+    reviewed_revision = reviewed_revision_of(base_revision, replace_revision)
+    values = {"title": title, "company": company, "description": description, "location": location, "url": url,
+              "base_revision": str(reviewed_revision) if reviewed_revision else base_revision}
     try:
-        data = job_service.clean_input(**values)
+        data = job_service.clean_input(title, company, description, location, url)
     except job_service.JobInvalid as exc:
         return _render_job_form(request, values, exc.errors, job=job, status_code=422)
-    changed = job_service.update(session, job, data)
+    try:
+        if reviewed_revision is None:
+            raise job_service.JobChanged("The edit form has no valid job revision. Compare your changes with the saved job below.")
+        changed = job_service.update(session, job, data, reviewed_revision)
+    except job_service.JobChanged as exc:
+        return _render_job_form(request, values, {"base_revision": str(exc)}, job=job, status_code=409)
     return RedirectResponse(f"/jobs/{job.id}?msg={'job_updated' if changed else 'job_unchanged'}", status_code=303)
 
 

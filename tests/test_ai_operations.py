@@ -21,6 +21,11 @@ from app.services.requirements import set_requirements
 from tests.conftest import DEMO_JOB, DEMO_REQUIREMENTS, SAMPLE_PROFILE, TEST_MODEL, make_settings, tool_response
 
 
+def _link(session, job, candidate, req_id, source_ids):
+    checklist.link(session, job, candidate, req_id, source_ids,
+                   reviewed_token=checklist.review_token(job, candidate.profile, req_id, source_ids))
+
+
 def parsed(requirements=DEMO_REQUIREMENTS) -> dict:
     return tool_response("return_requirements", {"requirements": copy.deepcopy(requirements)})
 
@@ -295,7 +300,7 @@ def test_suggestions_are_shown_but_change_nothing_until_accepted(session, assess
     assert [s.id for s in view.by_requirement["r4"]] == ["exp-1-b1", "exp-1"]
     assert view.by_requirement["r4"][0].reason == "Flask REST API"
 
-    checklist.link(session, assessed, candidate, "r4", ["exp-1-b1"])
+    _link(session, assessed, candidate, "r4", ["exp-1-b1"])
     checklist.reject_suggestion(session, assessed, "r4", "exp-1")
     assert operations.current_suggestions(session, assessed, candidate, trusted).by_requirement == {}
     assert {r.id: r.status for r in checklist.evaluate(assessed, candidate.profile)}["r4"] == "met"
@@ -376,7 +381,7 @@ def test_remaining_targets_stay_visible_after_a_decision(session, assessed, cand
         {"requirement_id": "r5", "source_ids": ["proj-1-b1", "exp-1-b2"], "reason": "Experience"},
     ))
     operations.suggest_evidence(session, ai_client, trusted, assessed, candidate)
-    checklist.link(session, assessed, candidate, "r4", ["exp-1-b1"])
+    _link(session, assessed, candidate, "r4", ["exp-1-b1"])
     checklist.reject_suggestion(session, assessed, "r5", "proj-1-b1")
     view = operations.current_suggestions(session, assessed, candidate, trusted)
     assert not view.out_of_date and list(view.by_requirement) == ["r5"]
@@ -436,7 +441,7 @@ def test_nothing_to_suggest_sends_nothing(session, assessed, candidate, fake_ai,
 
 
 def test_quota_error_keeps_evidence(session, assessed, candidate, fake_ai, ai_client, trusted):
-    checklist.link(session, assessed, candidate, "r4", ["exp-1-b1"])
+    _link(session, assessed, candidate, "r4", ["exp-1-b1"])
     fake_ai.push((402, {"error": {"code": 402, "message": "Insufficient credits"}}))
     with pytest.raises(AIError) as exc:
         operations.suggest_evidence(session, ai_client, trusted, assessed, candidate)

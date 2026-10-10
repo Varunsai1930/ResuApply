@@ -8,7 +8,7 @@ from threading import Barrier
 
 from app.services import profile
 from tests.conftest import SAMPLE_JOB
-from tests.test_routes import client_profile, profile_form, review_and_save
+from tests.test_routes import client_profile, hidden, profile_form, review_and_save
 
 
 def test_overlapping_profile_save_requests_return_one_conflict(client, sample_profile, monkeypatch):
@@ -53,7 +53,8 @@ def test_malformed_url_create_preserves_the_submitted_form(client):
 def test_malformed_url_edit_preserves_proposal_and_saved_job(client):
     created = client.post("/jobs", data=SAMPLE_JOB, follow_redirects=False)
     path = created.headers["location"].split("?", 1)[0]
-    response = client.post(path + "/edit", data=SAMPLE_JOB | {"title": "Unsaved title", "url": "https://[example.com"})
+    revision = hidden(client.get(path + "/edit").text, "base_revision")
+    response = client.post(path + "/edit", data=SAMPLE_JOB | {"title": "Unsaved title", "url": "https://[example.com", "base_revision": revision})
     assert response.status_code == 422
     assert 'value="Unsaved title"' in response.text
     assert 'value="https://[example.com"' in response.text

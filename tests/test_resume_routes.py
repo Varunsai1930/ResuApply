@@ -135,7 +135,9 @@ def test_job_revision_change_blocks_print(client, sample_profile):
     job_id = setup(client, sample_profile)
     review = manual_proposal(client, job_id)
     accept(client, job_id, review)
-    client.post(f"/jobs/{job_id}/edit", data=SAMPLE_JOB | {"description": "Updated job description."})
+    revision = hidden(client.get(f"/jobs/{job_id}/edit").text, "base_revision")
+    changed = client.post(f"/jobs/{job_id}/edit", data=SAMPLE_JOB | {"description": "Updated job description.", "base_revision": revision})
+    assert changed.status_code == 200
     assert client.get(f"/jobs/{job_id}/resume/print").status_code == 409
 
 

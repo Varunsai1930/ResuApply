@@ -149,6 +149,8 @@ Questions are categorized by explicit rules:
 
 Answer labels: **From profile**, **AI draft**, **User answer**, **Missing information**, **User input required**. Approved non-sensitive answers can be saved to the answer bank and offered as a starting point for similar questions.
 
+Factual field requests are distinguished from narrative questions that mention those fields. AI answer validation uses only cited source text and those sources' technology lists; an uncited summary or unrelated skill cannot justify a claim. Optional accepted answers can still be explicitly skipped. Browser counters and server validation count characters as Unicode code points.
+
 Preparation and tracking are kept separate:
 
 - **Review state:** Draft, Approved or Stale.
@@ -167,7 +169,11 @@ Editing package content clears approval. Changing the profile or job marks unsub
 
 Confirming a profile value, accepting an AI draft, approving and recording a submitted package apply only to what the user's page showed. If the stored content changed since, the action is refused and the current content is shown for review.
 
+Evidence linking and reconfirmation likewise bind to the displayed sources. Job and requirement edits reject stale revisions; related read-modify-write operations lock and reload stored rows so overlapping saves preserve other evidence, overrides, status events and notes. Evidence suggestion caches remain associated with the job displaying them.
+
 When recording Applied, the user confirms which approved package they used; it is saved as a submitted snapshot, with its rendered resume and the profile revision it was built from. Later profile changes never alter it.
+
+Snapshot review covers every frozen job field, including the posting URL. A URL-only edit invalidates the old snapshot review token without requiring resume regeneration.
 
 ## 4. V2 additions
 

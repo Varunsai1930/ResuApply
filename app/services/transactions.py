@@ -1,4 +1,4 @@
-"""One writer at a time for changes to a job's questions, answers and package.
+"""One writer at a time for changes to a job and its application.
 
 The questions and answers are JSON lists, saved whole. A request that read them, then saved
 its edited copy, would silently undo whatever another request saved in between. So every
@@ -28,10 +28,13 @@ def lock_and_reload(session: Session, job: Job, candidate: Candidate | None = No
     with session.no_autoflush:
         session.execute(update(Application).where(Application.job_id == job.id)
                         .values(updated_at=Application.updated_at).execution_options(synchronize_session=False))
-    session.refresh(job)
-    session.refresh(job.application)
-    if candidate is not None:
-        session.refresh(candidate)
+        # Refreshes can themselves trigger autoflush. Keep it disabled until every
+        # cached row has been replaced, otherwise a dirty application could flush
+        # an older JSON list while the job is being refreshed.
+        session.refresh(job)
+        session.refresh(job.application)
+        if candidate is not None:
+            session.refresh(candidate)
 
 
 @contextmanager

@@ -30,7 +30,7 @@ from ..services import outbound
 from ..services import profile as profile_service
 from ..services import resume as resume_service
 from ..services.answers import AnswerError
-from ..services.claims import claim_problems, detection_terms
+from ..services.claims import detection_terms
 from . import operations, prompts
 from .client import AIError, OpenRouterClient, ResultProblem
 from .operations import NothingToDo
@@ -116,8 +116,6 @@ def draft_answers(session: Session, client: OpenRouterClient, settings: Settings
         shared = resume_service._shared_profile(context)
         shared_sources = profile_service.sources(shared)
         shared_ids = outbound.source_ids(context)
-        shared_skills = profile_service.skill_keys(shared)
-        shared_summary = (context.get("summary") or {}).get("text", "")
         extra = detection_terms(candidate.profile, job)
 
         def validate(arguments: dict) -> list[dict]:
@@ -142,9 +140,8 @@ def draft_answers(session: Session, client: OpenRouterClient, settings: Settings
                     continue
                 found = answer_service.validate_answer(candidate.profile, job, text, cited, target["limit"], target["unit"])
                 if not found:  # also check the exact (possibly reworded) content that was shared
-                    found = [f"shared content: {p}" for p in claim_problems(
-                        text, [shared_sources[s].text for s in cited] + ([shared_summary] if shared_summary else []),
-                        shared_skills, extra,
+                    found = [f"shared content: {p}" for p in answer_service.cited_claim_problems(
+                        text, shared_sources, cited, extra,
                     )]
                 problems.extend(f"{qid}: {p}" for p in found)
                 content.append({"question_id": qid, "text": text, "sources": cited})

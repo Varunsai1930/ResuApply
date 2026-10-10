@@ -25,7 +25,7 @@ def create_job(client: TestClient) -> int:
 def requirement_form(requirements: list[dict]) -> dict[str, str]:
     """Encode requirements the way the editor submits them."""
     tri = {True: "yes", False: "no", None: ""}
-    fields: dict[str, str] = {}
+    fields: dict[str, str] = {"base_revision": "1"}
     for i, req in enumerate(requirements):
         p = f"req-{i}"
         crit = req.get("criterion") or {}
@@ -55,6 +55,12 @@ def setup(client: TestClient, sample_profile: dict, requirements: bool = True) -
 def card(html: str, req_id: str) -> str:
     start = html.index(f'id="req-{req_id}"')
     return html[start:html.index("</article>", start)]
+
+
+def evidence_token(client, job_id, req_id):
+    page = card(client.get(f"/jobs/{job_id}").text, req_id)
+    form = re.search(r'<form[^>]+action="[^"]+/evidence" class="stack">(.*?)</form>', page, re.DOTALL)
+    return re.search(r'name="review_token" value="([^"]+)"', form.group(1)).group(1)
 
 
 # ---------------------------------------------------------------- manual requirements and checklist
@@ -89,7 +95,7 @@ def test_editor_round_trips_saved_requirements(client, sample_profile):
 def editor_fields(html: str) -> dict[str, str]:
     html = html.split("<template", 1)[0]
     fields = {}
-    for match in re.finditer(r'<(input|textarea|select)[^>]*name="(req-[^"]+)"[^>]*>', html):
+    for match in re.finditer(r'<(input|textarea|select)[^>]*name="(req-[^"]+|base_revision)"[^>]*>', html):
         tag, name = match.groups()
         if tag == "input":
             value = re.search(r'value="([^"]*)"', match.group(0))
@@ -117,7 +123,7 @@ def test_editor_rejects_bad_excerpts_and_keeps_input(client, sample_profile):
 
 def test_link_evidence_and_override_over_http(client, sample_profile):
     job_id = setup(client, sample_profile)
-    linked = client.post(f"/jobs/{job_id}/requirements/r4/evidence", data={"sources": ["exp-1-b1", "proj-1-b1"]}, follow_redirects=False)
+    linked = client.post(f"/jobs/{job_id}/requirements/r4/evidence", data={"sources": ["exp-1-b1", "proj-1-b1"], "review_token": evidence_token(client, job_id, "r4")}, follow_redirects=False)
     assert linked.status_code == 303
     page = client.get(f"/jobs/{job_id}").text
     apis = card(page, "r4")
@@ -133,7 +139,7 @@ def test_link_evidence_and_override_over_http(client, sample_profile):
     java = card(client.get(f"/jobs/{job_id}").text, "r5")
     assert "check-met" in java and "Your override: Kafka in a class project (computed: Unknown)" in java
 
-    bad = client.post(f"/jobs/{job_id}/requirements/r4/evidence", data={"sources": ["exp-9-b9"]})
+    bad = client.post(f"/jobs/{job_id}/requirements/r4/evidence", data={"sources": ["exp-9-b9"], "review_token": evidence_token(client, job_id, "r4")})
     assert bad.status_code == 422 and "Unknown profile item(s): exp-9-b9" in bad.text
 
 
@@ -249,7 +255,7 @@ def test_suggest_evidence_asks_for_sharing_approval_first(ai_app_client, fake_ai
     apis = card(client.get(f"/jobs/{job_id}").text, "r4")
     assert "AI suggestions" in apis and "Model's reason: Describes building a REST API" in apis
     assert "check-unknown" in apis  # a suggestion is not evidence
-    client.post(f"/jobs/{job_id}/requirements/r4/suggestions/accept", data={"source": "exp-1-b1"})
+    client.post(f"/jobs/{job_id}/requirements/r4/suggestions/accept", data={"source": "exp-1-b1", "review_token": evidence_token(client, job_id, "r4")})
     apis = card(client.get(f"/jobs/{job_id}").text, "r4")
     assert "check-met" in apis and "AI suggestions" not in apis
 

@@ -83,9 +83,28 @@
 
 {% if notice %}<p class="notice" role="status">{{ notice }}</p>{% endif %}
 {{ m.error_summary(errors, 'The requirements were not saved. Please fix these problems') }}
+{% if conflict %}
+<section class="card" aria-labelledby="saved-requirements">
+  <h2 id="saved-requirements">Requirements as they are saved now (revision {{ job.revision }})</h2>
+  {% if job.requirements %}
+  <ul>
+    {% for req in job.requirements %}
+    <li><span class="id-badge">{{ req.id }}</span> {{ req.text }} <span class="meta">({{ req.importance | replace('_', ' ') }}; “{{ req.excerpt }}”)</span></li>
+    {% endfor %}
+  </ul>
+  {% else %}
+  <p>No requirements are saved now.</p>
+  {% endif %}
+  <p class="hint">Your input is in the editor below and the current description is beside it. Saving yours replaces this list; evidence and overrides are kept only for requirements that stay exactly the same. You can also <a href="/jobs/{{ job.id }}/requirements/edit">start again from the saved list</a>.</p>
+</section>
+{% endif %}
 
 <div class="editor-layout">
   <form method="post" action="/jobs/{{ job.id }}/requirements" class="editor-main" data-guard novalidate>
+    <input type="hidden" name="base_revision" value="{{ base_revision }}">
+    {% if conflict %}
+    <label class="check"><input type="checkbox" id="replace_revision" name="replace_revision" value="{{ job.revision }}"> I compared my input with the saved requirements above. Save mine over them.</label>
+    {% endif %}
     <div id="requirement-list" class="entry-list">
       {% for row in rows %}{{ requirement_row(row) }}{% endfor %}
     </div>
