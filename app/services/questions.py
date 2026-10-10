@@ -52,6 +52,7 @@ _AUTH = re.compile(
     r"(authori[sz]ed to work|work authori[sz]ation|eligible to work|right to work|"
     r"legally (?:able|permitted|allowed|entitled) to work)"
 )
+_NEGATED = re.compile(r"\b(?:not|no|never|without)\b|n['’]t\b")
 # Match the whole request, rather than a field word anywhere in it. In particular,
 # "email marketing experience" and "a project at university" ask for narratives.
 _FIELD_PREFIX = (
@@ -266,6 +267,13 @@ def factual_value(key: str, question: str, profile: Profile | dict) -> str | Non
         return latest.get("field") or None
     if key == "gpa":
         return latest.get("gpa") or None
+    if key in ("authorization", "sponsorship"):
+        q = norm_text(question)
+        # A stored Boolean answers only the positive, single-fact question.
+        # Negation and combined authorization/sponsorship conditions need the
+        # user's answer rather than a keyword-based guess at their meaning.
+        if _NEGATED.search(q) or (_AUTH.search(q) and _SPONSOR.search(q)):
+            return None
     if key == "authorization":
         record = _country(question, prof)
         return _yes_no(record.get("authorized")) if record else None

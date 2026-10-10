@@ -125,6 +125,25 @@ def test_unknown_authorization_stays_unknown(profile):
     assert factual_value("authorization", "Authorized to work?", with_authorization(profile)) is None
 
 
+@pytest.mark.parametrize("question", [
+    "Are you authorized to work in the United States without sponsorship?",
+    "Can you work in the United States without requiring visa sponsorship?",
+    "Do you NOT require sponsorship in the United States?",
+    "Don't you need sponsorship in the United States?",
+    "Do you not need sponsorship now or in the future in the United States?",
+    "Are you authorized to work in the United States and require sponsorship?",
+    "Are you not authorized to work in the United States?",
+])
+@pytest.mark.parametrize("authorized,sponsorship", [(True, True), (True, False), (False, False), (True, None)])
+def test_negated_and_compound_authorization_questions_need_the_users_answer(profile, question, authorized, sponsorship):
+    candidate = with_authorization(profile, Authorization(
+        country="US", authorized=authorized, requires_sponsorship=sponsorship,
+    ))
+    category, key = classify(question)
+    assert category == "sensitive_factual"
+    assert factual_value(key, question, candidate) is None
+
+
 # ---------------------------------------------------------------- countries named in a question
 
 def us_and_canada(profile: Profile) -> Profile:
