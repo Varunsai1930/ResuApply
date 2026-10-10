@@ -200,3 +200,31 @@ def test_sharing_only_returns_to_a_plain_job_url():
     assert _safe_next("/jobs/12") == "/jobs/12"
     for value in ("/jobs/12\n", "/jobs/12\r\nSet-Cookie: x=1", "/jobs/١", "//evil.example", "/jobs/12/../x", "javascript:alert(1)", ""):
         assert _safe_next(value) == "", repr(value)
+
+
+def test_errors_use_the_app_error_page(client, monkeypatch):
+    from fastapi.testclient import TestClient
+
+    from app.services import jobs as job_service
+    from tests.conftest import BASE_URL
+
+    job_id = create_job(client)
+    for path in ("/jobs/abc", "/jobs/1.5", f"/jobs/{job_id}/snapshots/x"):
+        response = client.get(path)
+        assert response.status_code == 404 and response.headers["content-type"].startswith("text/html"), path
+        assert "There is no page at this address." in response.text and "Back to jobs" in response.text
+
+    damaged = client.post(f"/jobs/{job_id}/requirements/extract", data={"force": "abc"})
+    assert damaged.status_code == 422 and "incomplete or damaged" in damaged.text and "Back to jobs" in damaged.text
+
+    too_large = client.post("/jobs", data={"title": "T", "company": "C", "description": "x" * 17_000_000})
+    assert too_large.status_code == 400 and "too large to read" in too_large.text
+
+    def broken(*args, **kwargs):
+        raise RuntimeError("simulated failure")
+
+    monkeypatch.setattr(job_service, "list_all", broken)
+    quiet = TestClient(client.app, base_url=BASE_URL, raise_server_exceptions=False)
+    response = quiet.get("/jobs")
+    assert response.status_code == 500 and response.headers["content-type"].startswith("text/html")
+    assert "Something unexpected went wrong" in response.text and "simulated failure" not in response.text

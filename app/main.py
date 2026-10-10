@@ -6,10 +6,12 @@ tests can point it at a temporary database.
 
 from __future__ import annotations
 
+import re
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request
 from fastapi.responses import RedirectResponse
 from fastapi.staticfiles import StaticFiles
+from fastapi.exceptions import RequestValidationError
 from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 
@@ -23,6 +25,10 @@ from .security import NoFramingMiddleware, SameOriginMiddleware
 from .services.answers import upgrade_stored_questions
 from .services.package import rewrite_approvals_with_stored_rules, upgrade_stored_approvals
 from .templating import STATIC_DIR, templates
+
+
+# Starlette's messages for a form over its field-count or field-size limits.
+FORM_TOO_LARGE = re.compile(r"Too many (fields|files)|exceeded maximum size", re.IGNORECASE)
 
 
 def create_app(settings: Settings | None = None, ai_transport: httpx.BaseTransport | None = None) -> FastAPI:
@@ -73,12 +79,34 @@ def create_app(settings: Settings | None = None, ai_transport: httpx.BaseTranspo
         # Browsers ask for /favicon.ico even when a page links its icon; point them to the SVG.
         return RedirectResponse("/static/favicon.svg", status_code=301)
 
+    def error_page(request: Request, status_code: int, detail: str):
+        return templates.TemplateResponse(
+            request, "error.html", {"status_code": status_code, "detail": detail, "active": None},
+            status_code=status_code,
+        )
+
     @app.exception_handler(StarletteHTTPException)
     async def http_error(request: Request, exc: StarletteHTTPException):
-        return templates.TemplateResponse(
-            request, "error.html", {"status_code": exc.status_code, "detail": exc.detail, "active": None},
-            status_code=exc.status_code,
-        )
+        detail = exc.detail
+        if exc.status_code == 400 and isinstance(detail, str) and FORM_TOO_LARGE.search(detail):
+            detail = ("The form was too large to read, so nothing was saved. "
+                      "Go back, shorten or split what you entered, and try again.")
+        return error_page(request, exc.status_code, detail)
+
+    @app.exception_handler(RequestValidationError)
+    async def invalid_request(request: Request, exc: RequestValidationError):
+        # A malformed number in the address (/jobs/abc) names no page; anything else is a
+        # damaged or incomplete form, which only a hand-made request can produce.
+        if any(error.get("loc", ("",))[0] == "path" for error in exc.errors()):
+            return error_page(request, 404, "There is no page at this address.")
+        return error_page(request, 422, "The form arrived incomplete or damaged, so nothing was saved. "
+                                        "Go back, reload the page and try again.")
+
+    @app.exception_handler(Exception)
+    async def unexpected_error(request: Request, exc: Exception):
+        # Starlette still logs the exception; the user gets the app's page instead of plain text.
+        return error_page(request, 500, "Something unexpected went wrong, and the action may not have been "
+                                        "saved. Go back, reload the page and check before trying again.")
 
     return app
 
