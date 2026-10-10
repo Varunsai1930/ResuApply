@@ -31,7 +31,7 @@ from dataclasses import dataclass
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from ..db import utcnow
+from ..db import get_by_id, utcnow
 from ..models import Application, AnswerBankEntry, Candidate, Job
 from ..schemas.package import Answer, AnswerDraft, Question
 from ..schemas.profile import Profile
@@ -352,7 +352,7 @@ def set_answer(session: Session, job: Job, application: Application, qid: str, t
         if origin == "bank":
             if question.category in q_rules.SENSITIVE_CATEGORIES:
                 raise AnswerError("Sensitive questions are never answered from the answer bank.")
-            if bank_id is None or session.get(AnswerBankEntry, bank_id) is None:
+            if get_by_id(session, AnswerBankEntry, bank_id) is None:
                 raise AnswerError("That answer bank entry no longer exists.")
         else:
             bank_id = None
@@ -576,7 +576,7 @@ def bank_entries(session: Session) -> list[AnswerBankEntry]:
 
 
 def delete_bank_entry(session: Session, entry_id: int) -> None:
-    entry = session.get(AnswerBankEntry, entry_id)
+    entry = get_by_id(session, AnswerBankEntry, entry_id)
     if entry is None:
         raise AnswerError("That answer bank entry no longer exists.")
     session.delete(entry)

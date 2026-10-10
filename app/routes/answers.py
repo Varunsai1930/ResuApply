@@ -6,7 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from sqlalchemy.orm import Session
 
-from ..db import get_session
+from ..db import get_by_id, get_session
 from ..models import AnswerBankEntry, Job
 from ..services import answers as answer_service
 from ..services.questions import CATEGORY_LABELS
@@ -27,7 +27,7 @@ def bank(request: Request, msg: str = "", session: Session = Depends(get_session
 
 @router.post("/{entry_id}/delete")
 def delete(entry_id: int, session: Session = Depends(get_session)):
-    if session.get(AnswerBankEntry, entry_id) is None:
+    if get_by_id(session, AnswerBankEntry, entry_id) is None:
         raise HTTPException(404, "Saved answer not found.")
     answer_service.delete_bank_entry(session, entry_id)
     return RedirectResponse("/answers?msg=bank_deleted", status_code=303)

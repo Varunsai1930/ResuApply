@@ -13,7 +13,7 @@ from urllib.parse import urlsplit
 from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
 
-from ..db import utcnow
+from ..db import is_db_id, utcnow
 from ..models import Application, Job
 from ..schemas.tracking import ReviewState, StatusEvent, TrackingStatus
 from . import transactions
@@ -126,6 +126,8 @@ def update(session: Session, job: Job, data: JobInput, base_revision: int | None
 
 
 def get(session: Session, job_id: int) -> Job | None:
+    if not is_db_id(job_id):
+        return None
     return session.scalars(
         select(Job).where(Job.id == job_id).options(selectinload(Job.application))
     ).first()

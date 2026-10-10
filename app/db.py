@@ -18,6 +18,21 @@ from sqlalchemy.orm import DeclarativeBase, Session, sessionmaker
 from sqlalchemy.types import TypeDecorator
 
 
+# SQLite stores integers in 8 bytes. A larger number in a URL or form can't be any row's ID, and
+# passing it to a query raises OverflowError (a 500) instead of finding nothing.
+MAX_ID = 2**63 - 1
+
+
+def is_db_id(value: object) -> bool:
+    """Whether a value from a request could be a row ID."""
+    return isinstance(value, int) and not isinstance(value, bool) and 0 < value <= MAX_ID
+
+
+def get_by_id(session: Session, model: type, value: object):
+    """``session.get`` for an ID taken from a request: an impossible ID is simply not found."""
+    return session.get(model, value) if is_db_id(value) else None
+
+
 def utcnow() -> datetime:
     return datetime.now(timezone.utc)
 

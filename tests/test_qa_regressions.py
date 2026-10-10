@@ -62,3 +62,18 @@ def test_no_page_may_be_framed_by_another_site(client):
                      client.post("/jobs", data={}, headers={"origin": "https://evil.example"})):
         assert response.headers["x-frame-options"] == "DENY", response.request.url
         assert response.headers["content-security-policy"] == "frame-ancestors 'none'"
+
+
+def test_ids_too_large_for_the_database_are_not_found(client, sample_profile):
+    review_and_save(client, profile_form(sample_profile))
+    job_id = create_job(client)
+    huge = "99999999999999999999"
+    for response in (client.get(f"/jobs/{huge}"), client.get("/jobs/9223372036854775808/edit"),
+                     client.post("/jobs/9223372036854775808/status", data={"status": "applied"}),
+                     client.post(f"/answers/{huge}/delete")):
+        assert response.status_code == 404, (response.request.url, response.status_code)
+    question = client.post(f"/jobs/{job_id}/questions", data={"text": "Why this team?", "required": "1"},
+                           follow_redirects=False).headers["location"].split("#question-")[1]
+    response = client.post(f"/jobs/{job_id}/questions/{question}/answer",
+                           data={"text": "x", "origin": "bank", "bank_id": huge})
+    assert response.status_code == 422 and "no longer exists" in response.text
