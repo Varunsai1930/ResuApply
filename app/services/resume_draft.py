@@ -3,7 +3,7 @@
 The draft only fills the profile form: the user checks every field and the usual review step
 shows each change before anything is saved. The rules are deliberately plain:
 
-- contact details come from the lines before the first section heading;
+- contact details come from the lines before the first section heading (at most ``HEADER_LINES``);
 - known headings (Summary, Education, Experience, Projects, Skills, Certifications) split the rest;
 - in Education, Experience and Projects, a line starting with a bullet mark is a bullet, and other
   lines are an entry's heading, from which dates and the parts between separators are read;
@@ -68,6 +68,7 @@ _URL = re.compile(r"(?:https?://|www\.)[^\s|,•·]+", re.I)
 # "Austin, TX", "Toronto, Canada", or a work mode. Only the work modes ignore case: "Python, SQL" is no place.
 _LOCATION = re.compile(r"[A-Z][A-Za-z .'-]+, (?:[A-Z]{2}|[A-Z][a-z]+(?: [A-Z][a-z]+)*)|(?i:remote|hybrid|on-?site)")
 _YEARS = re.compile(r"\d{4}\s*[-–—]\s*\d{4}")  # a date range, not a phone number
+HEADER_LINES = 30  # contact details are read from at most this many lines before the first heading
 _SEPARATORS = re.compile(r"\s*(?:\||•|·|–|—|\s-\s)\s*")
 
 
@@ -277,7 +278,7 @@ def draft_profile(text: str) -> dict:
     certifications = [{"id": "", "name": _BULLET.sub("", line), "issuer": "", "date": ""}
                       for line in parts.get("certifications", [])]
     return {
-        "contact": _contact(parts.get("header", [])[:6]),
+        "contact": _contact(parts.get("header", [])[:HEADER_LINES]),
         "summary": " ".join(parts.get("summary", [])),
         "education": [_education(e) for e in _entries(parts.get("education", []))],
         "experience": [_experience(e) for e in _entries(parts.get("experience", []))],

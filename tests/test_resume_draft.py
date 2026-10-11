@@ -208,3 +208,16 @@ def test_merge_adds_a_second_role_at_the_same_organization_and_unnamed_entries()
         ("Sample Analytics", "Data Analyst"), ("", "Teaching Assistant")]
     assert "2 experience entries" in merged.added
     assert merge(merged.data, draft).added == []  # importing the same resume again adds nothing
+
+
+def test_contact_details_are_read_from_the_whole_header():
+    header = ["Jordan Example", "Backend developer", "Open to internships", "Python and SQL", "Available June 2025",
+              "Willing to relocate", "Austin, TX", "jordan@example.com", "+1 555 0100", "github.com/jordan-example"]
+    contact = draft_profile("\n".join(header) + "\n\nSkills\nPython")["contact"]
+    assert (contact["email"], contact["phone"], contact["location"], contact["links"]["github"]) == (
+        "jordan@example.com", "+1 555 0100", "Austin, TX", "github.com/jordan-example")
+
+
+def test_the_header_read_for_contact_details_is_bounded():
+    lines = ["Jordan Example", *["A line of text without any section heading"] * 200, "late@example.com"]
+    assert draft_profile("\n".join(lines))["contact"]["email"] == ""
