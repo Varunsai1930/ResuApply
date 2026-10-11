@@ -16,37 +16,71 @@
 <div class="page-head with-actions">
   <div>
     <h1>Jobs</h1>
-    <p class="meta">{{ jobs | length }} saved job{{ 's' if jobs | length != 1 }}</p>
+    <p class="meta">{{ jobs | length }} job{{ 's' if jobs | length != 1 }}{% if jobs %} · each card shows where a job stands and the one thing to do next{% endif %}</p>
   </div>
-  <a class="btn-primary" href="/jobs/new">Add job</a>
+  <div class="board-actions">
+    {% if jobs %}
+    <form method="get" action="/jobs" class="board-search" role="search">
+      <label class="visually-hidden" for="board-search">Search jobs</label>
+      <input id="board-search" name="q" type="search" value="{{ board.query }}" placeholder="Title, company or location" maxlength="200">
+      <button type="submit" class="btn-secondary">Search</button>
+    </form>
+    {% endif %}
+    <a class="btn-primary" href="/jobs/new">Add job</a>
+  </div>
 </div>
 
 {% if jobs %}
-<ul class="summary-strip" aria-label="Jobs by status">
-  {% for s in TrackingStatus %}
-    {% set n = jobs | selectattr('application.tracking_status', 'equalto', s.value) | list | length %}
-    {% if n %}<li><strong>{{ n }}</strong> {{ s.label }}</li>{% endif %}
+{% set s = board.summary %}
+<section class="board-summary" aria-label="Summary of all jobs">
+  <div><span>Active jobs</span><strong>{{ s.active }}</strong></div>
+  <div><span>Applied this month</span><strong>{{ s.applied_this_month }}</strong></div>
+  <div><span>Heard back</span><strong>{{ s.heard_back }} of {{ s.applied }}</strong></div>
+  <div><span>Ready to submit</span><strong>{{ s.ready }}</strong></div>
+</section>
+
+{% if board.query %}
+<p class="board-query" role="status">
+  {{ board.shown }} job{{ 's' if board.shown != 1 }} match “{{ board.query }}”. <a href="/jobs">Clear search</a>
+</p>
+{% endif %}
+
+{% if board.shown %}
+<div class="board">
+  {% for col in board.columns %}
+  <section class="board-column" aria-labelledby="col-{{ col.key }}">
+    <h2 id="col-{{ col.key }}">{{ col.title }} <span class="count">{{ col.cards | length }}</span></h2>
+    {% for c in col.cards %}
+      {% set job = c.job %}
+      <a class="job-card" href="/jobs/{{ job.id }}">
+        <span class="job-card-company">{{ job.company }}{% if job.location %} · {{ job.location }}{% endif %}</span>
+        <strong class="job-card-title">{{ job.title }}</strong>
+        <span class="st st-{{ c.meaning.status.value }}">{{ m.status_icon(c.meaning.status) }}<span class="st-text">{% if c.meaning.status == Status.INFO %}<span class="visually-hidden">Info: </span>{% else %}{{ c.meaning.status.label }}: {% endif %}{{ c.meaning.note }}</span></span>
+        {% if c.step %}
+        <span class="job-card-progress" aria-hidden="true"><span style="width: {{ (2 * c.step.number - 1) * 10 }}%"></span></span>
+        <span class="job-card-step">Step {{ c.step.number }} of {{ Step | length }} · {{ c.step.title }}</span>
+        {% endif %}
+        <span class="job-card-foot">Package: {{ m.review_badge(job.application.review) }}</span>
+      </a>
+    {% else %}
+      <p class="board-empty">{{ col.empty }}</p>
+    {% endfor %}
+  </section>
   {% endfor %}
-</ul>
-<table class="tracker">
-  <thead>
-    <tr><th scope="col">Job</th><th scope="col">Location</th><th scope="col">Review</th><th scope="col">Status</th><th scope="col">Since</th><th scope="col">Added</th></tr>
-  </thead>
-  <tbody>
-  {% for job in jobs %}
-    {% set app = job.application %}
-    {% set last = app.status_history[-1] if app.status_history else none %}
-    <tr>
-      <td data-label="Job"><a class="job-link" href="/jobs/{{ job.id }}">{{ job.title }}</a><span class="company">{{ job.company }}</span></td>
-      <td data-label="Location">{{ job.location or '—' }}</td>
-      <td data-label="Review">{{ m.review_badge(app.review) }}</td>
-      <td data-label="Status">{{ m.status_badge(app.status) }}</td>
-      <td data-label="Since">{{ last.on.isoformat() if last else '—' }}</td>
-      <td data-label="Added">{{ job.created_at | local_datetime }}</td>
-    </tr>
-  {% endfor %}
-  </tbody>
-</table>
+</div>
+{% else %}
+<div class="empty card">
+  <h2>No jobs match</h2>
+  <p>Nothing in a title, company or location matches “{{ board.query }}”. <a href="/jobs">Show every job</a></p>
+</div>
+{% endif %}
+
+<section class="board-legend" aria-label="What the statuses mean">
+  {{ m.status_line(Meaning(Status.DONE, "nothing left to do")) }}
+  {{ m.status_line(Meaning(Status.NEEDS_YOU, "a decision or an answer")) }}
+  {{ m.status_line(Meaning(Status.BLOCKED, "can't continue until fixed")) }}
+  {{ m.status_line(Meaning(Status.INFO, "worth a look, never blocking")) }}
+</section>
 {% else %}
 <div class="empty card">
   <h2>No jobs yet</h2>

@@ -290,14 +290,21 @@ def test_edit_job_bumps_revision(client):
     assert "Job revision 2" in client.get(f"/jobs/{job_id}").text
 
 
+def board_column(page: str, key: str) -> str:
+    """The markup of one column of the jobs board."""
+    start = page.index(f'aria-labelledby="col-{key}"')
+    return page[start:page.index("</section>", start)]
+
+
 def test_tracker_lists_jobs_with_review_and_status(client):
     create_job(client)
     create_job(client, title="Data Intern", company="Sample Labs", location="")
     page = client.get("/jobs").text
-    assert "2 saved jobs" in page
+    assert "2 jobs ·" in page
     assert page.index("Data Intern") < page.index("Backend Engineering Intern")  # newest first
     assert page.count('<span class="badge review-draft">Draft</span>') == 2
-    assert page.count('<span class="badge status-saved">Saved</span>') == 2
+    saved = board_column(page, "saved")  # both jobs are Saved: the column is their status
+    assert saved.count('class="job-card"') == 2 and "Data Intern" in saved and "Backend Engineering Intern" in saved
 
 
 def test_status_change_and_history_over_http(client):
@@ -309,7 +316,8 @@ def test_status_change_and_history_over_http(client):
     assert "2026-01-15" in page and "Via careers page" in page
     assert '<span class="badge review-draft">Draft</span>' in page  # tracking never changes review state
     tracker = client.get("/jobs").text
-    assert '<span class="badge status-applied">Applied</span>' in tracker
+    assert "Backend Engineering Intern" in board_column(tracker, "applied") and "Applied 2026-01-15" in tracker
+    assert 'class="job-card"' not in board_column(tracker, "saved")
 
 
 def test_status_change_errors_are_shown(client):
@@ -349,7 +357,7 @@ def test_cross_site_posts_are_refused(client):
         assert response.status_code == 403
     assert client.post("/jobs", data=SAMPLE_JOB, headers={"Referer": "https://evil.example/page"}).status_code == 403
     assert client.post("/jobs", data=SAMPLE_JOB, headers={"Origin": BASE_URL}, follow_redirects=False).status_code == 303
-    assert "1 saved job" in client.get("/jobs").text
+    assert "1 job ·" in client.get("/jobs").text
 
 
 def test_only_loopback_host_headers_are_accepted(settings):

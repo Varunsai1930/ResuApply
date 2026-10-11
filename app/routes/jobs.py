@@ -12,6 +12,7 @@ from ..ai import operations
 from ..db import get_session
 from ..models import Job
 from ..schemas.tracking import TrackingStatus
+from ..services import board as board_service
 from ..services import checklist, outbound, package, question_rows, tracking
 from ..services import jobs as job_service
 from ..services import workspace as guide_service
@@ -163,12 +164,16 @@ def _render_workspace(request: Request, session: Session, job: Job, msg: str = "
 
 
 @router.get("", response_class=HTMLResponse)
-def list_jobs(request: Request, session: Session = Depends(get_session)):
+def list_jobs(request: Request, q: str = "", session: Session = Depends(get_session)):
+    """The jobs board: columns by tracking status, each card with its next action; ``q`` searches."""
     candidate = get_candidate(session)
     jobs = job_service.list_all(session)
-    for job in jobs:  # the stored review state is refreshed so the list shows Stale as soon as inputs change
+    for job in jobs:  # the stored review state is refreshed so the board shows Stale as soon as inputs change
         package.sync_review_state(session, job, job.application, candidate)
-    return templates.TemplateResponse(request, "jobs_list.html", {"jobs": jobs, "candidate": candidate, "active": "jobs"})
+    board = board_service.board(jobs, candidate, date.today(), q)
+    return templates.TemplateResponse(request, "jobs_list.html",
+                                      {"jobs": jobs, "board": board, "candidate": candidate, "Step": guide_service.Step,
+                                       "active": "jobs"})
 
 
 @router.get("/new", response_class=HTMLResponse)

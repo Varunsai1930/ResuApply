@@ -66,6 +66,7 @@ class NextAction:
     step: Step  # the step the action belongs to, shown when the workspace opens without one
     label: str
     href: str
+    status: Status = Status.NEEDS_YOU  # what the action means for the job, e.g. on a jobs board card
 
 
 @dataclass(frozen=True)
@@ -153,11 +154,11 @@ def _track(application: Application, review: ReviewState) -> Meaning:
 
 def _next(job: Job, application: Application, candidate: Candidate | None, states: dict[Step, Meaning],
           review: ReviewState, resume_action: str) -> NextAction:
-    def at(step: Step, label: str) -> NextAction:
-        return NextAction(step, label, step_url(job.id, step))
+    def at(step: Step, label: str, status: Status | None = None) -> NextAction:
+        return NextAction(step, label, step_url(job.id, step), status or states[step].status)
 
     if application.status is not TrackingStatus.SAVED:
-        return at(Step.TRACK, "Update the status")
+        return at(Step.TRACK, "Update the status", Status.INFO)
     if candidate is None:
         return NextAction(Step.REQUIREMENTS, "Create your profile", "/profile/edit")
     if states[Step.REQUIREMENTS].status is Status.NEEDS_YOU:

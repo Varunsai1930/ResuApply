@@ -476,6 +476,49 @@ del { color: var(--unmet); text-decoration-thickness: 1px; }
   font-size: 0.92rem; line-height: 1.6; color: var(--ink-2);
 }
 
+/* Jobs board: summary strip, search, columns by tracking status, cards with the next action. */
+.board-actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.board-search { display: flex; gap: 8px; }
+.board-search input { min-height: 38px; width: 15rem; max-width: 100%; }
+/* The 1px gap shows the background as dividers, however the tiles wrap. */
+.board-summary {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 1px;
+  background: var(--rule); border: 1px solid var(--rule); border-radius: var(--radius); overflow: hidden; margin-bottom: 20px;
+}
+.board-summary > div { padding: 14px 20px; background: var(--surface); }
+.board-summary span { display: block; font-size: 0.82rem; color: var(--ink-3); }
+.board-summary strong { font-family: var(--font-display); font-size: 1.6rem; font-weight: 600; }
+.board-query { margin: 0 0 16px; color: var(--ink-2); }
+.board { display: grid; grid-template-columns: minmax(0, 1fr); gap: 14px; margin-bottom: 20px; }
+.board-column {
+  background: var(--well); border: 1px solid var(--rule); border-radius: var(--radius);
+  padding: 12px; display: flex; flex-direction: column; gap: 10px; min-width: 0;
+}
+.board-column h2 {
+  margin: 0; padding: 2px 4px; display: flex; justify-content: space-between;
+  font-family: var(--font-ui); font-size: 0.75rem; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--ink-3);
+}
+.job-card {
+  display: flex; flex-direction: column; gap: 4px; padding: 14px;
+  background: var(--surface); border: 1px solid var(--rule); border-radius: var(--radius);
+  color: var(--ink); text-decoration: none;
+}
+.job-card:hover { border-color: var(--rule-strong); color: var(--ink); }
+.job-card-company { font-size: 0.82rem; color: var(--ink-3); overflow-wrap: anywhere; }
+.job-card-title { font-size: 0.95rem; margin-bottom: 6px; overflow-wrap: anywhere; }
+.job-card .st { align-items: flex-start; }
+.job-card .st-icon { margin-top: 3px; }
+.job-card-progress { display: block; height: 4px; margin-top: 8px; background: var(--rule); border-radius: 2px; }
+.job-card-progress > span { display: block; height: 4px; background: var(--progress); border-radius: 2px; }
+.job-card-step { font-size: 0.78rem; color: var(--ink-3); }
+.job-card-foot { display: flex; gap: 6px; align-items: center; margin-top: 6px; font-size: 0.8rem; color: var(--ink-3); }
+.job-card-foot .badge { font-size: 0.8rem; }
+.board-empty {
+  margin: 0; padding: 16px 8px; text-align: center; font-size: 0.82rem; color: var(--ink-3);
+  border: 1px dashed var(--rule-strong); border-radius: var(--radius);
+}
+.board-legend { display: flex; flex-wrap: wrap; gap: 8px 24px; }
+
 /* Guided steps: the step list, the step card with the one Next button, and the job description. */
 .chips { display: flex; flex-wrap: wrap; gap: 8px; margin: 10px 0 0; }
 .chip {
@@ -699,6 +742,7 @@ details.card[open] summary::after { content: " −"; }
 }
 
 @media (min-width: 920px) {
+  .board { grid-template-columns: repeat(5, minmax(0, 1fr)); }
   .split { grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); }
   .workspace { grid-template-columns: minmax(0, 1fr) 320px; grid-template-areas: "main side"; }
   .workspace.guided {
