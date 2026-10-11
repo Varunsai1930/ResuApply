@@ -62,6 +62,10 @@ _FIELD_PREFIX = (
 _OR = r" ?(?:/|or|and|&|,) ?"  # "Portfolio / Website", "City, State", "Major or field of study"
 _SITE = r"(?:portfolio|(?:personal )?website)"
 _STUDY = r"(?:major|field of study|area of study|concentration)"
+# A degree level a graduation question may name: "Bachelor's degree graduation date", "... (undergraduate)".
+_LEVEL = r"(?:bachelor'?s?|master'?s?|undergraduate|graduate|associate'?s?|ph\.?d\.?|doctoral|doctorate)"
+_LEVEL_BEFORE = rf"(?:{_LEVEL} (?:degree )?)?"
+_LEVEL_AFTER = rf"(?: \({_LEVEL}(?: degree)?\))?"
 _FIELD_LABELS = [
     ("name", r"(?:(?:legal|preferred) )?(?:name|full name|first name|last name|given name|"
              r"family name|surname|forename|first (?:and|&|/) last name|first name / last name|"
@@ -71,9 +75,9 @@ _FIELD_LABELS = [
     ("linkedin", r"linkedin(?: profile)?(?: url| link)?"),
     ("github", r"github(?: profile)?(?: url| link)?"),
     ("portfolio", rf"(?:portfolio website|{_SITE}(?:{_OR}{_SITE})?)(?: url| link)?"),
-    ("graduation_date", r"(?:(?:expected|anticipated) )?(?:graduation(?: date| month(?: and | ?/ ?)year)?|"
-                        r"(?:date|month and year) of graduation)"),
-    ("graduation_year", r"(?:(?:expected|anticipated) )?(?:graduation year|year of graduation)"),
+    ("graduation_date", rf"{_LEVEL_BEFORE}(?:(?:expected|anticipated) )?(?:graduation(?: date| month(?: and | ?/ ?)year)?|"
+                        rf"(?:date|month and year) of graduation){_LEVEL_AFTER}"),
+    ("graduation_year", rf"{_LEVEL_BEFORE}(?:(?:expected|anticipated) )?(?:graduation year|year of graduation){_LEVEL_AFTER}"),
     ("start_date", r"(?:start|(?:earliest |available )?start date|availability(?: date)?)"),
     ("gpa", r"(?:(?:current|cumulative) )?(?:gpa|grade point(?: average)?)"),
     ("major", rf"(?:major|field of study|area of study)(?:{_OR}{_STUDY})?"),
@@ -260,16 +264,42 @@ _PRECISION = ("This question asks for more than your profile holds: the end date
               "{part}. Add it to your profile, or answer the question yourself.")
 
 
+# Degree levels, read in a question and in an education entry's degree.
+_LEVELS = [
+    re.compile(r"\bbachelor|\bundergrad|\bb\.? ?(?:s|a|sc|eng|tech)\b"),
+    re.compile(r"\bmaster|\bm\.? ?(?:s|a|sc|eng|tech)\b|\bmba\b|\bgraduate (?:degree|program|school|studies)|\(graduate\)"),
+    re.compile(r"\bph\.? ?d\b|\bdoctor"),
+    re.compile(r"\bassociate"),
+]
+_NO_LEVEL = "This question asks about a kind of degree your profile doesn't list. Answer it yourself."
+_SEVERAL = ("Your profile has several degrees, and this question doesn't say which one it means. "
+            "Answer it yourself.")
+
+
 def _graduation(key: str, question: str, prof: dict) -> tuple[str | None, str | None]:
-    """A graduation question's answer from the education end date, or None with why (None: the date is missing).
+    """A graduation question's answer from the education end dates, or None with why (None: no date at all).
 
     A year question gets the year, which every stored date has. A date question gets the month and
     year (as "2027-05", or in the format its label asks for, such as "MM/YYYY"); a date stored with
-    only the year, or without the day a "MM/DD/YYYY" label asks for, is left to the user.
+    only the year, or without the day a "MM/DD/YYYY" label asks for, is left to the user. With
+    several degrees, only a question that names a degree level matching one of them, or degrees
+    that all give the same answer, are answered: otherwise the question doesn't say which it means.
     """
-    end = profile_service.graduation_date(prof)
-    if not end:
+    dated = [e for e in prof.get("education") or [] if e.get("end") and e["end"] != "present"]
+    if not dated:
         return None, None
+    named = [level for level in _LEVELS if level.search(norm_text(question))]
+    if len(named) == 1:
+        dated = [e for e in dated if named[0].search(norm_text(e.get("degree") or ""))]
+        if not dated:
+            return None, _NO_LEVEL
+    answers = {_graduation_answer(key, question, entry["end"]) for entry in dated}
+    if len(answers) != 1:
+        return None, _SEVERAL
+    return answers.pop()
+
+
+def _graduation_answer(key: str, question: str, end: str) -> tuple[str | None, str | None]:
     year, month, day = (end.split("-") + ["", ""])[:3]
     if key == "graduation_year":
         return year, None
@@ -339,6 +369,8 @@ def profile_gap(key: str, question: str, profile: Profile | dict) -> str | None:
     prof = profile.model_dump() if isinstance(profile, Profile) else profile
     if name_part(key, question) or factual_value(key, question, prof) is not None:
         return None
+    if key in GRADUATION_KEYS and _graduation(key, question, prof)[1] == _SEVERAL:
+        return None  # the profile has the dates; the question must say which degree
     if key not in ("authorization", "sponsorship"):
         return key
     q = norm_text(question)

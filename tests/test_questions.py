@@ -81,7 +81,8 @@ def test_latest_education_entry_supplies_school_values(profile):
     earlier = profile.education[0].model_copy(update={"id": "edu-0", "institution": "Earlier College", "end": "2020-05"})
     both = profile.model_copy(update={"education": [earlier, *profile.education]})
     assert factual_value("school", "School", both) == "Example State University"
-    assert factual_value("graduation_date", "Graduation", both) == "2099-05"
+    # Two degrees with different dates: "Graduation" doesn't say which (tests/test_graduation_answers.py).
+    assert factual_value("graduation_date", "Graduation", both) is None
 
 
 def test_accepts_a_profile_dict_as_well(profile):

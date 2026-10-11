@@ -99,3 +99,39 @@ def test_a_date_the_profile_holds_only_as_a_year_says_why(client, sample_profile
     assert "Your profile has no value for this" not in html
     refused = client.post(f"/jobs/{job_id}/questions/{qid}/confirm", data={"confirmation_token": "x"})
     assert "the end date of your education has no month" in refused.text
+
+
+def test_several_degrees_leave_an_unspecific_question_to_the_user():
+    from app.services.questions import graduation_note, profile_gap
+
+    two = profile("2023-05", "2027-05", degrees=("Associate of Science", "B.S."))
+    for key, question in (("graduation_date", "Expected graduation date"), ("graduation_year", "Graduation year")):
+        assert factual_value(key, question, two) is None
+        assert "several degrees" in graduation_note(key, question, two)
+        assert profile_gap(key, question, two) is None  # adding a fact wouldn't help: the question must say which
+
+
+@pytest.mark.parametrize("question, answer", [
+    ("Bachelor's degree graduation date", "2027-05"),
+    ("Expected graduation date (undergraduate)", "2027-05"),
+    ("Associate degree graduation year", "2023"),
+])
+def test_a_question_that_names_the_degree_is_answered_for_that_degree(question, answer):
+    two = profile("2023-05", "2027-05", degrees=("Associate of Science", "Bachelor of Science"))
+    category, key = classify(question)
+    assert category == "factual" and factual_value(key, question, two) == answer
+
+
+def test_a_degree_the_profile_doesnt_list_is_left_to_the_user():
+    from app.services.questions import graduation_note
+
+    one = profile("2027-05", degrees=("B.S.",))
+    assert factual_value("graduation_date", "Master's degree graduation date", one) is None
+    assert "a kind of degree your profile doesn't list" in graduation_note(
+        "graduation_date", "Master's degree graduation date", one)
+
+
+def test_degrees_that_give_the_same_answer_are_not_ambiguous():
+    double = profile("2027-05", "2027-12", degrees=("B.S.", "B.A."))
+    assert factual_value("graduation_year", "Graduation year", double) == "2027"
+    assert factual_value("graduation_date", "Graduation date", double) is None  # May or December?
