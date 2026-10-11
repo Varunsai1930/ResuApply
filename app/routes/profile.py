@@ -67,7 +67,7 @@ SECTION_TITLES = {
     Section.AUTHORIZATION: "Work authorization",
     Section.PREFERENCES: "Preferences and availability",
 }
-# The form field names, or their prefixes, of each section.
+# The form field names, or their prefixes, of each section; they are also its keys in the profile data.
 SECTION_FIELDS = {
     Section.CONTACT: ("contact", "summary"),
     Section.EDUCATION: ("education",),
@@ -87,8 +87,15 @@ def _section_of(raw: object) -> Section | None:
         return None
 
 
+def _revision_of(raw: object) -> int | None:
+    """The profile revision a section editor was opened at, or None when missing or damaged."""
+    if not isinstance(raw, str) or not raw.isascii() or not raw.isdigit() or len(raw) > 9:
+        return None
+    return int(raw)
+
+
 def _render_form(request: Request, data: dict, errors=(), warnings=(), status_code: int = 200, message: str = "",
-                 section: Section | None = None):
+                 section: Section | None = None, opened_revision: int | None = None):
     """The profile editor. With ``section``, only that section shows; the others stay in the form as
     hidden fields with their saved values, so the review and save steps are the same as for the
     whole profile. A problem outside the section shows the whole profile, so it can be fixed."""
@@ -108,6 +115,7 @@ def _render_form(request: Request, data: dict, errors=(), warnings=(), status_co
             "message": message,
             "section": section,
             "sections": list(Section),
+            "opened_revision": opened_revision,
             "active": "profile",
         },
         status_code=status_code,
@@ -142,25 +150,41 @@ def edit_profile(request: Request, section: Section | None = None, session: Sess
     """The profile editor, or one section of it. A new profile is always edited whole."""
     candidate = profile_service.get_candidate(session)
     data = candidate.profile.model_dump() if candidate else BLANK_PROFILE
-    return _render_form(request, data, section=section if candidate else None)
+    return _render_form(request, data, section=section if candidate else None,
+                        opened_revision=candidate.revision if candidate else None)
 
 
 @router.post("/edit", response_class=HTMLResponse)
 async def back_to_edit(request: Request):
     """Return from the review page to the form without losing the proposed edits."""
     form = await read_form(request)
-    return _render_form(request, _load_payload(form.get("payload")), section=_section_of(form.get("section")))
+    return _render_form(request, _load_payload(form.get("payload")), section=_section_of(form.get("section")),
+                        opened_revision=_revision_of(form.get("opened_revision")))
 
 
 @router.post("/review", response_class=HTMLResponse)
 async def review_profile(request: Request, session: Session = Depends(get_session)):
     form = await read_form(request)
     section = _section_of(form.get("section"))
-    data = parse_form((k, v) for k, v in form.multi_items() if isinstance(v, str) and k != "section")
+    opened = _revision_of(form.get("opened_revision"))
+    data = parse_form((k, v) for k, v in form.multi_items()
+                      if isinstance(v, str) and k not in ("section", "opened_revision"))
+    candidate = profile_service.get_candidate(session)
+    if section and candidate and opened != candidate.revision:
+        # The other sections were posted as they were when the editor opened. The profile has
+        # moved on since, so they would undo newer changes: show them as saved now, keep this
+        # section's edits, and let the user review again.
+        fresh = candidate.profile.model_dump() | {key: data[key] for key in SECTION_FIELDS[section]}
+        message = (f"The profile changed since you opened this section (revision {opened or '?'} → "
+                   f"{candidate.revision}). The other sections now show their saved values and your edits to "
+                   "this section are kept. Check them, then review again.")
+        return _render_form(request, fresh, status_code=409, message=message, section=section,
+                            opened_revision=candidate.revision)
     try:
         result = profile_service.review(session, data)
     except profile_service.ProfileInvalid as exc:
-        return _render_form(request, data, exc.errors, exc.warnings, status_code=422, section=section)
+        return _render_form(request, data, exc.errors, exc.warnings, status_code=422, section=section,
+                            opened_revision=opened)
     return templates.TemplateResponse(
         request,
         "profile_review.html",
@@ -168,6 +192,7 @@ async def review_profile(request: Request, session: Session = Depends(get_sessio
             "result": result,
             "payload": json.dumps(data),
             "section": section,
+            "opened_revision": opened,
             "active": "profile",
         },
     )

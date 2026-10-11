@@ -126,3 +126,35 @@ def test_hidden_sections_stay_hidden_whatever_their_layout(client):
     css = client.get("/static/style.css").text
     # The profile cards get display: grid on wide screens, which would override the browser's own [hidden] rule.
     assert "[hidden] { display: none !important; }" in css
+
+
+def test_a_section_opened_before_another_save_never_reverts_it(client, sample_profile):
+    saved_profile(client, sample_profile)
+    stale = form_fields(client.get("/profile/edit?section=experience").text)  # opened at revision 1
+    assert stale["opened_revision"] == "1"
+    # Another tab adds a portfolio link: revision 2.
+    sample_profile["contact"]["links"]["portfolio"] = "https://jordan.example"
+    review_and_save(client, profile_form(sample_profile))
+    name = next(n for n, v in stale.items() if n.endswith("-text") and v.startswith("Built a Flask"))
+    stale[name] = "Built and documented a Flask REST API"
+    refused = client.post("/profile/review", data=stale)
+    assert refused.status_code == 409
+    assert "The profile changed since you opened this section (revision 1 → 2)" in unescape(refused.text)
+    fresh = form_fields(refused.text)
+    assert fresh["contact-links-portfolio"] == "https://jordan.example"  # the other sections as saved now
+    assert fresh[name] == "Built and documented a Flask REST API"  # this section's edits kept
+    assert fresh["opened_revision"] == "2"
+    review = client.post("/profile/review", data=fresh)
+    assert review.status_code == 200
+    client.post("/profile/save", data={"payload": hidden(review.text, "payload"),
+                                       "base_revision": hidden(review.text, "base_revision")})
+    after = client_profile(client)
+    assert after["contact"]["links"]["portfolio"] == "https://jordan.example"
+    assert after["experience"][0]["bullets"][0]["text"] == "Built and documented a Flask REST API"
+
+
+@pytest.mark.parametrize("opened", ["", "x", "99999999999"])
+def test_a_missing_or_damaged_opened_revision_is_treated_as_stale(client, sample_profile, opened):
+    saved_profile(client, sample_profile)
+    fields = form_fields(client.get("/profile/edit?section=skills").text) | {"opened_revision": opened}
+    assert client.post("/profile/review", data=fields).status_code == 409
