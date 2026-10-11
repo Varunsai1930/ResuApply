@@ -339,7 +339,7 @@ def test_common_form_labels_and_format_hints_are_factual(question, key):
 @pytest.mark.parametrize("question", [
     "Name (of your reference)",
     "Email (of your manager)",
-    "Graduation year",  # the profile stores a date, not a year: the user answers it
+    "Graduation date (of your reference)",
 ])
 def test_other_parentheticals_and_formats_stay_unrecognized(question):
     assert classify(question) == ("unknown", None)

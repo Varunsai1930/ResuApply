@@ -62,6 +62,10 @@ _FIELD_PREFIX = (
 _OR = r" ?(?:/|or|and|&|,) ?"  # "Portfolio / Website", "City, State", "Major or field of study"
 _SITE = r"(?:portfolio|(?:personal )?website)"
 _STUDY = r"(?:major|field of study|area of study|concentration)"
+# A degree level a graduation question may name: "Bachelor's degree graduation date", "... (undergraduate)".
+_LEVEL = r"(?:bachelor'?s?|master'?s?|undergraduate|graduate|associate'?s?|ph\.?d\.?|doctoral|doctorate)"
+_LEVEL_BEFORE = rf"(?:{_LEVEL} (?:degree )?)?"
+_LEVEL_AFTER = rf"(?: \({_LEVEL}(?: degree)?\))?"
 _FIELD_LABELS = [
     ("name", r"(?:(?:legal|preferred) )?(?:name|full name|first name|last name|given name|"
              r"family name|surname|forename|first (?:and|&|/) last name|first name / last name|"
@@ -71,7 +75,9 @@ _FIELD_LABELS = [
     ("linkedin", r"linkedin(?: profile)?(?: url| link)?"),
     ("github", r"github(?: profile)?(?: url| link)?"),
     ("portfolio", rf"(?:portfolio website|{_SITE}(?:{_OR}{_SITE})?)(?: url| link)?"),
-    ("graduation_date", r"(?:(?:expected|anticipated) )?graduation(?: date)?"),
+    ("graduation_date", rf"{_LEVEL_BEFORE}(?:(?:expected|anticipated) )?(?:graduation(?: date| month(?: and | ?/ ?)year)?|"
+                        rf"(?:date|month and year) of graduation){_LEVEL_AFTER}"),
+    ("graduation_year", rf"{_LEVEL_BEFORE}(?:(?:expected|anticipated) )?(?:graduation year|year of graduation){_LEVEL_AFTER}"),
     ("start_date", r"(?:start|(?:earliest |available )?start date|availability(?: date)?)"),
     ("gpa", r"(?:(?:current|cumulative) )?(?:gpa|grade point(?: average)?)"),
     ("major", rf"(?:major|field of study|area of study)(?:{_OR}{_STUDY})?"),
@@ -88,7 +94,7 @@ _LOCATION_PART = r"(?:city|state|province|country|region|zip(?: code)?|postal co
 _TRAILING_HINT = re.compile(
     r"\s*\((?:optional|required|if (?:any|applicable)|url|link|full url|"
     r"(?:e\.g\.?|i\.e\.?|eg|ie|example|format)[:,]? [^()]*|"
-    r"[mdy]{1,4}(?: ?[/.-] ?[mdy]{1,4}){1,2}|"
+    r"[mdy]{1,4}(?: ?[/.-] ?[mdy]{1,4}){1,2}|y{4}|y{2}|month ?(?:/|and) ?year|"
     r"(?:with|including|include) (?:the |your )?(?:country|area) code|"
     r"(?:out of|on a) [\d.]+(?: scale)?|"
     rf"{_LOCATION_PART}(?: ?(?:,|/|and|&) ?{_LOCATION_PART})+)\)$"
@@ -96,8 +102,10 @@ _TRAILING_HINT = re.compile(
 _FACTUAL = [(key, re.compile(_FIELD_PREFIX + label)) for key, label in _FIELD_LABELS]
 _FACTUAL.extend([
     ("graduation_date", re.compile(
-        r"when (?:(?:do|will) you (?:expect to )?graduate|(?:is|was) your (?:expected )?graduation(?: date)?)"
+        r"when (?:(?:do|will) you (?:expect to )?graduate|did you graduate|"
+        r"(?:is|was) your (?:expected )?graduation(?: date)?)"
     )),
+    ("graduation_year", re.compile(r"(?:what|which) year (?:will|do|did) you (?:expect to )?graduate")),
     ("start_date", re.compile(
         r"(?:when (?:can|could|are) you (?:available to )?start|what is the earliest (?:date )?you can start)"
     )),
@@ -242,6 +250,102 @@ def _yes_no(value) -> str | None:
     return {True: "Yes", False: "No"}.get(value)
 
 
+GRADUATION_KEYS = ("graduation_date", "graduation_year")
+# A date format a graduation question's label asks for: "(MM/YYYY)", "(DD.MM.YYYY)", "(YY)", "(Month/Year)".
+_FORMAT_HINT = re.compile(r"\(\s*([mdy]{1,4}(?:\s*[/.-]\s*[mdy]{1,4}){0,2}|month\s*(?:/|and)\s*year)\s*\)")
+_DEFAULT_FORMS = {"graduation_date": ["yyyy", "-", "mm"], "graduation_year": ["yyyy"]}
+_UNREADABLE = ("This question asks for its date in a format ResuApply can't fill in. "
+               "Answer it yourself, in the format the employer's form asks for.")
+_PRECISION = ("This question asks for more than your profile holds: the end date of your education has no "
+              "{part}. Add it to your profile, or answer the question yourself.")
+
+
+# Degree levels, read in a question and in an education entry's degree.
+_LEVELS = [
+    re.compile(r"\bbachelor|\bundergrad|\bb\.? ?(?:s|a|sc|e|eng|tech|com|fa|arch|ed|sw|ba|bus)\b|\bbba\b|"
+               r"\bll\.? ?b\b"),
+    re.compile(r"\bmaster|\bm\.? ?(?:s|a|sc|e|eng|tech|fa|arch|ed|sw|ba|pa|ph|phil|com)\b|\bll\.? ?m\b|"
+               r"\bgraduate (?:degree|program|school|studies)|\(graduate\)"),
+    re.compile(r"\bph\.? ?d\b|\bd\.? ?phil\b|\bdoctor|\bed\.? ?d\b"),
+    re.compile(r"\bassociate|\ba\.? ?a\.? ?s\b"),
+]
+_IN_PROGRESS = ("This question may be about a degree your profile shows as still in progress, with no end date. "
+                "Add its expected end date to your profile, or answer the question yourself.")
+_NO_LEVEL = "This question asks about a kind of degree your profile doesn't list. Answer it yourself."
+_SEVERAL = ("Your profile has several degrees, and this question doesn't say which one it means. "
+            "Answer it yourself.")
+
+
+def _graduation(key: str, question: str, prof: dict) -> tuple[str | None, str | None]:
+    """A graduation question's answer from the education end dates, or None with why (None: no date at all).
+
+    A year question gets the year, which every stored date has; a date question the month and year,
+    as "2027-05". A format hint in the label ("MM/YYYY", "DD.MM.YYYY", "YY") is followed; a date the
+    profile holds less precisely than the format asks (no month, no day) is left to the user. With
+    several degrees, only a question that names a degree level matching one of them, or degrees
+    that all give the same answer, are answered: otherwise the question doesn't say which it means.
+    """
+    # A degree still in progress ("present") has no date to give, but may be the one asked about.
+    dated = [e for e in prof.get("education") or [] if e.get("end")]
+    if not dated:
+        return None, None
+    named = [level for level in _LEVELS if level.search(norm_text(question))]
+    if len(named) == 1:
+        matching = [e for e in dated if named[0].search(norm_text(e.get("degree") or ""))]
+        unread = [e for e in dated if not any(level.search(norm_text(e.get("degree") or "")) for level in _LEVELS)]
+        if matching:
+            dated = matching
+        elif not unread:
+            return None, _NO_LEVEL  # every degree is clearly of another level
+        # Otherwise a degree whose level can't be read ("Diploma", none given) may be the one asked
+        # about: an only degree answers the question, and several are ambiguous unless they agree.
+    if any(entry["end"] == "present" for entry in dated):
+        return None, _IN_PROGRESS
+    answers = {_graduation_answer(key, question, entry["end"]) for entry in dated}
+    if len(answers) != 1:
+        return None, _SEVERAL
+    return answers.pop()
+
+
+def _date_form(key: str, question: str) -> list[str]:
+    """The parts of the date format a graduation question asks for: ["dd", "/", "mm", "/", "yy"].
+
+    The last format hint in its label counts ("Month/Year" is "mm/yyyy"); without one, a year
+    question asks for "yyyy" and a date question for "yyyy-mm".
+    """
+    hints = list(_FORMAT_HINT.finditer(norm_text(question)))
+    if not hints:
+        return _DEFAULT_FORMS[key]
+    hint = re.sub(r"\s+", "", hints[-1].group(1))
+    return re.findall(r"[mdy]+|[/.-]", "mm/yyyy" if hint.startswith("month") else hint)
+
+
+def _graduation_answer(key: str, question: str, end: str) -> tuple[str | None, str | None]:
+    """One end date written in the format the question asks for, or None with why."""
+    year, month, day = (end.split("-") + ["", ""])[:3]
+    written = []
+    for part in _date_form(key, question):
+        if part in "/.-":
+            written.append(part)
+        elif part in ("yyyy", "yy"):
+            written.append(year if part == "yyyy" else year[2:])
+        elif part in ("mm", "m", "dd", "d"):
+            value = month if part[0] == "m" else day
+            if not value:
+                return None, _PRECISION.format(part="month" if part[0] == "m" else "day")
+            written.append(value if len(part) == 2 else str(int(value)))
+        else:  # "mmm", "yyy" and the like: not a format to guess at
+            return None, _UNREADABLE
+    return "".join(written), None
+
+
+def graduation_note(key: str, question: str, profile: Profile | dict) -> str | None:
+    """Why a graduation question isn't answered from a profile that has an education end date, or None."""
+    if key not in GRADUATION_KEYS:
+        return None
+    return _graduation(key, question, profile.model_dump() if isinstance(profile, Profile) else profile)[1]
+
+
 def factual_value(key: str, question: str, profile: Profile | dict) -> str | None:
     """The profile's value for a factual question, or None when missing."""
     prof = profile.model_dump() if isinstance(profile, Profile) else profile
@@ -255,8 +359,8 @@ def factual_value(key: str, question: str, profile: Profile | dict) -> str | Non
         return contact.get(key) or None
     if key in ("linkedin", "github", "portfolio"):
         return links.get(key) or None
-    if key == "graduation_date":
-        return profile_service.graduation_date(prof)
+    if key in GRADUATION_KEYS:
+        return _graduation(key, question, prof)[0]
     if key == "start_date":
         return (prof.get("availability") or {}).get("start_date") or None
     if key == "school":
@@ -295,6 +399,10 @@ def profile_gap(key: str, question: str, profile: Profile | dict) -> str | None:
     prof = profile.model_dump() if isinstance(profile, Profile) else profile
     if name_part(key, question) or factual_value(key, question, prof) is not None:
         return None
+    if key in GRADUATION_KEYS:
+        if _graduation(key, question, prof)[1] == _SEVERAL:
+            return None  # the profile has the dates; the question must say which degree
+        return "graduation_date"  # year and date questions both need the education end date
     if key not in ("authorization", "sponsorship"):
         return key
     q = norm_text(question)
