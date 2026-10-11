@@ -267,3 +267,16 @@ def test_masters_abbreviations_are_masters_degrees(degree):
     one = profile("2027-05", degrees=(degree,))
     assert factual_value("graduation_date", "Master's degree graduation date", one) == "2027-05"
     assert factual_value("graduation_date", "Bachelor's degree graduation date", one) is None  # another level
+
+
+def test_a_degree_in_progress_without_an_end_date_is_never_passed_over():
+    from app.services.questions import graduation_note, profile_gap
+
+    both = profile("2024-05", "present", degrees=("B.S.", "M.S."))
+    for key, question in (("graduation_date", "Expected graduation date"),
+                          ("graduation_date", "Master's degree graduation date"),
+                          ("graduation_year", "Graduation year")):
+        assert factual_value(key, question, both) is None
+        assert "still in progress" in graduation_note(key, question, both)
+        assert profile_gap(key, question, both) == key  # its expected end date would answer it
+    assert factual_value("graduation_date", "Bachelor's degree graduation date", both) == "2024-05"

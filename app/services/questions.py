@@ -269,6 +269,8 @@ _LEVELS = [
     re.compile(r"\bph\.? ?d\b|\bd\.? ?phil\b|\bdoctor|\bed\.? ?d\b"),
     re.compile(r"\bassociate|\ba\.? ?a\.? ?s\b"),
 ]
+_IN_PROGRESS = ("This question may be about a degree your profile shows as still in progress, with no end date. "
+                "Add its expected end date to your profile, or answer the question yourself.")
 _NO_LEVEL = "This question asks about a kind of degree your profile doesn't list. Answer it yourself."
 _SEVERAL = ("Your profile has several degrees, and this question doesn't say which one it means. "
             "Answer it yourself.")
@@ -283,7 +285,8 @@ def _graduation(key: str, question: str, prof: dict) -> tuple[str | None, str | 
     several degrees, only a question that names a degree level matching one of them, or degrees
     that all give the same answer, are answered: otherwise the question doesn't say which it means.
     """
-    dated = [e for e in prof.get("education") or [] if e.get("end") and e["end"] != "present"]
+    # A degree still in progress ("present") has no date to give, but may be the one asked about.
+    dated = [e for e in prof.get("education") or [] if e.get("end")]
     if not dated:
         return None, None
     named = [level for level in _LEVELS if level.search(norm_text(question))]
@@ -296,6 +299,8 @@ def _graduation(key: str, question: str, prof: dict) -> tuple[str | None, str | 
             return None, _NO_LEVEL  # every degree is clearly of another level
         # Otherwise a degree whose level can't be read ("Diploma", none given) may be the one asked
         # about: an only degree answers the question, and several are ambiguous unless they agree.
+    if any(entry["end"] == "present" for entry in dated):
+        return None, _IN_PROGRESS
     answers = {_graduation_answer(key, question, entry["end"]) for entry in dated}
     if len(answers) != 1:
         return None, _SEVERAL
