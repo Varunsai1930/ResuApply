@@ -169,7 +169,9 @@ def _contact(lines: list[str]) -> dict:
 _MONTH = r"(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)"
 _MONTHS = {m: i for i, m in enumerate(("jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec"), 1)}
 _SEASON = r"(?:spring|summer|fall|autumn|winter)"
-_DATE = (r"(?:(?:jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec)[a-z]*\.?\s+(?:\d{4}|['’]\d{2}\b)"
+# A month name starts a word and is at most "sep" and six more letters ("september"): unbounded, or
+# matched inside a word, a long run such as "decdecdec..." took quadratic time (17 s for 60,000 letters).
+_DATE = (r"(?:\b(?:jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec)[a-z]{0,6}\.?\s+(?:\d{4}|['’]\d{2}\b)"
          rf"|{_SEASON}\s+\d{{4}}|\d{{1,2}}/\d{{4}}|\d{{4}}-\d{{2}}|\d{{4}})")
 _RANGE = re.compile(rf"({_DATE})\s*(?:-|–|—|to)\s*({_DATE}|present|current|now|ongoing)", re.I)
 _SHORT_RANGE = re.compile(r"\b((?:19|20)\d{2})(\s*[-–—]\s*)(\d{2})\b(?![/-])")  # "2021–22"
@@ -248,7 +250,7 @@ class _Entry:
 def _starts_entry(line: str) -> bool:
     """Whether a line reads as an entry's heading: it has separators or dates, which a sentence rarely has."""
     return bool(_SEPARATORS.search(line) or _RANGE.search(line)
-                or re.search(rf"(?i)\b(?:{_MONTH}[a-z]*\.?\s+\d{{4}}|present)\b", line))
+                or re.search(rf"(?i)\b(?:{_MONTH}[a-z]{{0,6}}\.?\s+\d{{4}}|present)\b", line))
 
 
 WRAP = 40  # a bullet line this long may have wrapped onto the next line
@@ -309,8 +311,8 @@ def _entries(lines: list[str], section: str = "") -> list[_Entry]:
 
 
 # A year or a month and year in a heading line: a date, not a count ("1,200 users").
-_DATED = re.compile(rf"(?i)\b(?:(?:{_MONTH}[a-z]*|{_SEASON})\.?\s+)?(?:19|20)\d{{2}}\b|\bpresent\b"
-                    rf"|\b{_MONTH}[a-z]*\.?\s+['’]\d{{2}}\b")
+_DATED = re.compile(rf"(?i)\b(?:(?:{_MONTH}[a-z]{{0,6}}|{_SEASON})\.?\s+)?(?:19|20)\d{{2}}\b|\bpresent\b"
+                    rf"|\b{_MONTH}[a-z]{{0,6}}\.?\s+['’]\d{{2}}\b")
 
 
 def _another_entry(heading: list[str], line: str, section: str) -> bool:

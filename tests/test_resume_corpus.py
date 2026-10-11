@@ -7,6 +7,8 @@ Nothing is sent anywhere; every name, company and school is made up.
 
 from __future__ import annotations
 
+import pytest
+
 from app.services.resume_draft import draft_profile
 from app.services.resume_import import extract_text
 from tests.resume_files import column, layout_pdf_bytes
@@ -668,3 +670,24 @@ Builds backend services.
     assert [c["name"] for c in draft["certifications"]] == [
         "AWS Certified Cloud Practitioner", "Example Scrum Master Certificate"]
     assert draft["experience"] == [] and draft["education"] == [] and draft["summary"] == ""  # left out, not misfiled
+
+
+def test_a_long_line_of_repeated_month_names_drafts_quickly():
+    import time
+
+    for prefix in ("dec", "Sept", "jan ", "may."):
+        started = time.perf_counter()
+        draft_profile("Jordan Example\n\nEXPERIENCE\n" + (prefix * 100_000)[:100_000] + "\n- Built an API\n")
+        assert time.perf_counter() - started < 1, prefix
+
+
+@pytest.mark.parametrize("heading, start, end", [
+    ("Acme | Intern | September 2023 – Present", "2023-09", "present"),
+    ("Acme | Intern | Sept. 2023 – Jan 2024", "2023-09", "2024-01"),
+    ("Acme | Intern | December 2023 - February 2024", "2023-12", "2024-02"),
+    ("Acme | Intern | May '24 – Aug '24", "2024-05", "2024-08"),
+    ("Acme | Intern | Summer 2024", "2024", ""),
+])
+def test_month_names_of_every_length_are_still_dates(heading, start, end):
+    (job,) = draft_profile(f"Jordan Example\n\nExperience\n{heading}\n- Built an API\n")["experience"]
+    assert (job["start"], job["end"]) == (start, end)
