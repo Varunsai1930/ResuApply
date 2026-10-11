@@ -720,7 +720,6 @@ label.check input { width: 16px; height: 16px; margin: 3px 0 0; flex-shrink: 0; 
 .add-question .stack { max-width: 640px; }
 .bank-suggestions { margin: 2px 0; }
 .bank-suggestions .suggestion { padding: 10px 0 2px; border-top: 1px solid var(--rule); margin-top: 10px; }
-.btn-small[hidden], .field[hidden] { display: none; }
 .over-limit { color: var(--unmet); font-weight: 500; }
 
 .review-list li { overflow-wrap: anywhere; }
@@ -739,7 +738,6 @@ label.check input { width: 16px; height: 16px; margin: 3px 0 0; flex-shrink: 0; 
 .editor-side details summary::-webkit-details-marker { display: none; }
 .editor-side details summary h2 { display: inline; font-size: 1.05rem; }
 .criterion { margin-top: 16px; padding-top: 16px; border-top: 1px dashed var(--rule-strong); }
-.criterion[hidden] { display: none; }
 .wide-hint { grid-column: 1 / -1; margin: 0; }
 
 /* ------------------------------------------------------------------ sharing preview */

@@ -126,6 +126,7 @@ def test_hidden_sections_stay_hidden_whatever_their_layout(client):
     css = client.get("/static/style.css").text
     # The profile cards get display: grid on wide screens, which would override the browser's own [hidden] rule.
     assert "[hidden] { display: none !important; }" in css
+    assert css.count("[hidden]") == 1  # the one global rule; no per-class copies to keep in step
 
 
 def test_a_section_opened_before_another_save_never_reverts_it(client, sample_profile):
