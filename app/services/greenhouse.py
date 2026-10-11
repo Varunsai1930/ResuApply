@@ -37,6 +37,9 @@ from .text import clean_text
 HOSTS = ("boards.greenhouse.io", "job-boards.greenhouse.io")
 API = "https://boards-api.greenhouse.io/v1/boards/{board}/jobs/{job_id}?questions=true"
 TIMEOUT_SECONDS = 10.0  # for the whole exchange, not per read
+# httpx limits each phase on its own, so each gets a share: connecting, sending the request and waiting for
+# the headers take at most 9 seconds together, and a read of the body starts only while one fits.
+PHASE_SECONDS = 3.0
 MAX_BYTES = 2 * 1024 * 1024  # a posting with its questions is tens of kilobytes
 
 _BOARD = re.compile(r"[A-Za-z0-9_-]{1,100}")
@@ -95,11 +98,19 @@ def posting_ref(url: str) -> PostingRef | None:
 # ---------------------------------------------------------------- fetching
 
 def fetch(ref: PostingRef, transport: httpx.BaseTransport | None = None) -> dict:
-    """The posting's JSON, read under the deadline and size limit. ``transport`` replaces the network in tests."""
+    """The posting's JSON, read within TIMEOUT_SECONDS in all and up to MAX_BYTES.
+
+    ``transport`` replaces the network in tests.
+    """
     deadline = time.monotonic() + TIMEOUT_SECONDS
     body = bytearray()
+
+    def time_for_a_read() -> None:
+        if time.monotonic() > deadline - PHASE_SECONDS:  # the read may wait PHASE_SECONDS for its data
+            raise httpx.ReadTimeout("deadline passed")
+
     try:
-        with httpx.Client(transport=transport, timeout=TIMEOUT_SECONDS, follow_redirects=False) as client:
+        with httpx.Client(transport=transport, timeout=httpx.Timeout(PHASE_SECONDS), follow_redirects=False) as client:
             with client.stream("GET", ref.api_url, headers={"Accept": "application/json"}) as response:
                 if response.status_code == 404:
                     raise GreenhouseError("Greenhouse has no such job. The posting may have closed; check the link.")
@@ -112,12 +123,12 @@ def fetch(ref: PostingRef, transport: httpx.BaseTransport | None = None) -> dict
                 length = response.headers.get("content-length", "")
                 if length.isdigit() and int(length) > MAX_BYTES:
                     raise _too_large()
+                time_for_a_read()
                 for chunk in response.iter_bytes():
                     body.extend(chunk)
                     if len(body) > MAX_BYTES:
                         raise _too_large()
-                    if time.monotonic() > deadline:
-                        raise httpx.ReadTimeout("deadline passed")
+                    time_for_a_read()
     except httpx.TimeoutException:
         raise GreenhouseError(f"Greenhouse took longer than {TIMEOUT_SECONDS:.0f} seconds. Nothing was imported; "
                               "try again, or paste the posting instead.") from None

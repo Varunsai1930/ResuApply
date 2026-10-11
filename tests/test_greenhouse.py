@@ -211,3 +211,34 @@ def test_at_most_100_questions_are_added():
 def test_list_items_stay_on_consecutive_lines():
     text = read_posting(posting()).description
     assert "Requirements\n\n- Experience with Python and SQL\n- Familiarity with Git\n\nIgnore" in text
+
+
+def test_every_phase_together_stays_within_the_deadline(monkeypatch):
+    seen = {}
+    original = httpx.Client
+
+    def client(*args, **kwargs):
+        seen["timeout"] = kwargs["timeout"]
+        return original(*args, **kwargs)
+
+    monkeypatch.setattr(greenhouse.httpx, "Client", client)
+    fetch(ref(), FakeGreenhouse(posting()).transport)
+    timeout = seen["timeout"]
+    # connecting, sending the request and waiting for the answer's headers
+    assert timeout.connect + timeout.write + timeout.read <= greenhouse.TIMEOUT_SECONDS
+
+
+def test_no_read_starts_without_the_time_for_it(monkeypatch):
+    clock = iter([0.0, 7.5, 7.5, 7.5])  # the headers took 7.5 of the 10 seconds
+    monkeypatch.setattr(greenhouse.time, "monotonic", lambda: next(clock))
+    pulled = []
+
+    def chunks():
+        pulled.append(1)
+        yield b'{"title": "'
+        pulled.append(2)
+        yield b'x"}'
+
+    with pytest.raises(GreenhouseError, match="longer than 10 seconds"):
+        fetch(ref(), FakeGreenhouse(httpx.Response(200, content=chunks())).transport)
+    assert pulled == []  # a read that may wait its full timeout would end after the deadline
