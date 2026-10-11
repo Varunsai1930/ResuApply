@@ -186,6 +186,7 @@ Snapshot review covers every frozen job field, including the posting URL. A URL-
 - Imported facts need user confirmation. The current profile is never overwritten automatically; a field-level diff is shown first.
 - Existing source IDs are kept for unchanged entries, and the revision increases when confirmed changes are saved.
 - Unreadable, encrypted or unsupported files return clear errors without touching existing data.
+- Built: the text is read in document order (Word paragraphs, tables, content controls, text boxes and the first page's header and footer; PDF pages in drawing order, with flush-right text kept apart and two-column pages split at their gutter when both columns have headings), and page numbers and running headers are left out. A corpus of synthetic resumes in common layouts (`tests/test_resume_corpus.py`) covers what is read, and the README lists the layouts that stay unsupported.
 
 ### Greenhouse job import
 
