@@ -372,7 +372,11 @@ _NEXT_CATEGORY = re.compile(r"\s*[;|]\s*(?=[A-Z][\w &/+.-]{0,30}:)")
 
 
 def _split_list(text: str) -> list[str]:
-    """A list split at commas, semicolons, bars and dots, but not inside brackets: "Python (Pandas, NumPy)" stays whole."""
+    """A list split at commas, semicolons, bars and dots, but not inside brackets: "Python (Pandas, NumPy)" stays whole.
+
+    A bracket group too long to be one skill's name is read as its head and its items, and a bracket
+    that never closes doesn't hold back the rest of the line.
+    """
     items, depth, current = [], 0, []
     for ch in text:
         depth += {"(": 1, "[": 1, ")": -1, "]": -1}.get(ch, 0)
@@ -382,7 +386,16 @@ def _split_list(text: str) -> list[str]:
         else:
             current.append(ch)
     items.append("".join(current))
-    return [item.strip() for item in items]
+    if depth > 0:
+        return [item.strip() for item in re.split(r"[,;|•·(\[]", re.sub(r"[)\]]", "", text))]
+    out = []
+    for item in (item.strip() for item in items):
+        head, bracket, inner = item.partition("(")
+        if bracket and len(item) > 60:
+            out += [head.strip(), *_split_list(inner.rsplit(")", 1)[0])]
+        else:
+            out.append(item)
+    return out
 
 
 def _categorized(line: str) -> list[tuple[str, str]]:
@@ -401,10 +414,24 @@ def _categorized(line: str) -> list[tuple[str, str]]:
     return parts
 
 
+def _joined(lines: list[str]) -> list[str]:
+    """Skills lines without their bullets, a line whose bracket wraps onto the next joined to it."""
+    joined: list[str] = []
+    wrapped = False  # the last line is already two lines: a bracket that never closes takes no more
+    for line in (_BULLET.sub("", line) for line in lines):
+        if joined and not wrapped and joined[-1].count("(") > joined[-1].count(")"):
+            joined[-1] += " " + line
+            wrapped = True
+        else:
+            joined.append(line)
+            wrapped = False
+    return joined
+
+
 def _skills(lines: list[str]) -> list[dict]:
     skills, seen = [], set()
-    for line in lines:
-        for category, names in _categorized(_BULLET.sub("", line)):
+    for line in _joined(lines):
+        for category, names in _categorized(line):
             for name in _split_list(names):
                 if _sentence(name):
                     continue

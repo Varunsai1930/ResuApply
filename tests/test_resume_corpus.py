@@ -548,3 +548,15 @@ Example Robotics Club
         "Led the migration of reports to Snowflake"])
     assert second["organization"] == "University Lab" and len(second["bullets"]) == 1
     assert third["organization"] == "Example Robotics Club"  # a title after a short bullet is a new entry
+
+
+def test_a_skills_line_that_wraps_inside_brackets_keeps_every_skill():
+    draft = draft_profile("Jordan Example\n\nSkills\nPython (Pandas, NumPy, SciPy, Matplotlib, Seaborn, scikit-learn,\n"
+                          "TensorFlow), Java, C++\nSQL (PostgreSQL, SQLite), Go\nRust (unclosed, Kotlin\n")
+    assert [s["name"] for s in draft["skills"]] == [
+        "Python", "Pandas", "NumPy", "SciPy", "Matplotlib", "Seaborn", "scikit-learn", "TensorFlow", "Java", "C++",
+        "SQL (PostgreSQL, SQLite)", "Go", "Rust", "unclosed", "Kotlin"]
+    stray = draft_profile("Jordan Example\n\nSkills\nRust (unclosed, Kotlin\nDocker\nLanguages: Java, Go\n")
+    assert [(s["name"], s["category"]) for s in stray["skills"]] == [
+        ("Rust", "Skills"), ("unclosed", "Skills"), ("Kotlin Docker", "Skills"), ("Java", "Languages"),
+        ("Go", "Languages")]  # one line is joined at most: the categories after it are still read
