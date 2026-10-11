@@ -132,6 +132,8 @@ def answer_blocker(item: answer_service.ResolvedAnswer) -> str | None:
     name = f'"{_short(question.text)}"'
     if item.problem:  # even when optional: the value is there, but can't be submitted as it is
         return f"{name} ({item.label}): {answer_service.too_long_message(question, item.problem)}"
+    if item.not_a_choice:  # even when optional: the answer can't be entered on the employer's form
+        return f"{name} ({item.label}): {item.not_a_choice}"
     if question.category in q_rules.SENSITIVE_CATEGORIES:
         return (f"{name} ({item.label}): sensitive questions need your own answer, "
                 "your confirmation or an explicit skip.")

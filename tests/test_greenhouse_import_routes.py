@@ -235,3 +235,17 @@ def test_a_posting_with_hundreds_of_upload_fields_is_imported_with_them_summed_u
     response = client.post("/jobs/import", data={"url": POSTING_URL})
     assert response.status_code == 200
     assert "Attachment 0: A file upload" in response.text and "302 more fields" in response.text
+
+
+def test_an_answer_that_is_not_one_of_the_forms_choices_is_shown_and_blocks_approval(client, greenhouse, sample_profile):
+    review_and_save(client, profile_form(sample_profile))
+    location = _import_and_save(client, greenhouse)
+    [job] = jobs(client)
+    qid = next(q.id for q in job.questions if q.text == "Which of these tools have you used?")
+    client.post(f"/jobs/{job.id}/questions/{qid}/category", data={"category": "open"}, follow_redirects=False)
+    client.post(f"/jobs/{job.id}/questions/{qid}/answer", data={"text": "Lots of tools, daily."}, follow_redirects=False)
+    page = client.get(location).text
+    assert "This answer isn&#39;t made of the choices on the employer&#39;s form (Git · Docker)." in page
+    assert "Not one of the form&#39;s choices" in page
+    client.post(f"/jobs/{job.id}/questions/{qid}/answer", data={"text": "Git\nDocker"}, follow_redirects=False)
+    assert "made of the choices" not in client.get(location).text

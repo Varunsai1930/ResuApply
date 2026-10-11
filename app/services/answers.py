@@ -26,7 +26,7 @@ JSON columns are treated as immutable: every mutation assigns a new list.
 from __future__ import annotations
 
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import datetime
 from enum import StrEnum
 
@@ -36,6 +36,7 @@ from sqlalchemy.orm import Session
 from ..db import get_by_id, utcnow
 from ..models import Application, AnswerBankEntry, Candidate, Job
 from ..schemas.package import Answer, AnswerDraft, Question
+from ..schemas.posting_import import QuestionField
 from ..schemas.profile import Profile
 from ..schemas.tracking import ReviewState
 from . import profile as profile_service
@@ -61,6 +62,7 @@ LABELS = {
     "skipped": "Skipped (optional)",
     "category": "Confirm category",
     "limit": "Over the length limit",
+    "choice": "Not one of the form's choices",
 }
 
 
@@ -516,6 +518,7 @@ class ResolvedAnswer:
     answer: Answer | None = None
     draft: AnswerDraft | None = None  # a pending AI draft, or a replacement beside an accepted answer
     problem: str | None = None  # why the shown profile value can't be used as it is (over the length limit)
+    not_a_choice: str | None = None  # why the answer can't be entered in the employer's choice field
 
 
 def resolve_answer(question: Question, answer: Answer | None, draft: AnswerDraft | None,
@@ -558,12 +561,35 @@ def resolve_all(job: Job, application: Application, profile: Profile) -> list[Re
     """Every question of the job, resolved against the current profile, in order."""
     answers = {a.question_id: a for a in application.answers}
     drafts = {d.question_id: d for d in application.answer_drafts}
-    return [resolve_answer(q, answers.get(q.id), drafts.get(q.id), profile) for q in job.questions]
+    return [_checked_choice(job, resolve_answer(q, answers.get(q.id), drafts.get(q.id), profile))
+            for q in job.questions]
+
+
+def choice_field(job: Job, question_id: str) -> QuestionField | None:
+    """The employer's "Choose one" or "Choose any" field an imported question was read from, or None."""
+    field = job.posting_import.fields.get(question_id) if job.posting_import else None
+    return field if field is not None and field.is_choice else None
+
+
+def _checked_choice(job: Job, item: ResolvedAnswer) -> ResolvedAnswer:
+    """An answer to a choice field must name its choices, or it can't be entered on the employer's form.
+
+    Like an over-long value, it is shown as it is and stops approval, even on an optional question.
+    """
+    field = choice_field(job, item.question.id)
+    if field is None or not item.resolved or item.skipped or not item.text or field.accepts(item.text):
+        return item
+    many = field.field_type == "multi_select"
+    message = (f"This answer isn't {'made of the choices' if many else 'one of the choices'} on the employer's form "
+               f"({' · '.join(field.options)}). Answer with the choice{'s' if many else ''} as written there"
+               f"{'' if item.question.required else ', or skip this optional question'}. Until then it blocks approval.")
+    return replace(item, resolved=False, label=LABELS["choice"], not_a_choice=message)
 
 
 def draft_targets(job: Job, application: Application, profile: Profile | dict) -> list[Question]:
     """The open questions worth drafting: those without an answer, and those whose accepted AI
-    answer the current profile no longer supports.
+    answer the current profile no longer supports. A question read from the employer's choice
+    field is never drafted: its answer is one of the listed choices, not prose.
 
     Skipped questions, the user's own answers (typed or from the bank) and AI answers the
     profile still supports are never drafted. The draft button, the request and the freshness
@@ -572,7 +598,7 @@ def draft_targets(job: Job, application: Application, profile: Profile | dict) -
     answers = {a.question_id: a for a in application.answers}
     return [
         q for q in job.questions
-        if q.category == q_rules.OPEN
+        if q.category == q_rules.OPEN and choice_field(job, q.id) is None
         and (q.id not in answers or answer_problems(job, q, answers[q.id], profile))
     ]
 

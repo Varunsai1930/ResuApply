@@ -73,8 +73,22 @@ def test_every_answer_label_has_a_meaning(sample_profile, label, question, answe
     assert for_answer(item) == Meaning(status, item.label)
 
 
+def test_an_answer_that_is_not_one_of_the_choices_needs_you(sample_profile):
+    # Only a job imported from a posting has choice fields, so this label comes from resolve_all.
+    from types import SimpleNamespace
+
+    from app.schemas.posting_import import PostingImport, QuestionField
+
+    job = SimpleNamespace(questions=[_question(q_rules.OPEN)], posting_import=PostingImport(
+        board="b", job_id="1", fetched_at=NOW, fields={"q1": QuestionField(field_type="single_select", options=["Yes", "No"])}))
+    application = SimpleNamespace(answers=[_answer(text="Maybe", origin="user")], answer_drafts=[])
+    [item] = answers.resolve_all(job, application, profile_service.normalize(sample_profile).profile)
+    assert item.label == answers.LABELS["choice"]
+    assert for_answer(item) == Meaning(Status.NEEDS_YOU, item.label)
+
+
 def test_the_cases_above_cover_every_answer_label():
-    covered = {case[0] for case in ANSWER_CASES}
+    covered = {case[0] for case in ANSWER_CASES} | {"choice"}
     assert covered == set(answers.LABELS)
 
 

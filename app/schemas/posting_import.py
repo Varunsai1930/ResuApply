@@ -60,12 +60,43 @@ class _Model(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
 
+CHOICE_TYPES = ("single_select", "multi_select")
+
+
+def _fold(text: str) -> str:
+    return " ".join(text.split()).casefold()
+
+
 class QuestionField(_Model):
     """The form field an imported question was read from."""
 
     field_type: FieldType
     options: list[Option] = Field(default_factory=list, max_length=100)
     greenhouse_type: str = Field(default="", max_length=100)
+
+    @property
+    def is_choice(self) -> bool:
+        """A "Choose one" or "Choose any" field with its choices listed."""
+        return self.field_type in CHOICE_TYPES and bool(self.options)
+
+    def accepts(self, text: str) -> bool:
+        """Whether an answer names this field's choices as the employer's form writes them (case and spacing aside).
+
+        A field without choices accepts any answer. "Choose one" takes one choice; "Choose any" takes
+        one or more, one per line or separated by semicolons or commas.
+        """
+        if not self.is_choice:
+            return True
+        options = {_fold(option) for option in self.options}
+        if _fold(text) in options:
+            return True
+        if self.field_type == "single_select":
+            return False
+        for separator in ("\n", ";", ","):
+            parts = [_fold(part) for part in text.split(separator) if part.strip()]
+            if len(parts) > 1 and all(part in options for part in parts):
+                return True
+        return False
 
 
 class PostingImport(_Model):
