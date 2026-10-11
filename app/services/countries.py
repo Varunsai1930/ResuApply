@@ -269,8 +269,10 @@ ZW|Zimbabwe"""
 
 _COUNTRIES: dict[str, str] = {}
 _NAMES: dict[str, str] = {}
+_DISPLAY: dict[str, str] = {}
 for _row in _COUNTRY_NAMES.splitlines():
     _code, *_names = _row.split("|")
+    _DISPLAY[_code] = _names[0] if _names else _code
     for _name in [_code, *_names]:
         _COUNTRIES[_key(_name)] = _code
     for _name in _names:
@@ -285,6 +287,11 @@ def normalize_country(value: str) -> str:
     if code is None:
         raise ValueError("Enter a valid two-letter country code or a recognized country name.")
     return code
+
+
+def display_name(code: str) -> str:
+    """The English name of a country code ("CA" -> "Canada"); an unknown code is shown as it is."""
+    return _DISPLAY.get(code, code)
 
 
 def words(value: str) -> list[str]:

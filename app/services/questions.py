@@ -281,3 +281,29 @@ def factual_value(key: str, question: str, profile: Profile | dict) -> str | Non
         record = _country(question, prof)
         return _yes_no(record.get("requires_sponsorship")) if record else None
     return None
+
+
+def profile_gap(key: str, question: str, profile: Profile | dict) -> str | None:
+    """The profile fact a factual question needs but the profile lacks, or None.
+
+    Returns the factual key ("start_date"), or for work authorization and sponsorship the key
+    and the country code ("authorization:CA"; the bare key when the question names no country
+    and the profile has no country at all). None means the profile answers the question, or
+    the question is never answered from the profile (a first or last name, a negated or
+    combined authorization question, an unclear country), so adding a fact wouldn't help.
+    """
+    prof = profile.model_dump() if isinstance(profile, Profile) else profile
+    if name_part(key, question) or factual_value(key, question, prof) is not None:
+        return None
+    if key not in ("authorization", "sponsorship"):
+        return key
+    q = norm_text(question)
+    if _NEGATED.search(q) or (_AUTH.search(q) and _SPONSOR.search(q)):
+        return None
+    records = prof.get("authorization") or []
+    code = question_country(question)
+    if code is False:  # no country named: only a single record, or none at all, says which
+        if not records:
+            return key
+        return f"{key}:{records[0]['country']}" if len(records) == 1 else None
+    return f"{key}:{code}" if code else None

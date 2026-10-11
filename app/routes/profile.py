@@ -14,7 +14,9 @@ from sqlalchemy.orm import Session
 from starlette.concurrency import run_in_threadpool
 
 from ..db import get_session
+from ..services import jobs as job_service
 from ..services import profile as profile_service
+from ..services.profile_gaps import gaps
 from ..services.profile_form import is_form_shaped, parse_form
 from ..templating import templates
 from .forms import read_form
@@ -64,9 +66,12 @@ def _load_payload(payload: object) -> dict:
 @router.get("", response_class=HTMLResponse)
 def view_profile(request: Request, msg: str = "", session: Session = Depends(get_session)):
     candidate = profile_service.get_candidate(session)
-    return templates.TemplateResponse(
-        request, "profile_view.html", {"candidate": candidate, "msg": msg, "active": "profile"}
-    )
+    jobs = job_service.list_all(session) if candidate else []
+    return templates.TemplateResponse(request, "profile_view.html", {
+        "candidate": candidate, "msg": msg, "active": "profile",
+        "gaps": gaps(jobs, candidate.profile) if candidate else [],
+        "asked_jobs": any(q.factual_key for j in jobs for q in j.questions),
+    })
 
 
 @router.get("/edit", response_class=HTMLResponse)

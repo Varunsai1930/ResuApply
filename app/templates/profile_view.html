@@ -18,6 +18,30 @@
   <a class="btn-primary" href="/profile/edit">Edit profile</a>
 </div>
 
+<section class="card profile-gaps" aria-labelledby="gaps-title">
+  <h2 id="gaps-title">What your applications still ask for</h2>
+  {% if gaps %}
+  <p class="hint">From the questions in your jobs that aren't closed. Missing facts stay unknown; nothing is guessed.</p>
+  <ul class="gap-list">
+    {% for g in gaps %}
+    <li>
+      {{ m.status_icon(Status.NEEDS_YOU) }}
+      <span class="gap-text">
+        <strong>{{ g.label }}</strong>
+        <span class="hint">Asked by {{ g.jobs | length }} job{{ 's' if g.jobs | length != 1 }}:
+          {% for j in g.jobs %}<a href="/jobs/{{ j.id }}?step=questions#questions">{{ j.title }} at {{ j.company }}</a>{{ ', ' if not loop.last }}{% endfor %}</span>
+      </span>
+      <a class="btn-secondary" href="/profile/edit">Add it<span class="visually-hidden">: {{ g.label }}</span></a>
+    </li>
+    {% endfor %}
+  </ul>
+  {% elif asked_jobs %}
+  <p>{{ m.status_line(Meaning(Status.DONE, "everything your jobs' questions ask for so far is in your profile")) }}</p>
+  {% else %}
+  <p class="hint">Once you add questions to a job, any fact they need that your profile lacks shows here.</p>
+  {% endif %}
+</section>
+
 <div class="doc">
 <section class="doc-section">
   <h2>Contact</h2>

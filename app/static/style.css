@@ -479,6 +479,13 @@ mark { color: var(--accent); background: var(--accent-wash); padding: 0 2px; bor
   font-size: 0.92rem; line-height: 1.6; color: var(--ink-2);
 }
 
+/* Profile: what applications still ask for. */
+.gap-list { list-style: none; margin: 12px 0 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
+.gap-list li { display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: flex-start; padding-top: 10px; border-top: 1px solid var(--rule); }
+.gap-list .st-icon { color: var(--unknown); margin-top: 4px; }
+.gap-text { flex: 1 1 280px; }
+.gap-text strong { display: block; }
+
 /* Follow-up reminders: the Track step card and the board banner. */
 .follow-up.due, .follow-up-banner { background: var(--unknown-wash); border-color: var(--unknown); }
 .follow-up h2 { font-size: 1.05rem; }
