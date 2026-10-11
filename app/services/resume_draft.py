@@ -292,11 +292,21 @@ def _school_apart(part: str) -> list[str]:
     return [*schools, rest] if schools and rest else [part]
 
 
+_MINOR = re.compile(r"[,;|]?\s*\b(minor|concentration|specialization)\b.*$", re.I)
+
+
 def _education(entry: _Entry) -> dict:
-    heading = " | ".join(entry.heading)
-    gpa = m.group(1) if (m := _GPA.search(heading)) else ""
-    heading = _GPA.sub(" ", heading)
-    start, end, rest = _dates(heading, single_is_end=True)
+    """An education entry. Heading lines that name no school, degree or dates (honours, the Dean's
+    List, coursework) and a minor are kept as the entry's bullets rather than dropped."""
+    gpa = next((m.group(1) for line in entry.heading if (m := _GPA.search(line))), "")
+    lines, extras = [], []
+    for index, line in enumerate(entry.heading):
+        line = _GPA.sub(" ", line)
+        if index and not (_SCHOOL.search(line) or _DEGREE.search(line) or _DATED.search(line)):
+            extras.append(line)
+        else:
+            lines.append(line)
+    start, end, rest = _dates(" | ".join(lines), single_is_end=True)
     parts = [piece for part in _parts(rest) for piece in _school_apart(part)]
     institution = next((p for p in parts if _SCHOOL.search(p)), parts[0] if parts else "")
     degree, field_ = "", ""
@@ -304,9 +314,14 @@ def _education(entry: _Entry) -> dict:
         if part != institution and (m := _DEGREE.search(part)):
             degree = m.group(0)
             field_ = re.sub(r"^\s*(?:in|of)\s+|^[,\s]+", "", part[m.end():]).strip(" ,")
+            if minor := _MINOR.search(field_):
+                extras.insert(0, minor.group(0).strip(" ,;|"))
+                field_ = field_[:minor.start()].strip(" ,")
             break
+    bullets = [{"id": "", "text": text} for line in extras
+               if (text := " ".join(p.strip(" ,") for p in _SEPARATORS.split(line) if p.strip(" ,")))]
     return {"id": "", "institution": institution, "degree": degree, "field": field_, "start": start, "end": end,
-            "gpa": gpa, "bullets": _bullets(entry)}
+            "gpa": gpa, "bullets": bullets + _bullets(entry)}
 
 
 def _project(entry: _Entry) -> dict:

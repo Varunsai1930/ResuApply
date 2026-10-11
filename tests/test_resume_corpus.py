@@ -360,3 +360,25 @@ Example Org | Analyst | Jan. 2023 – Ongoing
         ("Example Inc", "Engineer", "2024-05", "2024-08"),
         ("Example Org", "Analyst", "2023-01", "present"),
     ]
+
+
+def test_honours_coursework_and_a_minor_are_kept_with_their_school():
+    draft = draft_profile("""Jordan Example
+
+Education
+Example State University — Austin, TX
+B.S. in Computer Science, Minor in Mathematics | May 2027
+GPA: 3.85/4.00 · Magna Cum Laude
+Dean's List (6 semesters)
+Relevant Coursework: Data Structures, Algorithms, Databases
+Example Community College
+Associate of Science, 2023
+""")
+    first, second = draft["education"]
+    assert (first["institution"], first["degree"], first["field"], first["end"], first["gpa"]) == (
+        "Example State University", "B.S.", "Computer Science", "2027-05", "3.85")
+    assert [b["text"] for b in first["bullets"]] == [
+        "Minor in Mathematics", "Magna Cum Laude", "Dean's List (6 semesters)",
+        "Relevant Coursework: Data Structures, Algorithms, Databases"]
+    assert (second["institution"], second["degree"], second["end"], second["bullets"]) == (
+        "Example Community College", "Associate", "2023", [])
