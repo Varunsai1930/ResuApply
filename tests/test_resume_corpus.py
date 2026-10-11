@@ -631,3 +631,19 @@ def test_an_empty_paragraph_between_bullets_keeps_them_with_their_job():
     (job,) = read(word(build))["experience"]
     assert (job["organization"], [b["text"] for b in job["bullets"]]) == (
         "Acme Corp", ["Built a Flask REST API", "Cut costs by 20%"])
+
+
+def test_a_dated_honours_line_stays_with_its_school():
+    draft = draft_profile("""Jordan Example
+
+Education
+University of Texas at Austin | B.S. Computer Science | 2016 - 2020
+Dean's List, Fall 2018 and Spring 2019
+Example State University
+M.S. Computer Science | 2022
+""")
+    first, second = draft["education"]
+    assert (first["institution"], first["degree"], first["start"], first["end"]) == (
+        "University of Texas at Austin", "B.S.", "2016", "2020")
+    assert [b["text"] for b in first["bullets"]] == ["Dean's List, Fall 2018 and Spring 2019"]
+    assert (second["institution"], second["degree"], second["end"]) == ("Example State University", "M.S.", "2022")

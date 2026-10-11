@@ -307,11 +307,14 @@ def _another_entry(heading: list[str], line: str, section: str) -> bool:
     """Whether a heading line starts the next entry of a section whose entries have no bullets.
 
     Entries are usually told apart by their bullets; an education section rarely has any. A line
-    that brings a second set of dates, or in Education a second school, belongs to the next entry.
+    that brings a second set of dates belongs to the next entry. In Education, that takes a second
+    school, or dates with a degree: a dated line of honours ("Dean's List, Fall 2018") stays.
     """
-    if section == "education" and _SCHOOL.search(line) and any(_SCHOOL.search(h) for h in heading):
-        return True
-    return bool(_DATED.search(line)) and any(_DATED.search(h) for h in heading)
+    dated = bool(_DATED.search(line)) and any(_DATED.search(h) for h in heading)
+    if section == "education":
+        return bool(_SCHOOL.search(line) and any(_SCHOOL.search(h) for h in heading)
+                    or dated and _DEGREE.search(line))
+    return dated
 
 
 def _bullets(entry: _Entry) -> list[dict]:
@@ -345,14 +348,15 @@ _MINOR = re.compile(r"[,;|]?\s*\b(minor|concentration|specialization)\b.*$", re.
 
 
 def _education(entry: _Entry) -> dict:
-    """An education entry. Heading lines that name no school, degree or dates (honours, the Dean's
-    List, coursework) and a minor are kept as the entry's bullets rather than dropped."""
+    """An education entry. Heading lines that name no school, degree or (new) dates (honours, the
+    Dean's List, coursework) and a minor are kept as the entry's bullets rather than dropped."""
     gpa = next((m.group(1) for line in entry.heading if (m := _GPA.search(line))), "")
     lines, extras = [], []
     for index, line in enumerate(entry.heading):
         line = _GPA.sub(" ", line)
-        if index and not (_SCHOOL.search(line) or _DEGREE.search(line) or _DATED.search(line)):
-            extras.append(line)
+        new_dates = _DATED.search(line) and not any(_DATED.search(earlier) for earlier in lines)
+        if index and not (_SCHOOL.search(line) or _DEGREE.search(line) or new_dates):
+            extras.append(line)  # honours, coursework: dated ones too once the entry has its dates
         else:
             lines.append(line)
     start, end, rest = _dates(" | ".join(lines), single_is_end=True)
