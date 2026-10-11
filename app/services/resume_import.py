@@ -10,6 +10,7 @@ from __future__ import annotations
 import io
 import re
 import zipfile
+import zlib
 
 from .text import clean_text
 
@@ -59,16 +60,24 @@ def _pdf_text(data: bytes) -> str:
 
 
 def _docx_text(data: bytes) -> str:
-    from docx import Document
     from docx.opc.exceptions import PackageNotFoundError
+    from lxml.etree import XMLSyntaxError
 
     with zipfile.ZipFile(io.BytesIO(data)) as archive:
         if sum(info.file_size for info in archive.infolist()) > MAX_UNZIPPED:
             raise ResumeImportError("This Word file is too large to read.")
     try:
-        document = Document(io.BytesIO(data))
-    except (PackageNotFoundError, KeyError, ValueError, zipfile.BadZipFile) as exc:
+        return _docx_lines(data)
+    # Damaged XML, a garbled compressed part, or a compression method zipfile can't read.
+    except (PackageNotFoundError, XMLSyntaxError, zlib.error, NotImplementedError, KeyError, ValueError,
+            zipfile.BadZipFile) as exc:
         raise ResumeImportError("This Word file couldn't be read. Try saving it again as .docx.") from exc
+
+
+def _docx_lines(data: bytes) -> str:
+    from docx import Document
+
+    document = Document(io.BytesIO(data))
     lines = [paragraph.text for paragraph in document.paragraphs]
     for table in document.tables:  # resumes often lay out dates or contact details in tables
         for row in table.rows:

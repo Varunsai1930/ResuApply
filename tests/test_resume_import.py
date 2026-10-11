@@ -107,3 +107,44 @@ def test_any_other_pdf_reader_error_is_reported_as_unreadable(monkeypatch):
     monkeypatch.setattr(pypdf, "PdfReader", fail)
     with pytest.raises(ResumeImportError, match="couldn't be read"):
         extract_text(pdf_bytes(LINES))
+
+
+def _rewritten_docx(change) -> bytes:
+    """A Word file whose zip entries are rewritten by ``change(info, data) -> (info, data)``."""
+    source = zipfile.ZipFile(io.BytesIO(docx_bytes(LINES)))
+    out = io.BytesIO()
+    with zipfile.ZipFile(out, "w", zipfile.ZIP_DEFLATED) as archive:
+        for info in source.infolist():
+            info, data = change(info, source.read(info.filename))
+            archive.writestr(info, data)
+    return out.getvalue()
+
+
+def _broken_xml() -> bytes:
+    return _rewritten_docx(lambda info, data: (info, b"<w:document><unclosed" if info.filename == "word/document.xml"
+                                                     else data))
+
+
+def _broken_deflate() -> bytes:
+    data = bytearray(docx_bytes(LINES))
+    with zipfile.ZipFile(io.BytesIO(bytes(data))) as archive:
+        info = archive.getinfo("word/document.xml")
+    start = info.header_offset + 30 + len(info.filename.encode()) + len(info.extra)
+    for i in range(start, start + 40):  # garble the compressed stream, not the zip directory
+        data[i] ^= 0xFF
+    return bytes(data)
+
+
+def _unsupported_compression() -> bytes:
+    data = bytearray(docx_bytes(LINES))
+    with zipfile.ZipFile(io.BytesIO(bytes(data))) as archive:
+        info = archive.getinfo("word/document.xml")
+    for offset in (info.header_offset + 8, data.rindex(b"word/document.xml") - 46 + 10):  # local and central headers
+        data[offset:offset + 2] = (99).to_bytes(2, "little")  # an AES or other method zipfile can't read
+    return bytes(data)
+
+
+@pytest.mark.parametrize("make", [_broken_xml, _broken_deflate, _unsupported_compression])
+def test_a_damaged_word_file_is_reported_plainly(make):
+    with pytest.raises(ResumeImportError, match="couldn't be read"):
+        extract_text(make())
