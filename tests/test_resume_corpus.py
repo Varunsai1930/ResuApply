@@ -601,3 +601,20 @@ def test_footer_boilerplate_is_not_taken_for_the_name():
     assert (contact["name"], contact["email"], contact["location"], contact["links"]["linkedin"]) == (
         "Jordan Example", "jordan@example.com", "Austin, TX", "linkedin.com/in/jordan-example")
     assert "References" not in str(draft)
+
+
+def test_only_lines_repeated_at_the_same_edge_are_running_and_page_numbers_fit_the_pages():
+    first = [*column(["Jordan Example", "EXPERIENCE", "Sample Analytics | Intern | Jun 2024 – Aug 2024",
+                      "• Built a Flask REST API", "Software Engineer"], top=750),
+             (50, 60, "06/22"), (50, 30, "jordan@example.com | +1 555 0100")]
+    second = [*column(["Software Engineer", "Example Labs | Jan 2025 – Present", "• Cleaned survey data",
+                       "SKILLS", "Python, SQL"], top=750),
+              (50, 30, "jordan@example.com | +1 555 0100"), (300, 15, "2")]
+    text = extract_text(layout_pdf_bytes([first, second]))
+    lines = text.splitlines()
+    assert lines[0] == "jordan@example.com | +1 555 0100" and text.count("jordan@example.com") == 1
+    assert lines.count("Software Engineer") == 2  # at the bottom of one page and the top of the next: content
+    assert "06/22" in lines and "2" not in lines  # a date stays; the page number goes
+    draft = draft_profile(text)
+    assert (draft["contact"]["name"], draft["contact"]["email"], draft["contact"]["phone"]) == (
+        "Jordan Example", "jordan@example.com", "+1 555 0100")

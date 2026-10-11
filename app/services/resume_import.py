@@ -128,7 +128,19 @@ def _page_text(page) -> str:
 
 
 EDGE_LINES = 3  # a running header or footer is among the first or last lines of a page
-_PAGE_NUMBER = re.compile(r"(?i)(?:page\s*)?\d{1,3}(?:\s*(?:of|/)\s*\d{1,3})?|-\s*\d{1,3}\s*-")
+_PAGE_NUMBER = re.compile(r"(?i)(?:page\s*)?(\d{1,3})(?:\s*(?:of|/)\s*(\d{1,3}))?|-\s*(\d{1,3})\s*-")
+
+
+def _page_number(line: str, pages: int) -> bool:
+    """Whether a line is a page number of a document this many pages long: "2", "Page 1 of 2", "- 2 -".
+
+    A number that doesn't fit the document, such as the date "06/22" in a two-page resume, is text.
+    """
+    if not (m := _PAGE_NUMBER.fullmatch(line.strip())):
+        return False
+    number = int(m.group(1) or m.group(3))
+    total = int(m.group(2)) if m.group(2) else pages
+    return 1 <= number <= total <= pages
 
 
 def _without_running_lines(pages: list[str]) -> list[str]:
@@ -136,35 +148,38 @@ def _without_running_lines(pages: list[str]) -> list[str]:
 
     In a resume of several pages, "Page 1 of 2" and a running header ("Jordan Example ·
     jordan@example.com") land between entries, where they read as an entry or a skill. A line among
-    the first or last lines of two or more pages is running; only its copy at the top of the first
-    page is kept, since that is where contact details belong. A one-page resume is left as it is.
+    the first lines of two or more pages is a running header, and one among the last lines of two or
+    more pages a running footer; a line that ends one page and starts the next is neither. Only the
+    first page's copy of a running header is kept, at the top where contact details are read, and a
+    running footer that holds contact details is kept once, moved there. A one-page resume is left as
+    it is.
     """
     if len(pages) < 2:
         return pages
     split = [[line for line in page.splitlines() if line.strip()] for page in pages]
 
-    def edges(lines: list[str]) -> list[str]:
-        return lines[:EDGE_LINES] + lines[-EDGE_LINES:]
-
     def key(line: str) -> str:
         return " ".join(line.split()).casefold()
 
-    seen: dict[str, int] = {}
-    for lines in split:
-        for line in {key(line) for line in edges(lines)}:
-            seen[line] = seen.get(line, 0) + 1
-    running = {line for line, count in seen.items() if count > 1}
+    tops = Counter(k for lines in split for k in {key(line) for line in lines[:EDGE_LINES]})
+    bottoms = Counter(k for lines in split for k in {key(line) for line in lines[-EDGE_LINES:]})
+    moved: list[str] = []
     kept = []
     for number, lines in enumerate(split):
         out = []
         for index, line in enumerate(lines):
-            at_edge = index < EDGE_LINES or index >= len(lines) - EDGE_LINES
-            if at_edge and _PAGE_NUMBER.fullmatch(line.strip()):
+            top, bottom = index < EDGE_LINES, index >= len(lines) - EDGE_LINES
+            if (top or bottom) and _page_number(line, len(pages)):
                 continue
-            if at_edge and key(line) in running and not (number == 0 and index < EDGE_LINES):
+            if top and tops[key(line)] > 1 and number:
+                continue
+            if bottom and bottoms[key(line)] > 1 and not (top and number == 0 and tops[key(line)] > 1):
+                if has_contact(line) and key(line) not in {key(m) for m in moved}:
+                    moved.append(line)
                 continue
             out.append(line)
         kept.append("\n".join(out))
+    kept[0] = "\n".join([*moved, kept[0]]) if moved else kept[0]
     return kept
 
 
