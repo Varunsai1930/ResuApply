@@ -169,7 +169,7 @@ class _Text(HTMLParser):
     def handle_endtag(self, tag):
         if tag in _HIDDEN:
             self.hidden = max(0, self.hidden - 1)
-        elif tag in _BLOCKS:
+        elif tag in _BLOCKS and tag != "li":  # the next item starts its own line: no blank line between items
             self.parts.append("\n")
 
     def handle_data(self, data):

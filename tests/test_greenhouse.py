@@ -206,3 +206,8 @@ def test_at_most_100_questions_are_added():
     data = {"questions": [{"label": f"Question {n}", "fields": [{"type": "input_text"}]} for n in range(105)]}
     questions, left_out = read_questions(data)
     assert len(questions) == 100 and left_out[-1].label == "5 more questions"
+
+
+def test_list_items_stay_on_consecutive_lines():
+    text = read_posting(posting()).description
+    assert "Requirements\n\n- Experience with Python and SQL\n- Familiarity with Git\n\nIgnore" in text
