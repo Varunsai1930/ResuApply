@@ -13,7 +13,7 @@ import zipfile
 import zlib
 from collections import Counter
 
-from .resume_draft import heading
+from .resume_draft import has_contact, heading
 from .text import clean_text
 
 MAX_BYTES = 10 * 1024 * 1024  # an upload larger than this is refused unread
@@ -191,20 +191,24 @@ def _docx_lines(data: bytes) -> str:
 
 
 def _header_lines(document) -> list[str]:
-    """The first page's header and footer, where Word templates often put the name and contact details.
+    """The first page's header, and the contact details in its footer, where Word templates often put them.
 
-    They come first, with the lines contact details are read from. The first page's own header is
-    used when the document has one; only the first section's are read.
+    They come first, with the lines contact details are read from. A footer line counts only when it
+    holds a contact detail (email, phone, link or place): the rest of a footer is page numbers and
+    boilerplate such as "References Available Upon Request", which would otherwise be read as the
+    name. The first page's own header and footer are used when the document has them; only the first
+    section's are read.
     """
     if not len(document.sections):  # a document may leave its section settings out
         return []
     section = document.sections[0]
-    parts = ([section.first_page_header, section.first_page_footer] if section.different_first_page_header_footer
-             else [section.header, section.footer])
+    first = section.different_first_page_header_footer
+    header, footer = ((section.first_page_header, section.first_page_footer) if first
+                      else (section.header, section.footer))
     lines = []
-    for part in parts:
+    for part, keep in ((header, lambda line: True), (footer, has_contact)):
         if not part.is_linked_to_previous:  # in the first section, "linked" means there is none
-            lines.extend(line for line in _block_lines(part._element, part) if line.strip())
+            lines.extend(line for line in _block_lines(part._element, part) if line.strip() and keep(line))
     return lines
 
 

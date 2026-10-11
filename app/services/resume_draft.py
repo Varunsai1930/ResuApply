@@ -117,6 +117,16 @@ def _bare(url: str) -> str:
     return re.sub(r"^(?:https?://)?(?:www\.)?", "", url, flags=re.I)
 
 
+def has_contact(line: str) -> bool:
+    """Whether a line holds a contact detail: an email, a phone number, a web link or a place."""
+    if _EMAIL.search(line) or _LINK.search(line) or _URL.search(line):
+        return True
+    phone = _PHONE.search(line)
+    if phone and 8 <= len(re.sub(r"\D", "", phone.group(0))) <= 15 and not _YEARS.fullmatch(phone.group(0).strip()):
+        return True
+    return any(_LOCATION.fullmatch(part.strip(" ,")) for part in _SEPARATORS.split(line))
+
+
 def _contact(lines: list[str]) -> dict:
     contact: dict = {"name": "", "email": "", "phone": "", "location": "", "links": {k: "" for k in LINK_KEYS}}
     for line in lines:

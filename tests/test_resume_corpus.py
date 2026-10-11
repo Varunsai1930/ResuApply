@@ -586,3 +586,18 @@ def test_a_line_across_both_columns_is_kept_whole():
         "Jordan Example", "jordan@example.com", "(555) 123-4567", "linkedin.com/in/jordan-example")
     assert [s["name"] for s in draft["skills"]] == ["Python", "SQL", "Docker"]
     assert [e["organization"] for e in draft["experience"]] == ["Sample Analytics"]
+
+
+def test_footer_boilerplate_is_not_taken_for_the_name():
+    def build(document):
+        section = document.sections[0]
+        section.footer.paragraphs[0].text = "References Available Upon Request"
+        section.footer.add_paragraph("Austin, TX | linkedin.com/in/jordan-example")
+        for line in ("Jordan Example", "jordan@example.com", "Skills", "Python, SQL"):
+            document.add_paragraph(line)
+
+    draft = read(word(build))
+    contact = draft["contact"]
+    assert (contact["name"], contact["email"], contact["location"], contact["links"]["linkedin"]) == (
+        "Jordan Example", "jordan@example.com", "Austin, TX", "linkedin.com/in/jordan-example")
+    assert "References" not in str(draft)
