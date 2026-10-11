@@ -18,6 +18,19 @@
     return Boolean(system && system.matches);
   }
 
+  // Swap the colours with every transition off, so buttons, inputs and cards change at once
+  // instead of each fading at its own speed. The toggle's own icon keeps its cross-fade.
+  function withoutTransitions(change) {
+    var style = document.createElement("style");
+    style.textContent = "*:not(.theme-toggle svg),*::before,*::after{transition:none !important}";
+    document.head.appendChild(style);
+    change();
+    void document.body.offsetHeight;  // apply the new colours while the override is in place
+    window.requestAnimationFrame(function () {
+      window.requestAnimationFrame(function () { style.remove(); });
+    });
+  }
+
   var choice = stored();
   if (choice === "dark" || choice === "light") root.dataset.theme = choice;
 
@@ -31,11 +44,13 @@
     }
     button.addEventListener("click", function () {
       var next = isDark() ? "light" : "dark";
-      root.dataset.theme = next;
-      store(next);
-      sync();
+      withoutTransitions(function () {
+        root.dataset.theme = next;
+        store(next);
+        sync();
+      });
     });
-    if (system && system.addEventListener) system.addEventListener("change", sync);
+    if (system && system.addEventListener) system.addEventListener("change", function () { withoutTransitions(sync); });
     sync();
     button.hidden = false;
   });

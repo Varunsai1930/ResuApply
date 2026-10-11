@@ -191,12 +191,19 @@ nav a[aria-current="page"] { color: var(--ink); border-bottom-color: var(--ink);
   color: var(--ink-3); font-size: 0.8rem; white-space: nowrap;
 }
 .theme-toggle {
-  display: flex; align-items: center; justify-content: center; align-self: center;
+  display: grid; place-items: center; align-self: center;
   width: 40px; height: 40px; margin-left: -20px; padding: 0;
   border: 1px solid transparent; border-radius: var(--radius-sm); background: none; color: var(--ink-3);
 }
 @media (hover: hover) { .theme-toggle:hover { color: var(--ink); border-color: var(--rule); } }
-.theme-toggle[aria-pressed="true"] .icon-moon, .theme-toggle[aria-pressed="false"] .icon-sun { display: none; }
+/* Both icons share one grid cell and cross-fade; aria-pressed says which one shows. */
+.theme-toggle svg {
+  grid-area: 1 / 1;
+  transition-property: opacity; transition-duration: 300ms; transition-timing-function: cubic-bezier(0.2, 0, 0, 1);
+}
+.theme-toggle[aria-pressed="true"] .icon-moon, .theme-toggle[aria-pressed="false"] .icon-sun { opacity: 0; }
+/* Icon strokes in rendered pixels, whatever size the 24px drawing is shown at. */
+.theme-toggle svg * { vector-effect: non-scaling-stroke; stroke-width: 1.5px; }
 .local-badge::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: var(--met); }
 
 /* main also has .wrap, whose padding shorthand would otherwise zero these out. */
@@ -424,6 +431,7 @@ button[disabled], button[disabled]:hover { opacity: 0.55; cursor: progress; }
 .st { display: inline-flex; align-items: center; gap: 6px; font-size: 0.86rem; font-weight: 500; }
 .st-icon { display: inline-flex; flex: none; }
 .st-icon svg { display: block; }
+.st-icon svg * { vector-effect: non-scaling-stroke; stroke-width: 2px; }  /* matches the 500-weight label */
 .st-done { color: var(--met); }
 .st-needs_you { color: var(--unknown); }
 .st-blocked { color: var(--unmet); }
@@ -935,4 +943,8 @@ details.card[open] summary::after { content: " −"; }
   /* Press feedback: the control shrinks a little while held. A disabled control never moves. */
   .btn-primary:not(:disabled):active, .btn-secondary:not(:disabled):active, .btn-small:not(:disabled):active,
   .btn-icon:not(:disabled):active, .theme-toggle:active { scale: 0.96; }
+
+  /* The theme icon that leaves shrinks and blurs as it fades; the one that arrives grows back. */
+  .theme-toggle svg { transition-property: opacity, scale, filter; }
+  .theme-toggle[aria-pressed="true"] .icon-moon, .theme-toggle[aria-pressed="false"] .icon-sun { scale: 0.25; filter: blur(4px); }
 }
