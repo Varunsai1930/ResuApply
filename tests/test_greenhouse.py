@@ -227,21 +227,6 @@ def test_every_phase_together_stays_within_the_deadline(monkeypatch):
     assert timeout.connect + timeout.write + timeout.read <= greenhouse.TIMEOUT_SECONDS
 
 
-def test_no_read_starts_without_the_time_for_it(monkeypatch):
-    monkeypatch.setattr(greenhouse, "_clock", Clock(0.0, 7.5))  # the headers took 7.5 of the 10 seconds
-    pulled = []
-
-    def chunks():
-        pulled.append(1)
-        yield b'{"title": "'
-        pulled.append(2)
-        yield b'x"}'
-
-    with pytest.raises(GreenhouseError, match="longer than 10 seconds"):
-        fetch(ref(), FakeGreenhouse(httpx.Response(200, content=chunks())).transport)
-    assert pulled == []  # a read that may wait its full timeout would end after the deadline
-
-
 def test_the_deadline_reads_only_the_imports_own_clock(monkeypatch):
     import time
 
@@ -257,7 +242,7 @@ def test_the_deadline_reads_only_the_imports_own_clock(monkeypatch):
 
 # ---------------------------------------------------------------- the deadline over the real network stack
 
-from tests.greenhouse_fake import SlowNetwork, TickingClock  # noqa: E402
+from tests.greenhouse_fake import SlowNetwork, TickingClock, http_response  # noqa: E402
 
 
 def test_a_server_that_trickles_its_headers_is_cut_off_at_the_deadline(monkeypatch):
@@ -290,3 +275,8 @@ def test_the_real_client_gets_the_deadline_on_every_transport():
     with client:
         transports = [client._transport, *(t for t in client._mounts.values() if t is not None)]
         assert transports and all(isinstance(t._pool._network_backend, greenhouse._Deadline) for t in transports)
+
+
+def test_a_posting_that_has_arrived_before_the_deadline_is_kept(monkeypatch):
+    monkeypatch.setattr(greenhouse, "_clock", Clock(0.0, 7.5))  # the whole answer is in at 7.5 of the 10 seconds
+    assert fetch(ref(), FakeGreenhouse(posting()).transport)["title"] == "Software Engineering Intern"

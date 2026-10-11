@@ -172,8 +172,8 @@ def fetch(ref: PostingRef, transport: httpx.BaseTransport | None = None,
     deadline = _clock() + TIMEOUT_SECONDS
     body = bytearray()
 
-    def time_for_a_read() -> None:
-        if _clock() > deadline - PHASE_SECONDS:  # the read may wait PHASE_SECONDS for its data
+    def deadline_passed() -> None:  # the network layer holds reads to the deadline; any transport stops here too
+        if _clock() > deadline:
             raise httpx.ReadTimeout("deadline passed")
 
     try:
@@ -190,12 +190,11 @@ def fetch(ref: PostingRef, transport: httpx.BaseTransport | None = None,
                 length = response.headers.get("content-length", "")
                 if length.isdigit() and int(length) > MAX_BYTES:
                     raise _too_large()
-                time_for_a_read()
                 for chunk in response.iter_bytes():
                     body.extend(chunk)
                     if len(body) > MAX_BYTES:
                         raise _too_large()
-                    time_for_a_read()
+                    deadline_passed()
     except httpx.TimeoutException:
         raise GreenhouseError(f"Greenhouse took longer than {TIMEOUT_SECONDS:.0f} seconds. Nothing was imported; "
                               "try again, or paste the posting instead.") from None
