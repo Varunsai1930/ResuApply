@@ -107,6 +107,16 @@ def clean_text(value: str) -> str:
                    if ch in _KEEP or ch in _LINE_BREAKS or unicodedata.category(ch) != "Cc")
 
 
+def tidy_lines(text: str) -> str:
+    """Text read from a file or a web page, tidied for display and saving.
+
+    Control characters removed (``clean_text``), carriage returns made line breaks, spaces, tabs
+    and no-break spaces in each line made single and trimmed, and runs of blank lines made one.
+    """
+    lines = [re.sub(r"[ \t\u00a0]+", " ", line).strip() for line in clean_text(text).replace("\r", "\n").split("\n")]
+    return re.sub(r"\n{3,}", "\n\n", "\n".join(lines)).strip()
+
+
 def without_controls(value):
     """``value`` (text, or lists, dicts and Pydantic models of it) as the cleaned form would send it.
 

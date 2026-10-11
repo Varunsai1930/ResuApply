@@ -14,7 +14,7 @@ import zlib
 from collections import Counter
 
 from .resume_draft import has_contact, heading
-from .text import clean_text
+from .text import tidy_lines
 
 MAX_BYTES = 10 * 1024 * 1024  # an upload larger than this is refused unread
 MAX_PAGES = 30  # a resume longer than this is not a resume; only these pages are read
@@ -317,10 +317,7 @@ _LIGATURES = str.maketrans({"\ufb00": "ff", "\ufb01": "fi", "\ufb02": "fl", "\uf
 
 def _tidy(text: str) -> str:
     """Control characters removed, ligatures spelled out, spaces in each line made single, blank runs made one line."""
-    text = clean_text(text).translate(_LIGATURES)
-    lines = [re.sub(r"[ \t\u00a0]+", " ", line).strip() for line in text.replace("\r", "\n").split("\n")]
-    tidy = re.sub(r"\n{3,}", "\n\n", "\n".join(lines)).strip()
-    return tidy[:MAX_CHARS]
+    return tidy_lines(text.translate(_LIGATURES))[:MAX_CHARS]
 
 
 def extract_text(data: bytes) -> str:

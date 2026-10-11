@@ -31,7 +31,7 @@ from ..schemas.posting_import import ImportedQuestion, ImportPreview, LeftOut, P
 from . import answers
 from . import questions as q_rules
 from .answers import QUESTION_LIMIT
-from .text import clean_text
+from .text import clean_text, tidy_lines
 
 HOSTS = ("boards.greenhouse.io", "job-boards.greenhouse.io")
 API = "https://boards-api.greenhouse.io/v1/boards/{board}/jobs/{job_id}?questions=true"
@@ -204,8 +204,7 @@ def html_text(fragment: str) -> str:
     parser = _Text()
     parser.feed(html.unescape(fragment or ""))
     parser.close()
-    lines = [re.sub(r"[ \t ]+", " ", line).strip() for line in clean_text("".join(parser.parts)).split("\n")]
-    return re.sub(r"\n{3,}", "\n\n", "\n".join(lines)).strip()
+    return tidy_lines("".join(parser.parts))
 
 
 def _text(value: object, limit: int = 2000) -> str:
