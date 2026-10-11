@@ -358,7 +358,7 @@ def get_snapshot(application: Application, snapshot_id: int) -> SubmittedSnapsho
 
 
 def record_applied(session: Session, job: Job, candidate: Candidate | None, token: str, on: date | None = None,
-                   note: str = "", today: date | None = None) -> SubmittedSnapshot:
+                   note: str = "", today: date | None = None, follow_up_days: int | None = None) -> SubmittedSnapshot:
     """Record Applied with a snapshot of the approved package the user reviewed, in one transaction.
 
     ``token`` is ``package_token`` as the page showed it. Only a current approved package can be
@@ -394,7 +394,8 @@ def record_applied(session: Session, job: Job, candidate: Candidate | None, toke
             profile=candidate.profile.model_copy(deep=True),
         )
         # The status change is validated first; the snapshot and the status are committed together.
-        tracking.apply_status(application, TrackingStatus.APPLIED.value, on=on, note=note, today=today)
+        tracking.apply_status(application, TrackingStatus.APPLIED.value, on=on, note=note, today=today,
+                              follow_up_days=follow_up_days)
         application.submitted_snapshots = [*application.submitted_snapshots, snapshot]
         application.review_state = state.value
     return snapshot

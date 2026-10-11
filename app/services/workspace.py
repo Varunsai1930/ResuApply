@@ -9,12 +9,13 @@ blocks, so the Requirements step is Done once requirements are saved, whatever t
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import date
 from enum import StrEnum
 
 from ..models import Application, Candidate, Job
 from ..schemas.tracking import ReviewState, TrackingStatus
 from . import answers as answer_service
-from . import checklist, package
+from . import checklist, package, tracking
 from . import resume as resume_service
 from .status import Meaning, Status, for_review
 
@@ -141,8 +142,14 @@ def _review(review: ReviewState, blockers: list[str], resume: Meaning, questions
     return for_review(review)
 
 
-def _track(application: Application, review: ReviewState) -> Meaning:
+def _days(n: int | None) -> str:
+    return "" if n is None else " for 1 day" if n == 1 else f" for {n} days"
+
+
+def _track(application: Application, review: ReviewState, today: date) -> Meaning:
     status = application.status
+    if tracking.follow_up_due(application, today):
+        return Meaning(Status.NEEDS_YOU, f"Follow up: no reply{_days(tracking.days_since_applied(application, today))}")
     if status is TrackingStatus.SAVED:
         if review is ReviewState.APPROVED:
             return Meaning(Status.NEEDS_YOU, "Submit it, then record Applied")
@@ -153,10 +160,12 @@ def _track(application: Application, review: ReviewState) -> Meaning:
 
 
 def _next(job: Job, application: Application, candidate: Candidate | None, states: dict[Step, Meaning],
-          review: ReviewState, resume_action: str) -> NextAction:
+          review: ReviewState, resume_action: str, today: date) -> NextAction:
     def at(step: Step, label: str, status: Status | None = None) -> NextAction:
         return NextAction(step, label, step_url(job.id, step), status or states[step].status)
 
+    if tracking.follow_up_due(application, today):
+        return NextAction(Step.TRACK, "Follow up", f"/jobs/{job.id}?step=track#follow-up")
     if application.status is not TrackingStatus.SAVED:
         return at(Step.TRACK, "Update the status", Status.INFO)
     if candidate is None:
@@ -173,8 +182,10 @@ def _next(job: Job, application: Application, candidate: Candidate | None, state
     return at(Step.TRACK, "Record that you applied")
 
 
-def next_action(job: Job, application: Application, candidate: Candidate | None) -> Guide:
+def next_action(job: Job, application: Application, candidate: Candidate | None,
+                today: date | None = None) -> Guide:
     """Each step's status, and the one thing to do next."""
+    today = today or date.today()
     review = package.review_state(job, application, candidate)
     blockers, _ = package.check(job, application, candidate)
     resume, resume_action = _resume(resume_service.state(job, candidate), candidate)
@@ -184,6 +195,6 @@ def next_action(job: Job, application: Application, candidate: Candidate | None)
         Step.RESUME: resume,
         Step.QUESTIONS: questions,
         Step.REVIEW: _review(review, blockers, resume, questions_block, candidate),
-        Step.TRACK: _track(application, review),
+        Step.TRACK: _track(application, review, today),
     }
-    return Guide([StepState(step, states[step]) for step in Step], _next(job, application, candidate, states, review, resume_action))
+    return Guide([StepState(step, states[step]) for step in Step], _next(job, application, candidate, states, review, resume_action, today))

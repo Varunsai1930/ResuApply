@@ -1,5 +1,39 @@
 {# The Submit and track step of the Job Workspace: tracking status, history and notes. Included with the workspace's context. #}
 {% import "macros.html" as m with context %}
+{% if application.status == TrackingStatus.APPLIED %}
+{% set days = days_since_applied %}
+<section class="card follow-up{% if follow_up_due %} due{% endif %}" id="follow-up" aria-labelledby="follow-up-title">
+  {% if follow_up_error %}<p class="field-error" role="alert" tabindex="-1" data-focus>{{ follow_up_error }}</p>{% endif %}
+  {% if follow_up_due %}
+    <h2 id="follow-up-title">{% if days is not none %}No reply for {{ days }} day{{ 's' if days != 1 }}. {% endif %}Time to follow up?</h2>
+    <p>You asked to be reminded on {{ application.follow_up_after.isoformat() }}. Following up is up to you; ResuApply never contacts employers.</p>
+    <div class="follow-up-actions">
+      <form method="post" action="/jobs/{{ job.id }}/follow-up/done" class="inline-form">
+        <button type="submit" class="btn-primary">I followed up</button>
+      </form>
+      <form method="post" action="/jobs/{{ job.id }}/follow-up/remind" class="inline-form">
+        <input type="hidden" name="days" value="{{ snooze_days }}">
+        <button type="submit" class="btn-secondary">Remind me in {{ snooze_days }} days</button>
+      </form>
+    </div>
+  {% else %}
+    <h2 id="follow-up-title">Follow-up reminder</h2>
+    <p>{% if application.follow_up_after %}You'll be reminded on {{ application.follow_up_after.isoformat() }} if the status is still Applied.{% else %}No reminder is set for this application.{% endif %}</p>
+  {% endif %}
+  <form method="post" action="/jobs/{{ job.id }}/follow-up/remind" class="follow-up-set">
+    <div class="field">
+      <label for="remind-days">{{ 'Change the reminder' if application.follow_up_after else 'Remind me to follow up' }}</label>
+      <select id="remind-days" name="days">
+        {% for d in remind_choices %}<option value="{{ d }}"{% if d == follow_up_default %} selected{% endif %}>In {{ d }} days</option>{% endfor %}
+        <option value="">Don't remind me</option>
+      </select>
+    </div>
+    <button type="submit" class="btn-secondary">Save reminder</button>
+  </form>
+</section>
+{% elif follow_up_error %}
+<p class="notice warn" id="follow-up" role="alert" tabindex="-1" data-focus>{{ follow_up_error }}</p>
+{% endif %}
 <section class="card" id="tracking">
   <h2>Tracking</h2>
   <dl class="facts compact">
@@ -33,6 +67,17 @@
       <input type="hidden" name="package_token" value="{{ package_token }}">
       <label class="check"><input type="checkbox" name="snapshot" value="1" {% if status_form.get('snapshot', true) %}checked{% endif %}> Save the approved package as what I submitted</label>
       <small class="hint">Used only when you choose Applied. It keeps the resume, answers and job details exactly as approved, even if you edit your profile later.</small>
+    </div>
+    {% endif %}
+    {% if application.status != TrackingStatus.APPLIED %}
+    {% set chosen_follow_up = status_form.follow_up if 'follow_up' in status_form else follow_up_default | string %}
+    <div class="field" data-when-status="applied">
+      <label for="follow-up">Remind me to follow up after</label>
+      <select id="follow-up" name="follow_up"{% if status_form.get('error_field') == 'follow_up' %} class="invalid" aria-invalid="true"{% endif %}>
+        {% for d in follow_up_choices %}<option value="{{ d }}"{% if chosen_follow_up == d | string %} selected{% endif %}>{{ d }} days</option>{% endfor %}
+        <option value=""{% if chosen_follow_up == '' %} selected{% endif %}>Don't remind me</option>
+      </select>
+      <small class="hint">Counted from the date you applied. The reminder shows here and on the jobs board while the status is still Applied.</small>
     </div>
     {% endif %}
     <button type="submit" class="btn-primary">Update status</button>

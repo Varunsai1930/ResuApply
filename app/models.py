@@ -82,6 +82,9 @@ class Application(Base):
     status_history: Mapped[list[StatusEvent]] = mapped_column(PydanticJSON(list[StatusEvent]), default=list)
     notes: Mapped[list[Note]] = mapped_column(PydanticJSON(list[Note]), default=list)
     applied_on: Mapped[date | None] = mapped_column(Date, nullable=True)
+    # When to remind the user to follow up on an application with no reply. Only meaningful
+    # while the status is Applied; any other status clears it.
+    follow_up_after: Mapped[date | None] = mapped_column(Date, nullable=True)
     current_proposal: Mapped[ResumeRecord | None] = mapped_column(PydanticJSON(ResumeRecord), nullable=True)
     accepted_package: Mapped[ResumePackage | None] = mapped_column(PydanticJSON(ResumePackage), nullable=True)
     answers: Mapped[list[Answer]] = mapped_column(PydanticJSON(list[Answer]), default=list)

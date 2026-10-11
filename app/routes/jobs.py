@@ -93,6 +93,7 @@ FORM_STEPS = {
     "package_error": guide_service.Step.REVIEW,
     "status_form": guide_service.Step.TRACK,
     "note_form": guide_service.Step.TRACK,
+    "follow_up_error": guide_service.Step.TRACK,
 }
 
 
@@ -126,6 +127,13 @@ def _render_workspace(request: Request, session: Session, job: Job, msg: str = "
             "msg": msg,
             "today": date.today().isoformat(),
             "status_form": forms.get("status_form", {}),
+            "follow_up_error": forms.get("follow_up_error"),
+            "follow_up_due": tracking.follow_up_due(application),
+            "days_since_applied": tracking.days_since_applied(application),
+            "follow_up_choices": tracking.FOLLOW_UP_CHOICES,
+            "follow_up_default": tracking.FOLLOW_UP_DEFAULT,
+            "remind_choices": tracking.REMIND_CHOICES,
+            "snooze_days": tracking.SNOOZE_DAYS,
             "note_form": forms.get("note_form", {}),
             "check_error": forms.get("check_error"),
             "ai_error": forms.get("ai_error"),
@@ -164,7 +172,7 @@ def _render_workspace(request: Request, session: Session, job: Job, msg: str = "
 
 
 @router.get("", response_class=HTMLResponse)
-def list_jobs(request: Request, q: str = "", session: Session = Depends(get_session)):
+def list_jobs(request: Request, q: str = "", msg: str = "", session: Session = Depends(get_session)):
     """The jobs board: columns by tracking status, each card with its next action; ``q`` searches."""
     candidate = get_candidate(session)
     jobs = job_service.list_all(session)
@@ -172,8 +180,8 @@ def list_jobs(request: Request, q: str = "", session: Session = Depends(get_sess
         package.sync_review_state(session, job, job.application, candidate)
     board = board_service.board(jobs, candidate, date.today(), q)
     return templates.TemplateResponse(request, "jobs_list.html",
-                                      {"jobs": jobs, "board": board, "candidate": candidate, "Step": guide_service.Step,
-                                       "active": "jobs"})
+                                      {"jobs": jobs, "board": board, "candidate": candidate, "msg": msg, "Step": guide_service.Step,
+                                       "snooze_days": tracking.SNOOZE_DAYS, "active": "jobs"})
 
 
 @router.get("/new", response_class=HTMLResponse)
@@ -259,18 +267,22 @@ def change_status(
     note: str = Form(""),
     snapshot: str = Form(""),
     package_token: str = Form(""),
+    follow_up: str = Form(""),
     session: Session = Depends(get_session),
 ):
     job = _job_or_404(session, job_id)
-    form = {"status": status, "on": on, "note": note, "snapshot": bool(snapshot)}
-    # The checkbox only matters when recording Applied; any other status is a plain status change.
-    save_package = bool(snapshot) and status.strip().lower() == TrackingStatus.APPLIED.value
+    form = {"status": status, "on": on, "note": note, "snapshot": bool(snapshot), "follow_up": follow_up}
+    # The checkbox and the reminder only matter when recording Applied; any other status is a plain status change.
+    applied = status.strip().lower() == TrackingStatus.APPLIED.value
+    save_package = bool(snapshot) and applied
     try:
         on_date = tracking.parse_date(on)
+        days = tracking.parse_days(follow_up, tracking.FOLLOW_UP_CHOICES) if applied else None
         if save_package:
-            package.record_applied(session, job, get_candidate(session), package_token, on_date, note)
+            package.record_applied(session, job, get_candidate(session), package_token, on_date, note,
+                                   follow_up_days=days)
         else:
-            tracking.change_status(session, job.application, status, on_date, note)
+            tracking.change_status(session, job.application, status, on_date, note, follow_up_days=days)
     except tracking.TrackingError as exc:
         session.rollback()
         form["error"], form["error_field"] = str(exc), exc.field
@@ -292,3 +304,35 @@ def add_note(request: Request, job_id: int, text: str = Form(""), session: Sessi
         form = {"text": text, "error": str(exc)}
         return _render_workspace(request, session, job, status_code=422, note_form=form)
     return RedirectResponse(f"/jobs/{job.id}?step=track&msg=note_added#notes", status_code=303)
+
+
+def _after_follow_up(job: Job, back: str, msg: str) -> RedirectResponse:
+    """Back to the board when the action came from its banner, else to the job's Track step."""
+    if back == "board":
+        return RedirectResponse(f"/jobs?msg={msg}#follow-ups", status_code=303)
+    return RedirectResponse(f"/jobs/{job.id}?step=track&msg={msg}#follow-up", status_code=303)
+
+
+@router.post("/{job_id}/follow-up/done")
+def follow_up_done(request: Request, job_id: int, back: str = Form(""), session: Session = Depends(get_session)):
+    job = _job_or_404(session, job_id)
+    try:
+        tracking.followed_up(session, job.application)
+    except tracking.TrackingError as exc:
+        session.rollback()
+        return _render_workspace(request, session, job, status_code=409, follow_up_error=str(exc))
+    return _after_follow_up(job, back, "followed_up")
+
+
+@router.post("/{job_id}/follow-up/remind")
+def follow_up_remind(request: Request, job_id: int, days: str = Form(""), back: str = Form(""),
+                     session: Session = Depends(get_session)):
+    job = _job_or_404(session, job_id)
+    try:
+        chosen = tracking.parse_days(days, tracking.REMIND_CHOICES)
+        tracking.set_reminder(session, job.application, chosen)
+    except tracking.TrackingError as exc:
+        session.rollback()
+        status_code = 409 if exc.field == "status" else 422  # not Applied (any more), or not a listed choice
+        return _render_workspace(request, session, job, status_code=status_code, follow_up_error=str(exc))
+    return _after_follow_up(job, back, "reminder_set" if chosen else "reminder_cleared")

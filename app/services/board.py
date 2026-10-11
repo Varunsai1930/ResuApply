@@ -11,6 +11,7 @@ from datetime import date
 
 from ..models import Candidate, Job
 from ..schemas.tracking import ReviewState, TrackingStatus
+from . import tracking
 from .status import Meaning, Status
 from .workspace import Step, next_action
 
@@ -54,11 +55,18 @@ class Summary:
 
 
 @dataclass(frozen=True)
+class FollowUp:
+    job: Job
+    days: int | None  # since applying
+
+
+@dataclass(frozen=True)
 class Board:
     columns: list[Column]
     summary: Summary
     query: str
     shown: int  # cards matching the search
+    follow_ups: list[FollowUp]  # applications due a follow-up, whatever the search
 
 
 def clean_query(raw: str | None) -> str:
@@ -84,9 +92,13 @@ def card(job: Job, candidate: Candidate | None, today: date) -> Card:
     application = job.application
     status = application.status
     if status is TrackingStatus.SAVED:
-        guide = next_action(job, application, candidate)
+        guide = next_action(job, application, candidate, today)
         return Card(job, Meaning(guide.next.status, guide.next.label), guide.next.step)
     since = _since(job)
+    if tracking.follow_up_due(application, today):
+        days = tracking.days_since_applied(application, today)
+        ago = f", applied {_days(days)}" if days is not None else ""
+        return Card(job, Meaning(Status.NEEDS_YOU, f"Follow up: no reply{ago}"))
     if status is TrackingStatus.APPLIED:
         applied_on = application.applied_on or since
         if applied_on is None:
@@ -121,4 +133,6 @@ def board(jobs: list[Job], candidate: Candidate | None, today: date, query: str 
         Column(key, title, [card(j, candidate, today) for j in shown if j.application.status in statuses], empty)
         for key, title, statuses, empty in COLUMNS
     ]
-    return Board(columns, summary(jobs, today), query, len(shown))
+    follow_ups = [FollowUp(j, tracking.days_since_applied(j.application, today))
+                  for j in jobs if tracking.follow_up_due(j.application, today)]
+    return Board(columns, summary(jobs, today), query, len(shown), follow_ups)

@@ -476,6 +476,18 @@ del { color: var(--unmet); text-decoration-thickness: 1px; }
   font-size: 0.92rem; line-height: 1.6; color: var(--ink-2);
 }
 
+/* Follow-up reminders: the Track step card and the board banner. */
+.follow-up.due, .follow-up-banner { background: var(--unknown-wash); border-color: var(--unknown); }
+.follow-up h2 { font-size: 1.05rem; }
+.follow-up-actions { display: flex; flex-wrap: wrap; gap: 8px; margin: 12px 0 4px; }
+.follow-up-set { display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: flex-end; margin-top: 14px; }
+.follow-up-set .field { margin: 0; }
+.follow-up-banner { border: 1px solid var(--unknown); border-radius: var(--radius); padding: 16px 20px; margin-bottom: 20px; }
+.follow-up-banner h2 { margin: 0 0 8px; font-family: var(--font-ui); font-size: 1rem; }
+.follow-up-banner ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.follow-up-banner li { display: flex; flex-wrap: wrap; gap: 6px 12px; align-items: center; }
+.follow-up-banner li > span { flex: 1 1 260px; }
+
 /* Jobs board: summary strip, search, columns by tracking status, cards with the next action. */
 .board-actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
 .board-search { display: flex; gap: 8px; }

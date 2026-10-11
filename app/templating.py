@@ -52,6 +52,9 @@ MESSAGES = {
     "bank_deleted": "Removed from the answer bank. Answers already used in applications are unchanged.",
     "package_approved": "Package approved. This does not mark the job Applied; submit it yourself, then record it under Tracking.",
     "status_recorded": "Recorded as Applied. The approved package was saved as what you submitted.",
+    "followed_up": "Noted that you followed up, and the reminder is cleared. Set a new one if you want another.",
+    "reminder_set": "Follow-up reminder set.",
+    "reminder_cleared": "Follow-up reminder cleared. You won't be reminded about this application.",
     "sharing_approved": "Saved what may be sent to the AI model.",
     "sharing_withdrawn": "Approval withdrawn. You'll be asked again before candidate content is sent.",
 }

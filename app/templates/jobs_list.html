@@ -39,6 +39,30 @@
   <div><span>Ready to submit</span><strong>{{ s.ready }}</strong></div>
 </section>
 
+{% if board.follow_ups %}
+{% set n = board.follow_ups | length %}
+<section class="follow-up-banner" id="follow-ups" aria-labelledby="follow-ups-title">
+  <h2 id="follow-ups-title">{{ m.status_icon(Status.NEEDS_YOU) }} {{ n }} application{{ 's are' if n != 1 else ' is' }} due a follow-up</h2>
+  <ul>
+    {% for f in board.follow_ups %}
+    <li>
+      <span><a href="/jobs/{{ f.job.id }}?step=track#follow-up">{{ f.job.title }} at {{ f.job.company }}</a>{% if f.days is not none %} · no reply, applied {{ f.days }} day{{ 's' if f.days != 1 }} ago{% endif %}</span>
+      <form method="post" action="/jobs/{{ f.job.id }}/follow-up/done" class="inline-form">
+        <input type="hidden" name="back" value="board">
+        <button type="submit" class="btn-secondary">I followed up<span class="visually-hidden"> on {{ f.job.title }} at {{ f.job.company }}</span></button>
+      </form>
+      <form method="post" action="/jobs/{{ f.job.id }}/follow-up/remind" class="inline-form">
+        <input type="hidden" name="back" value="board">
+        <input type="hidden" name="days" value="{{ snooze_days }}">
+        <button type="submit" class="btn-link">Remind me in {{ snooze_days }} days<span class="visually-hidden"> about {{ f.job.title }} at {{ f.job.company }}</span></button>
+      </form>
+    </li>
+    {% endfor %}
+  </ul>
+  <p class="hint">Following up is up to you; ResuApply never contacts employers.</p>
+</section>
+{% endif %}
+
 {% if board.query %}
 <p class="board-query" role="status">
   {{ board.shown }} job{{ 's' if board.shown != 1 }} match “{{ board.query }}”. <a href="/jobs">Clear search</a>
