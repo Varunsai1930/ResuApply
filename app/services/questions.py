@@ -251,15 +251,11 @@ def _yes_no(value) -> str | None:
 
 
 GRADUATION_KEYS = ("graduation_date", "graduation_year")
-# The date formats a graduation-date question may ask for in its label, most specific first.
-_DATE_FORMATS = [
-    (re.compile(r"\bmm ?/ ?dd ?/ ?yyyy\b"), "{m}/{d}/{y}"),
-    (re.compile(r"\bdd ?/ ?mm ?/ ?yyyy\b"), "{d}/{m}/{y}"),
-    (re.compile(r"\byyyy ?- ?mm\b"), "{y}-{m}"),
-    (re.compile(r"\bmm ?- ?yyyy\b"), "{m}-{y}"),
-    (re.compile(r"\bmm ?/ ?yy\b"), "{m}/{yy}"),
-    (re.compile(r"\bmm ?/ ?yyyy\b|\bmonth ?/ ?year\b"), "{m}/{y}"),
-]
+# A date format a graduation question's label asks for: "(MM/YYYY)", "(DD.MM.YYYY)", "(YY)", "(Month/Year)".
+_FORMAT_HINT = re.compile(r"\(\s*([mdy]{1,4}(?:\s*[/.-]\s*[mdy]{1,4}){0,2}|month\s*(?:/|and)\s*year)\s*\)")
+_DEFAULT_FORMS = {"graduation_date": ["yyyy", "-", "mm"], "graduation_year": ["yyyy"]}
+_UNREADABLE = ("This question asks for its date in a format ResuApply can't fill in. "
+               "Answer it yourself, in the format the employer's form asks for.")
 _PRECISION = ("This question asks for more than your profile holds: the end date of your education has no "
               "{part}. Add it to your profile, or answer the question yourself.")
 
@@ -279,9 +275,9 @@ _SEVERAL = ("Your profile has several degrees, and this question doesn't say whi
 def _graduation(key: str, question: str, prof: dict) -> tuple[str | None, str | None]:
     """A graduation question's answer from the education end dates, or None with why (None: no date at all).
 
-    A year question gets the year, which every stored date has. A date question gets the month and
-    year (as "2027-05", or in the format its label asks for, such as "MM/YYYY"); a date stored with
-    only the year, or without the day a "MM/DD/YYYY" label asks for, is left to the user. With
+    A year question gets the year, which every stored date has; a date question the month and year,
+    as "2027-05". A format hint in the label ("MM/YYYY", "DD.MM.YYYY", "YY") is followed; a date the
+    profile holds less precisely than the format asks (no month, no day) is left to the user. With
     several degrees, only a question that names a degree level matching one of them, or degrees
     that all give the same answer, are answered: otherwise the question doesn't say which it means.
     """
@@ -299,14 +295,36 @@ def _graduation(key: str, question: str, prof: dict) -> tuple[str | None, str | 
     return answers.pop()
 
 
+def _date_form(key: str, question: str) -> list[str]:
+    """The parts of the date format a graduation question asks for: ["dd", "/", "mm", "/", "yy"].
+
+    The last format hint in its label counts ("Month/Year" is "mm/yyyy"); without one, a year
+    question asks for "yyyy" and a date question for "yyyy-mm".
+    """
+    hints = list(_FORMAT_HINT.finditer(norm_text(question)))
+    if not hints:
+        return _DEFAULT_FORMS[key]
+    hint = re.sub(r"\s+", "", hints[-1].group(1))
+    return re.findall(r"[mdy]+|[/.-]", "mm/yyyy" if hint.startswith("month") else hint)
+
+
 def _graduation_answer(key: str, question: str, end: str) -> tuple[str | None, str | None]:
+    """One end date written in the format the question asks for, or None with why."""
     year, month, day = (end.split("-") + ["", ""])[:3]
-    if key == "graduation_year":
-        return year, None
-    form = next((form for pattern, form in _DATE_FORMATS if pattern.search(norm_text(question))), "{y}-{m}")
-    if not month or ("{d}" in form and not day):
-        return None, _PRECISION.format(part="month" if not month else "day")
-    return form.format(y=year, yy=year[2:], m=month, d=day), None
+    written = []
+    for part in _date_form(key, question):
+        if part in "/.-":
+            written.append(part)
+        elif part in ("yyyy", "yy"):
+            written.append(year if part == "yyyy" else year[2:])
+        elif part in ("mm", "m", "dd", "d"):
+            value = month if part[0] == "m" else day
+            if not value:
+                return None, _PRECISION.format(part="month" if part[0] == "m" else "day")
+            written.append(value if len(part) == 2 else str(int(value)))
+        else:  # "mmm", "yyy" and the like: not a format to guess at
+            return None, _UNREADABLE
+    return "".join(written), None
 
 
 def graduation_note(key: str, question: str, profile: Profile | dict) -> str | None:

@@ -217,3 +217,40 @@ def test_saved_graduation_questions_are_upgraded_when_the_app_starts(settings, s
         with restarted.app.state.session_factory() as session:
             (stored,) = jobs.get(session, job_id).questions
             assert (stored.category, stored.factual_key) == ("factual", "graduation_year")
+
+
+@pytest.mark.parametrize("question, end, answer", [
+    ("Graduation date (YYYY)", "2027-05-15", "2027"),
+    ("Graduation date (YYYY)", "2027", "2027"),  # only the year is asked for: a year-only profile answers it
+    ("Graduation date (YYYY-MM-DD)", "2027-05-15", "2027-05-15"),
+    ("Graduation date (DD-MM-YYYY)", "2027-05-15", "15-05-2027"),
+    ("Graduation date (MM-DD-YYYY)", "2027-05-15", "05-15-2027"),
+    ("Graduation date (DD/MM/YY)", "2027-05-15", "15/05/27"),
+    ("Graduation date (MM/DD/YY)", "2027-05-15", "05/15/27"),
+    ("Graduation date (M/YYYY)", "2027-05", "5/2027"),
+    ("Graduation date (DD.MM.YYYY)", "2027-05-15", "15.05.2027"),
+    ("Graduation year (YY)", "2027-05", "27"),
+])
+def test_every_format_hint_the_rules_accept_is_followed(question, end, answer):
+    assert classify(question)[0] == "factual"
+    assert factual_value(classify(question)[1], question, profile(end)) == answer
+
+
+@pytest.mark.parametrize("question, end", [
+    ("Graduation date (YYYY-MM-DD)", "2027-05"),
+    ("Graduation date (DD/MM/YY)", "2027-05"),
+])
+def test_a_format_asking_for_a_day_the_profile_lacks_is_left_to_the_user(question, end):
+    from app.services.questions import graduation_note
+
+    assert factual_value("graduation_date", question, profile(end)) is None
+    assert "has no day" in graduation_note("graduation_date", question, profile(end))
+
+
+def test_a_format_resuapply_cant_fill_is_left_to_the_user():
+    from app.services.questions import graduation_note
+
+    question = "Graduation date (MMM-YYYY)"
+    assert classify(question) == ("factual", "graduation_date")
+    assert factual_value("graduation_date", question, profile("2027-05")) is None
+    assert "a format ResuApply can't fill in" in graduation_note("graduation_date", question, profile("2027-05"))
