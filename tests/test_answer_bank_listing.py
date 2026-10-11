@@ -76,3 +76,31 @@ def test_search_matches_every_word_in_the_question_or_answer(client, sample_prof
 def test_no_controls_on_an_empty_bank(client):
     page = client.get("/answers").text
     assert "No saved answers yet" in page and 'id="bank-search"' not in page
+
+
+def test_a_deleted_entrys_reuses_never_count_for_a_new_entry(client, sample_profile):
+    from datetime import timedelta
+
+    from app.db import utcnow
+    from app.models import AnswerBankEntry
+
+    bank_with_three(client, sample_profile)  # entry 3 (the newest) is reused by two jobs
+    assert client.post("/answers/3/delete").status_code == 200
+    with client.app.state.session_factory() as session:
+        # As an older database without AUTOINCREMENT would: the deleted entry's ID is given again.
+        session.add(AnswerBankEntry(id=3, question="Anything else?", answer="No.", category="open",
+                                    created_at=utcnow() + timedelta(seconds=1), updated_at=utcnow() + timedelta(seconds=1)))
+        session.commit()
+    assert dict(listing(client))["Anything else?"] == 0
+    assert listing(client, sort="most_used")[0] == (WHY_Q, 1)  # the only answer actually reused leads
+
+
+def test_new_databases_never_reuse_an_entry_id(client, sample_profile):
+    job_id = ready_job(client, sample_profile)
+    saved(client, job_id, WHY_Q, "I like building Python services.")
+    client.post("/answers/1/delete")
+    saved(client, job_id, PROJECT_Q, "I built a campus events app.")
+    with client.app.state.session_factory() as session:
+        from app.models import AnswerBankEntry
+
+        assert [e.id for e in session.query(AnswerBankEntry)] == [2]

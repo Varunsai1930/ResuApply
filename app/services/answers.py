@@ -617,12 +617,18 @@ BANK_SEARCH_LIMIT = 200
 
 
 def bank_usage(session: Session) -> dict[int, BankUse]:
-    """Entry ID -> the jobs whose answers were taken from it, and the latest such answer."""
+    """Entry ID -> the jobs whose answers were taken from it, and the latest such answer.
+
+    Deleting an entry leaves answers' ``bank_id`` as it was, and an older database can give a
+    new entry a deleted entry's ID. An answer made before an entry existed can't have come from
+    it, so only answers from the entry's creation on count.
+    """
+    created = {entry_id: at for entry_id, at in session.execute(select(AnswerBankEntry.id, AnswerBankEntry.created_at))}
     jobs: dict[int, set[int]] = {}
     last: dict[int, datetime] = {}
     for application in session.scalars(select(Application)):
         for answer in application.answers:
-            if answer.bank_id is None or answer.skipped:
+            if answer.bank_id not in created or answer.skipped or answer.at < created[answer.bank_id]:
                 continue
             jobs.setdefault(answer.bank_id, set()).add(application.job_id)
             if answer.bank_id not in last or answer.at > last[answer.bank_id]:

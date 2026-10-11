@@ -117,6 +117,8 @@ class AnswerBankEntry(Base):
     """A reusable approved answer to a non-sensitive question (filled from Milestone 3b)."""
 
     __tablename__ = "answer_bank"
+    # New databases never reuse a deleted entry's ID; answers keep the ID they were taken from.
+    __table_args__ = {"sqlite_autoincrement": True}
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     question: Mapped[str] = mapped_column(Text)
