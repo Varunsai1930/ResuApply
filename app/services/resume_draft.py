@@ -333,9 +333,13 @@ def _project(entry: _Entry) -> dict:
     start, end, rest = _dates(" | ".join(entry.heading), single_is_end=False)
     link = m.group(0) if (m := _URL.search(rest) or _LINK.search(rest)) else ""
     parts = [p for p in _parts(rest.replace(link, " ") if link else rest) if p]  # replacing "" spaces out every letter
-    return {"id": "", "name": parts[0] if parts else "", "role": parts[1] if len(parts) > 1 else "",
-            "link": _bare(link), "start": start, "end": end,
-            "technologies": [], "bullets": _bullets(entry)}
+    name, others = (parts[0], parts[1:]) if parts else ("", [])
+    # A comma list after the name is the project's tech stack ("TaskBot | Python, SQLite"), not a role.
+    stack = next((p for p in others if "," in p), "")
+    technologies = [t for t in _split_list(stack) if t and len(t) <= 60]
+    role = next((p for p in others if p != stack), "")
+    return {"id": "", "name": name, "role": role, "link": _bare(link), "start": start, "end": end,
+            "technologies": technologies, "bullets": _bullets(entry)}
 
 
 def _sentence(text: str) -> bool:

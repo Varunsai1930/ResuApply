@@ -508,3 +508,10 @@ def test_with_a_saved_profile_no_corpus_resume_changes_a_saved_fact(client, samp
             assert fields[f"experience-{index}-id"] == entry["id"], name
             assert fields[f"experience-{index}-organization"] == entry["organization"], name
         assert client_profile(client) == copy.deepcopy(saved)  # still unchanged until reviewed and saved
+
+
+def test_a_projects_tech_stack_is_read_as_its_technologies():
+    draft = draft_profile("Jordan Example\n\nProjects\nTaskBot | Python, SQLite, Flask | Nov 2023 – Feb 2024\n"
+                          "- Created a chat bot\nBudget Tracker | Team Lead | 2024\n- Led a team of three\n")
+    assert [(p["name"], p["role"], p["technologies"]) for p in draft["projects"]] == [
+        ("TaskBot", "", ["Python", "SQLite", "Flask"]), ("Budget Tracker", "Team Lead", [])]
