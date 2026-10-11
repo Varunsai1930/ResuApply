@@ -105,3 +105,22 @@ def test_closed_jobs_alone_never_say_the_profile_is_complete(client, sample_prof
     set_status(client, job_id, "rejected", "2026-10-01")
     card = gaps_card(client)
     assert "is in your profile" not in card and "Once you add questions to a job" in card
+
+
+def test_the_profile_is_read_once_however_many_questions(client, sample_profile, monkeypatch):
+    from app.schemas.profile import Profile
+
+    setup_profile(client, sample_profile)
+    for _ in range(3):
+        job_id = new_job(client)
+        add(client, job_id, PORTFOLIO_Q)
+        add(client, job_id, CANADA_Q)
+    dumps = []
+    original = Profile.model_dump
+    monkeypatch.setattr(Profile, "model_dump", lambda self, *a, **k: dumps.append(1) or original(self, *a, **k))
+    with client.app.state.session_factory() as session:
+        from app.services import jobs as job_service
+        from app.services.profile_gaps import gaps
+
+        found = gaps(job_service.list_all(session), profile_service.get_candidate(session).profile)
+    assert len(found) == 2 and len(dumps) == 1

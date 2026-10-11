@@ -70,9 +70,10 @@ def asks_for_facts(jobs: list[Job]) -> bool:
 
 def gaps(jobs: list[Job], profile: Profile) -> list[Gap]:
     """Missing profile facts asked for by the factual questions of jobs that aren't closed, most asked first."""
+    prof = profile.model_dump()  # once, not once per question
     asked: dict[str, list[Job]] = {}
     for job, question in _factual_questions(jobs):
-        gap = q_rules.profile_gap(question.factual_key, question.text, profile)
+        gap = q_rules.profile_gap(question.factual_key, question.text, prof)
         if gap and job not in asked.setdefault(gap, []):
             asked[gap].append(job)
     found = [Gap(key, *_describe(key), jobs) for key, jobs in asked.items()]
