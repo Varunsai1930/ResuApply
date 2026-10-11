@@ -205,3 +205,42 @@ def test_skills_lists_keep_brackets_table_categories_and_several_categories_per_
         ("Java", "Languages"), ("Go", "Languages"), ("React", "Frameworks"), ("Flask", "Frameworks"),
         ("Git", "Tools"), ("Jira", "Tools"), ("Rust", "Skills"), ("Kotlin", "Skills"),
     ]
+
+
+def test_combined_qualified_and_letter_spaced_headings_are_recognized():
+    draft = draft_profile("""Jordan Example
+
+W O R K  E X P E R I E N C E
+Sample Analytics | Intern | 2024
+- Built an API
+
+Skills & Interests
+Python, SQL
+
+Education & Certifications
+Example State University | B.S. Computer Science | 2027
+
+Research Experience
+Example Labs | Research Assistant | 2025
+- Cleaned survey data
+
+Projects & Leadership
+TaskBot | Creator
+- Made a chat bot
+
+Programming Skills
+Docker
+
+Leadership & Activities
+Captain, Example Robotics Club
+""")
+    assert [e["organization"] for e in draft["experience"]] == ["Sample Analytics", "Example Labs"]
+    assert [s["name"] for s in draft["skills"]] == ["Python", "SQL", "Docker"]
+    assert [e["institution"] for e in draft["education"]] == ["Example State University"]
+    assert [p["name"] for p in draft["projects"]] == ["TaskBot"]
+    assert "Captain" not in str(draft)  # a section the profile doesn't hold stays out
+
+
+def test_a_list_of_soft_skills_is_not_a_heading():
+    draft = draft_profile("Jordan Example\n\nSkills\nPython\nLeadership, Research\nTeamwork and Communication\n")
+    assert [s["name"] for s in draft["skills"]] == ["Python", "Leadership", "Research", "Teamwork and Communication"]

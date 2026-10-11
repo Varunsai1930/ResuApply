@@ -35,7 +35,7 @@ _HEADINGS = {
                    "employment history", "work history", "internships", "relevant experience"),
     "projects": ("projects", "personal projects", "selected projects", "academic projects", "technical projects"),
     "skills": ("skills", "technical skills", "core skills", "skills and tools", "technologies",
-               "tools and technologies", "skills and technologies"),
+               "tools and technologies", "skills and technologies", "programming languages", "tools"),
     "certifications": ("certifications", "certificates", "licenses and certifications", "certifications and licenses"),
 }
 # Sections the profile doesn't hold: their lines are left out.
@@ -51,10 +51,45 @@ _HEADING_OF = {name: section for section, names in _HEADINGS.items() for name in
 _HEADING_OF.update({name: "other" for name in _OTHER_HEADINGS})
 
 
+_COMPACT = {name.replace(" ", ""): section for name, section in _HEADING_OF.items()}
+# Words a heading puts before a section's name: "Research Experience", "Software Projects".
+_QUALIFIERS = {"relevant", "selected", "professional", "technical", "work", "academic", "key", "additional",
+               "research", "industry", "internship", "leadership", "teaching", "software", "engineering",
+               "programming", "computer", "course", "personal", "notable", "recent", "core"}
+
+
+def _named(key: str) -> str | None:
+    """The section a heading's words name, with a qualifying word before it allowed."""
+    if key in _HEADING_OF:
+        return _HEADING_OF[key]
+    first, _, rest = key.partition(" ")
+    if first in _QUALIFIERS and rest in _HEADING_OF and _HEADING_OF[rest] != "other":
+        return _HEADING_OF[rest]
+    return None
+
+
 def _heading(line: str) -> str | None:
-    """The section a heading line starts ("other" for one the profile doesn't hold), or None for any other line."""
-    key = re.sub(r"\s+", " ", line.strip().rstrip(":").replace("&", "and")).lower()
-    return _HEADING_OF.get(key)
+    """The section a heading line starts ("other" for one the profile doesn't hold), or None for any other line.
+
+    Besides the listed headings, this reads a qualified one ("Research Experience"), a combined one
+    ("Skills & Interests" is Skills, "Leadership & Activities" is left out) when every part is a
+    heading, and a letter-spaced one ("E X P E R I E N C E").
+    """
+    if len(line) > 60:
+        return None
+    key = re.sub(r"\s+", " ", line.strip().rstrip(":").replace("&", " and ")).lower().strip()
+    key = re.sub(r"\s+", " ", key)
+    if (section := _named(key)) is not None:
+        return section
+    words = key.split()
+    if len(words) >= 4 and all(len(word) == 1 for word in words):
+        return _COMPACT.get("".join(words))
+    parts = [part.strip() for part in re.split(r" and | / |/", key)]
+    if len(parts) > 1:
+        sections = [_named(part) for part in parts]
+        if all(sections):
+            return next((section for section in sections if section != "other"), "other")
+    return None
 
 
 # ---------------------------------------------------------------- contact details
