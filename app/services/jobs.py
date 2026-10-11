@@ -117,9 +117,10 @@ def guess_details(description: str) -> dict[str, str]:
             rest.insert(0, at.group("company"))
         else:
             found["title"] = first
-        plain = plain[1:]
-    if not rest and plain and "company" not in found and _detail_line(plain[0]):
-        rest = _SEPARATOR.split(plain[0])
+        # Only a posting that opens with its title has "Company · Location" on the next line. When
+        # the title is labelled, an unlabelled line may be anything (the title again, "Full-time").
+        if not rest and len(plain) > 1 and "company" not in found and _detail_line(plain[1]):
+            rest = _SEPARATOR.split(plain[1])
     if rest:
         found.setdefault("company", rest[0])
         if rest[1:]:

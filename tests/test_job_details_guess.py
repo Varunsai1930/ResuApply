@@ -25,6 +25,10 @@ You will build Python services that power our analytics platform.
     ("We are hiring a backend intern to build services that power our platform for thousands of users every day.", {}),
     ("Backend Intern\nYou will build Python services.", {"title": "Backend Intern"}),  # a sentence is not a company
     ("", {}),
+    # A labelled title: the unlabelled lines aren't read as the company.
+    ("Backend Intern\nJob title: Backend Intern\nLocation: Remote", {"title": "Backend Intern", "location": "Remote"}),
+    ("Title: Data Intern\nFull-time, hybrid\nAbout us", {"title": "Data Intern"}),
+    ("Title: Data Intern\nCompany: Sample Labs\nAustin, TX", {"title": "Data Intern", "company": "Sample Labs"}),
 ])
 def test_guess_details(posting, expected):
     assert guess_details(posting) == expected
