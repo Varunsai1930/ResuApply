@@ -486,6 +486,8 @@ mark { color: var(--accent); background: var(--accent-wash); padding: 0 2px; bor
 .gap-text { flex: 1 1 280px; }
 .gap-text strong { display: block; }
 
+.cite-count { font-size: 0.8rem; color: var(--ink-3); white-space: nowrap; }
+
 /* Follow-up reminders: the Track step card and the board banner. */
 .follow-up.due, .follow-up-banner { background: var(--unknown-wash); border-color: var(--unknown); }
 .follow-up h2 { font-size: 1.05rem; }

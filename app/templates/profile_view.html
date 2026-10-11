@@ -85,7 +85,7 @@
       {% if e.technologies is defined and e.technologies %}<p class="tags">{% for t in e.technologies %}<span class="tag">{{ t }}</span>{% endfor %}</p>{% endif %}
       {% if e.bullets %}
       <ul class="bullet-view">
-        {% for b in e.bullets %}<li>{{ b.text }} <span class="id-badge">{{ b.id }}</span></li>{% endfor %}
+        {% for b in e.bullets %}<li>{{ b.text }} <span class="id-badge">{{ b.id }}</span> <span class="cite-count">{{ citations.get(b.id, not_cited).text }}</span></li>{% endfor %}
       </ul>
       {% endif %}
     </article>
