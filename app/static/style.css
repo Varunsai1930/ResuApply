@@ -144,7 +144,7 @@ body {
 .wrap { max-width: 1160px; margin: 0 auto; padding: 0 24px; }
 
 a { color: var(--accent); text-decoration-thickness: 1px; text-underline-offset: 2px; }
-a:hover { color: var(--accent-hover); }
+@media (hover: hover) { a:hover { color: var(--accent-hover); } }
 
 h1, h2 { font-family: var(--font-display); font-weight: 600; letter-spacing: -0.01em; color: var(--ink); }
 h1 { font-size: 1.95rem; line-height: 1.2; margin: 0 0 6px; }
@@ -177,14 +177,14 @@ hr { border: 0; border-top: 1px solid var(--rule); margin: 24px 0; }
   font-family: var(--font-display); font-weight: 600; font-size: 1.2rem; letter-spacing: -0.01em;
   color: var(--ink); text-decoration: none;
 }
-.brand:hover { color: var(--ink); }
+@media (hover: hover) { .brand:hover { color: var(--ink); } }
 nav { display: flex; align-items: stretch; gap: 24px; }
 nav a {
   display: flex; align-items: center;
   color: var(--ink-3); text-decoration: none; font-weight: 500; font-size: 0.93rem;
   border-bottom: 2px solid transparent; margin-bottom: -1px;
 }
-nav a:hover { color: var(--ink); }
+@media (hover: hover) { nav a:hover { color: var(--ink); } }
 nav a[aria-current="page"] { color: var(--ink); border-bottom-color: var(--ink); }
 .local-badge {
   margin-left: auto; display: flex; align-items: center; gap: 7px;
@@ -195,7 +195,7 @@ nav a[aria-current="page"] { color: var(--ink); border-bottom-color: var(--ink);
   width: 40px; height: 40px; margin-left: -20px; padding: 0;
   border: 1px solid transparent; border-radius: var(--radius-sm); background: none; color: var(--ink-3);
 }
-.theme-toggle:hover { color: var(--ink); border-color: var(--rule); }
+@media (hover: hover) { .theme-toggle:hover { color: var(--ink); border-color: var(--rule); } }
 .theme-toggle[aria-pressed="true"] .icon-moon, .theme-toggle[aria-pressed="false"] .icon-sun { display: none; }
 .local-badge::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: var(--met); }
 
@@ -208,7 +208,7 @@ main.wrap { padding-top: 40px; padding-bottom: 64px; }
 
 .crumbs { margin: 0 0 14px; font-size: 0.85rem; }
 .crumbs a { color: var(--ink-3); text-decoration: none; }
-.crumbs a:hover { color: var(--ink); text-decoration: underline; }
+@media (hover: hover) { .crumbs a:hover { color: var(--ink); text-decoration: underline; } }
 
 .page-head { margin-bottom: 28px; }
 .page-head.with-actions { display: flex; justify-content: space-between; align-items: flex-end; gap: 16px 24px; flex-wrap: wrap; }
@@ -316,7 +316,7 @@ select {
   background-size: 5px 5px, 5px 5px;
   background-repeat: no-repeat;
 }
-input:hover, textarea:hover, select:hover { border-color: var(--ink-3); }
+@media (hover: hover) { input:hover, textarea:hover, select:hover { border-color: var(--ink-3); } }
 input:focus, textarea:focus, select:focus {
   outline: none;
   border-color: var(--accent);
@@ -351,33 +351,39 @@ input, textarea, select, section[id], article[id] { scroll-margin-top: calc(var(
 /* ------------------------------------------------------------------ buttons */
 
 button, .btn-primary, .btn-secondary, .btn-link, .btn-small, .btn-icon { font: inherit; cursor: pointer; text-decoration: none; }
+/* Pressable controls draw their own pressed state (a scale, below), so drop the grey tap flash. */
+.btn-primary, .btn-secondary, .btn-small, .btn-icon, .theme-toggle {
+  -webkit-tap-highlight-color: transparent;
+  transition-property: scale, background-color, border-color, color;
+  transition-duration: 150ms;
+  transition-timing-function: ease-out;
+}
 .btn-primary, .btn-secondary {
   display: inline-flex; align-items: center; justify-content: center; gap: 6px;
   min-height: 38px; padding: 7px 16px;
   border-radius: var(--radius-sm); border: 1px solid transparent;
   font-size: 0.92rem; font-weight: 500; line-height: 1.2; white-space: nowrap;
-  transition: background-color 0.12s ease, border-color 0.12s ease, color 0.12s ease;
 }
 .btn-primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
-.btn-primary:hover { background: var(--accent-hover); border-color: var(--accent-hover); color: var(--accent-ink); }
+@media (hover: hover) { .btn-primary:hover { background: var(--accent-hover); border-color: var(--accent-hover); color: var(--accent-ink); } }
 .btn-secondary { background: var(--surface); color: var(--ink); border-color: var(--rule-strong); }
-.btn-secondary:hover { border-color: var(--ink-3); background: var(--well); color: var(--ink); }
+@media (hover: hover) { .btn-secondary:hover { border-color: var(--ink-3); background: var(--well); color: var(--ink); } }
 .btn-link { background: none; border: none; color: var(--ink-3); padding: 8px 4px; font-size: 0.92rem; }
-.btn-link:hover { color: var(--ink); text-decoration: underline; }
+@media (hover: hover) { .btn-link:hover { color: var(--ink); text-decoration: underline; } }
 .btn-small {
   display: inline-flex; align-items: center; min-height: 30px;
   background: var(--surface); border: 1px solid var(--rule-strong); color: var(--ink);
   border-radius: var(--radius-sm); padding: 4px 10px; font-size: 0.84rem; font-weight: 500;
 }
-.btn-small:hover { border-color: var(--ink-3); background: var(--well); }
+@media (hover: hover) { .btn-small:hover { border-color: var(--ink-3); background: var(--well); } }
 .btn-small.danger, .btn-icon { color: var(--unmet); }
-.btn-small.danger:hover { border-color: var(--unmet); background: var(--unmet-wash); }
+@media (hover: hover) { .btn-small.danger:hover { border-color: var(--unmet); background: var(--unmet-wash); } }
 .btn-icon {
   display: inline-flex; align-items: center; justify-content: center;
   background: var(--surface); border: 1px solid var(--rule-strong); border-radius: var(--radius-sm);
   width: 34px; height: 34px; line-height: 1; font-size: 0.85rem;
 }
-.btn-icon:hover { border-color: var(--unmet); background: var(--unmet-wash); }
+@media (hover: hover) { .btn-icon:hover { border-color: var(--unmet); background: var(--unmet-wash); } }
 button[disabled], button[disabled]:hover { opacity: 0.55; cursor: progress; }
 
 .form-actions { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; margin-top: 12px; }
@@ -466,12 +472,12 @@ table.simple { border: 1px solid var(--rule); border-radius: var(--radius-sm); }
   overflow: hidden;
 }
 .tracker tbody tr { transition: background-color 0.1s ease; }
-.tracker tbody tr:hover { background: var(--well); }
+@media (hover: hover) { .tracker tbody tr:hover { background: var(--well); } }
 .tracker tbody tr:last-child td { border-bottom: none; }
 .tracker td { font-size: 0.92rem; color: var(--ink-2); }
 .tracker td[data-label="Job"] { color: var(--ink); }
 .job-link { display: block; font-weight: 600; color: var(--ink); text-decoration: none; }
-.job-link:hover { color: var(--accent); text-decoration: underline; }
+@media (hover: hover) { .job-link:hover { color: var(--accent); text-decoration: underline; } }
 .company { display: block; color: var(--ink-3); font-size: 0.86rem; margin-top: 1px; }
 
 /* Counts of jobs per tracking status, above the tracker. */
@@ -616,7 +622,7 @@ input.guessed { background: var(--accent-wash); border-color: var(--progress); }
   color: var(--ink); text-decoration: none;
   transition-property: box-shadow; transition-duration: 150ms; transition-timing-function: ease-out;
 }
-.job-card:hover { box-shadow: var(--shadow-border-hover); color: var(--ink); }
+@media (hover: hover) { .job-card:hover { box-shadow: var(--shadow-border-hover); color: var(--ink); } }
 .job-card-company { font-size: 0.82rem; color: var(--ink-3); overflow-wrap: anywhere; }
 .job-card-title { font-size: 0.95rem; margin-bottom: 6px; overflow-wrap: anywhere; }
 .job-card .st { align-items: flex-start; }
@@ -649,7 +655,7 @@ input.guessed { background: var(--accent-wash); border-color: var(--progress); }
   display: flex; gap: 12px; padding: 12px; border-radius: var(--radius-sm);
   color: var(--ink); text-decoration: none;
 }
-.step-link:hover { background: var(--well); color: var(--ink); }
+@media (hover: hover) { .step-link:hover { background: var(--well); color: var(--ink); } }
 .step-link.here { background: var(--accent-wash); }
 .step-mark {
   flex: none; width: 26px; height: 26px; border-radius: 50%;
@@ -747,7 +753,7 @@ input.guessed { background: var(--accent-wash); border-color: var(--progress); }
 .check-actions summary::-webkit-details-marker { display: none; }
 .check-actions summary::before { content: "+"; font-family: var(--font-mono); color: var(--ink-3); }
 .check-actions details[open] > summary::before { content: "−"; }
-.check-actions summary:hover { color: var(--ink); }
+@media (hover: hover) { .check-actions summary:hover { color: var(--ink); } }
 .check-actions details[open] { padding: 4px 0 8px; }
 .check-actions form { max-width: 640px; }
 
@@ -921,8 +927,12 @@ details.card[open] summary::after { content: " −"; }
   .doc-section > h2 { margin-bottom: 12px; }
 }
 
-/* ------------------------------------------------------------------ motion preferences */
+/* ------------------------------------------------------------------ motion */
 
-@media (prefers-reduced-motion: reduce) {
-  * { transition: none !important; }
+/* Movement runs only for people who have not asked for reduced motion. Colour and shadow
+   transitions above stay for everyone: they change no position. */
+@media (prefers-reduced-motion: no-preference) {
+  /* Press feedback: the control shrinks a little while held. A disabled control never moves. */
+  .btn-primary:not(:disabled):active, .btn-secondary:not(:disabled):active, .btn-small:not(:disabled):active,
+  .btn-icon:not(:disabled):active, .theme-toggle:active { scale: 0.96; }
 }
