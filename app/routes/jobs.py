@@ -259,9 +259,11 @@ def create_job(
         data = job_service.clean_input(**values)
     except job_service.JobInvalid as exc:
         return _render_job_form(request, values, exc.errors, status_code=422, **form)
-    job = job_service.create(session, data)
-    if preview and add_questions:
-        greenhouse.save_import(session, job, preview)
+    importing = bool(preview and add_questions)
+    job = job_service.create(session, data, commit=not importing)
+    if importing:
+        greenhouse.attach_import(job, preview)  # the job and its questions are saved together
+        session.commit()
         return RedirectResponse(f"/jobs/{job.id}?step=questions&msg=job_imported", status_code=303)
     return RedirectResponse(f"/jobs/{job.id}?msg=job_created", status_code=303)
 

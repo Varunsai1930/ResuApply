@@ -251,6 +251,16 @@ def _check_category_change(detected: str, key: str | None, category: str) -> Non
 def add_question(session: Session, job: Job, text: str, required: bool = True, limit: int | None = None,
                  limit_unit: str = "chars", category: str | None = None) -> Question:
     """Add one of the employer's questions. Its category is detected unless the user overrides it."""
+    with transactions.write(session, job):
+        # The number comes from the reloaded counter and list, so simultaneous additions get distinct IDs.
+        question = new_question(job, text, required, limit, limit_unit, category)
+        append_question(job, question)
+    return question
+
+
+def new_question(job: Job, text: str, required: bool = True, limit: int | None = None,
+                 limit_unit: str = "chars", category: str | None = None) -> Question:
+    """One of the employer's questions, checked and numbered after the job's others; not added yet."""
     text = (text or "").strip()
     if not text:
         raise AnswerError("Enter the question text.")
@@ -266,20 +276,21 @@ def add_question(session: Session, job: Job, text: str, required: bool = True, l
     if category and category != detected:
         _check_category_change(detected, key, category)
         chosen = category
-    with transactions.write(session, job):
-        # The number comes from the reloaded counter and list, so simultaneous additions get distinct IDs.
-        existing = [int(q.id[1:]) for q in job.questions if q.id[1:].isdigit()]
-        number = max(job.question_counter, *existing, 0) + 1
-        question = Question(
-            id=f"q{number}", text=text, required=bool(required), limit=limit, limit_unit=limit_unit,
-            category=chosen, detected_category=detected,
-            factual_key=key if chosen in (q_rules.FACTUAL, q_rules.SENSITIVE_FACTUAL) else None,
-            added_at=utcnow(),
-        )
-        job.question_counter = number
-        job.questions = [*job.questions, question]
-        _content_changed(job.application)
-    return question
+    existing = [int(q.id[1:]) for q in job.questions if q.id[1:].isdigit()]
+    number = max(job.question_counter or 0, *existing, 0) + 1
+    return Question(
+        id=f"q{number}", text=text, required=bool(required), limit=limit, limit_unit=limit_unit,
+        category=chosen, detected_category=detected,
+        factual_key=key if chosen in (q_rules.FACTUAL, q_rules.SENSITIVE_FACTUAL) else None,
+        added_at=utcnow(),
+    )
+
+
+def append_question(job: Job, question: Question) -> None:
+    """Add a question made by ``new_question`` to the job; the caller commits."""
+    job.question_counter = int(question.id[1:])
+    job.questions = [*job.questions, question]
+    _content_changed(job.application)
 
 
 def set_category(session: Session, job: Job, application: Application, qid: str, category: str) -> Question:

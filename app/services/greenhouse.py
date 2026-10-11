@@ -24,7 +24,6 @@ from urllib.parse import parse_qs, urlsplit
 
 import httpx
 from pydantic import TypeAdapter, ValidationError
-from sqlalchemy.orm import Session
 
 from ..db import utcnow
 from ..models import Job
@@ -375,24 +374,25 @@ def read_preview(raw: object) -> ImportPreview | None:
         return None
 
 
-def save_import(session: Session, job: Job, preview: ImportPreview) -> None:
-    """Add the reviewed questions to a newly saved job and keep each one's form field.
+def attach_import(job: Job, preview: ImportPreview) -> None:
+    """Add the reviewed questions to a new, not yet saved job and keep each one's form field.
 
-    Each question is added as the user would add it (``answers.add_question``), so its category
-    is detected by the same rules and a sensitive question can't be made anything else; only
-    ``category`` narrows it further. One that is refused is listed as left out instead.
+    The caller commits the job with them in one go, so a failure part-way saves neither: no job
+    with half its questions, and no duplicate when the form is sent again. Each question is made
+    as the user would add it (``answers.new_question``), so its category is detected by the same
+    rules and a sensitive question can't be made anything else; only ``category`` narrows it
+    further. One that is refused is listed as left out instead.
     """
     fields: dict[str, QuestionField] = {}
     left_out = list(preview.left_out)
     for question in preview.questions:
         try:
-            added = answers.add_question(session, job, question.label, required=question.required,
-                                         category=category(question))
+            added = answers.new_question(job, question.label, required=question.required, category=category(question))
         except answers.AnswerError as exc:
             left_out.append(LeftOut(question.label[:200], str(exc)[:300]))
             continue
+        answers.append_question(job, added)
         fields[added.id] = QuestionField(field_type=question.field_type, options=list(question.options),
                                          greenhouse_type=question.greenhouse_type)
     job.posting_import = PostingImport(board=preview.board, job_id=preview.job_id, fetched_at=preview.fetched_at,
                                        fields=fields, left_out=left_out)
-    session.commit()

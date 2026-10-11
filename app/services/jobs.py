@@ -128,8 +128,12 @@ def guess_details(description: str) -> dict[str, str]:
     return {k: v.strip()[:LIMITS[k]] for k, v in found.items() if v.strip()}
 
 
-def create(session: Session, data: JobInput, today: date | None = None) -> Job:
-    """Save a job with its application record: review state Draft, tracking status Saved."""
+def create(session: Session, data: JobInput, today: date | None = None, commit: bool = True) -> Job:
+    """Save a job with its application record: review state Draft, tracking status Saved.
+
+    With ``commit=False`` the job is only flushed, for a caller that adds more to it (an imported
+    posting's questions) and commits it all at once; nothing is saved if that caller fails.
+    """
     now = utcnow()
     candidate = get_candidate(session)
     job = Job(**vars(data), revision=1, created_at=now, updated_at=now)
@@ -143,7 +147,10 @@ def create(session: Session, data: JobInput, today: date | None = None) -> Job:
         updated_at=now,
     )
     session.add(job)
-    session.commit()
+    if commit:
+        session.commit()
+    else:
+        session.flush()  # its ID and column defaults (an empty question list), in the open transaction
     return job
 
 

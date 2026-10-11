@@ -249,3 +249,24 @@ def test_an_answer_that_is_not_one_of_the_forms_choices_is_shown_and_blocks_appr
     assert "Not one of the form&#39;s choices" in page
     client.post(f"/jobs/{job.id}/questions/{qid}/answer", data={"text": "Git\nDocker"}, follow_redirects=False)
     assert "made of the choices" not in client.get(location).text
+
+
+def test_a_failure_part_way_through_the_questions_saves_neither_the_job_nor_any_question(client, greenhouse,
+                                                                                          monkeypatch):
+    from app.services import answers
+
+    greenhouse.queue.append(posting())
+    fields = job_fields(client.post("/jobs/import", data={"url": POSTING_URL}).text)
+    made = []
+    original = answers.new_question
+
+    def failing(*args, **kwargs):
+        if len(made) == 3:
+            raise RuntimeError("database locked")
+        made.append(1)
+        return original(*args, **kwargs)
+
+    monkeypatch.setattr(answers, "new_question", failing)
+    with pytest.raises(RuntimeError):
+        client.post("/jobs", data=fields, follow_redirects=False)
+    assert jobs(client) == []  # sending the form again can't make a duplicate job
