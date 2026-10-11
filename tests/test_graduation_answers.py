@@ -278,5 +278,5 @@ def test_a_degree_in_progress_without_an_end_date_is_never_passed_over():
                           ("graduation_year", "Graduation year")):
         assert factual_value(key, question, both) is None
         assert "still in progress" in graduation_note(key, question, both)
-        assert profile_gap(key, question, both) == key  # its expected end date would answer it
+        assert profile_gap(key, question, both) == "graduation_date"  # its expected end date would answer it
     assert factual_value("graduation_date", "Bachelor's degree graduation date", both) == "2024-05"

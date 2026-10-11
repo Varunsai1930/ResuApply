@@ -124,3 +124,14 @@ def test_the_profile_is_read_once_however_many_questions(client, sample_profile,
 
         found = gaps(job_service.list_all(session), profile_service.get_candidate(session).profile)
     assert len(found) == 2 and len(dumps) == 1
+
+
+def test_year_and_date_questions_ask_for_one_graduation_date(client, sample_profile):
+    sample_profile["education"][0]["end"] = ""
+    setup_profile(client, sample_profile)
+    first = new_job(client, title="Backend Intern")
+    second = new_job(client, title="Data Intern")
+    add(client, first, "Graduation year")
+    add(client, second, "Expected graduation date")
+    card = gaps_card(client)
+    assert card.count(": Graduation date</span>") == 1 and "Asked by 2 jobs:" in card

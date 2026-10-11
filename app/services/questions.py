@@ -399,8 +399,10 @@ def profile_gap(key: str, question: str, profile: Profile | dict) -> str | None:
     prof = profile.model_dump() if isinstance(profile, Profile) else profile
     if name_part(key, question) or factual_value(key, question, prof) is not None:
         return None
-    if key in GRADUATION_KEYS and _graduation(key, question, prof)[1] == _SEVERAL:
-        return None  # the profile has the dates; the question must say which degree
+    if key in GRADUATION_KEYS:
+        if _graduation(key, question, prof)[1] == _SEVERAL:
+            return None  # the profile has the dates; the question must say which degree
+        return "graduation_date"  # year and date questions both need the education end date
     if key not in ("authorization", "sponsorship"):
         return key
     q = norm_text(question)
