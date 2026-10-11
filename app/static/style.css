@@ -504,6 +504,22 @@ mark { color: var(--accent); background: var(--accent-wash); padding: 0 2px; bor
 
 input.guessed { background: var(--accent-wash); border-color: var(--progress); }
 
+/* Welcome page and sample data. */
+.welcome-hero { max-width: 46rem; margin-bottom: 32px; }
+.welcome-hero h1 { font-size: clamp(2rem, 5vw, 2.75rem); line-height: 1.12; margin: 0 0 12px; }
+.start-options { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px; margin-bottom: 24px; }
+.start-option { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; margin-bottom: 0; }
+.start-option h3 { margin: 0; font-size: 1.05rem; }
+.start-option p { flex-grow: 1; color: var(--ink-2); }
+.flow-steps { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 12px; }
+.flow-steps li { display: flex; gap: 10px; align-items: flex-start; }
+.flow-steps .hint { margin: 0; }
+.promises { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 24px; border-top: 1px solid var(--rule); padding-top: 24px; }
+.promises p { margin: 4px 0 0; color: var(--ink-2); }
+.sample-banner { display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center; }
+.sample-banner p { flex: 1 1 320px; margin: 0; }
+.greeting-actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+
 /* Follow-up reminders: the Track step card and the board banner. */
 .follow-up.due, .follow-up-banner { background: var(--unknown-wash); border-color: var(--unknown); }
 .follow-up h2 { font-size: 1.05rem; }

@@ -13,6 +13,7 @@ from ..db import get_session
 from ..models import Job
 from ..schemas.tracking import TrackingStatus
 from ..services import board as board_service
+from ..services import sample as sample_service
 from ..services import checklist, outbound, package, question_rows, tracking
 from ..services import jobs as job_service
 from ..services import workspace as guide_service
@@ -182,6 +183,7 @@ def list_jobs(request: Request, q: str = "", msg: str = "", session: Session = D
     board = board_service.board(jobs, candidate, date.today(), q)
     return templates.TemplateResponse(request, "jobs_list.html",
                                       {"jobs": jobs, "board": board, "candidate": candidate, "msg": msg, "Step": guide_service.Step,
+                                       "sample": sample_service.current(session),
                                        "snooze_days": tracking.SNOOZE_DAYS, "active": "jobs"})
 
 

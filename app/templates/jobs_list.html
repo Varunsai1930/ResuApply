@@ -2,6 +2,7 @@
 {% import "macros.html" as m with context %}
 {% block title %}Jobs{% endblock %}
 {% block content %}
+{% include "_sample_banner.html" %}
 {% if candidate %}
 <p class="greeting">Hello, {{ candidate.profile.contact.name | first_name }}.</p>
 {% else %}
@@ -10,7 +11,10 @@
     <h2 id="greeting-title">Hello there.</h2>
     <p>Create your profile so every requirement check and resume is tailored to you. It holds the facts each application is built from, and only you can change it.</p>
   </div>
-  <a class="btn-primary" href="/profile/edit">Create your profile</a>
+  <div class="greeting-actions">
+    <a class="btn-primary" href="/profile/edit">Create your profile</a>
+    <a class="btn-link" href="/welcome">or try it with sample data</a>
+  </div>
 </section>
 {% endif %}
 <div class="page-head with-actions">
@@ -78,7 +82,7 @@
       {% set job = c.job %}
       <a class="job-card" href="/jobs/{{ job.id }}">
         <span class="job-card-company">{{ job.company }}{% if job.location %} · {{ job.location }}{% endif %}</span>
-        <strong class="job-card-title">{{ job.title }}</strong>
+        <strong class="job-card-title">{{ job.title }}{% if job.sample %} <span class="tag">Sample</span>{% endif %}</strong>
         <span class="st st-{{ c.meaning.status.value }}">{{ m.status_icon(c.meaning.status) }}<span class="st-text">{% if c.meaning.status == Status.INFO %}<span class="visually-hidden">Info: </span>{% else %}{{ c.meaning.status.label }}: {% endif %}{{ c.meaning.note }}</span></span>
         {% if c.step %}
         <span class="job-card-progress" aria-hidden="true"><span style="width: {{ (2 * c.step.number - 1) * 10 }}%"></span></span>

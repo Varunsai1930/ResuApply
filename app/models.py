@@ -11,7 +11,7 @@ from __future__ import annotations
 from datetime import date, datetime
 from typing import Any
 
-from sqlalchemy import Date, ForeignKey, Integer, String, Text
+from sqlalchemy import Boolean, Date, ForeignKey, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from .db import Base, PydanticJSON, UTCDateTime, utcnow
@@ -37,6 +37,8 @@ class Candidate(Base):
     revision: Mapped[int] = mapped_column(Integer, default=1)
     # Highest ID ever issued per prefix ("exp", "exp-1-b", ...), so deleted IDs are never reused.
     id_counters: Mapped[dict[str, int]] = mapped_column(PydanticJSON(dict[str, int]), default=dict)
+    # The fictional profile "Load sample data" added; removed with the sample data.
+    sample: Mapped[bool] = mapped_column(Boolean, default=False, server_default="0")
     created_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utcnow)
     updated_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utcnow)
 
@@ -61,6 +63,8 @@ class Job(Base):
     questions: Mapped[list[Question]] = mapped_column(PydanticJSON(list[Question]), default=list)
     # Highest question number ever issued ("q4" -> 4), so removed question IDs are never reused.
     question_counter: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
+    # A job "Load sample data" added; removed with the sample data.
+    sample: Mapped[bool] = mapped_column(Boolean, default=False, server_default="0")
     created_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utcnow)
     updated_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utcnow)
 

@@ -74,7 +74,7 @@ def review_and_save(client: TestClient, fields: dict[str, str]):
 # ---------------------------------------------------------------- pages
 
 def test_main_pages_render(client):
-    assert client.get("/", follow_redirects=False).headers["location"] == "/jobs"
+    assert client.get("/", follow_redirects=False).headers["location"] == "/welcome"  # a fresh install
     for url, text in [
         ("/jobs", "No jobs yet"),
         ("/profile", "Create your profile"),

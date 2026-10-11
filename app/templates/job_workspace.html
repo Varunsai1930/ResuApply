@@ -19,7 +19,7 @@
       Job revision {{ job.revision }} · added {{ job.created_at | local_datetime }}
       {% if job.url %} · <a href="{{ job.url }}" target="_blank" rel="noopener noreferrer nofollow">Posting link ↗</a>{% endif %}
     </p>
-    <p class="chips"><span class="chip">Status: {{ m.status_badge(application.status) }}</span> <span class="chip">Package: {{ m.review_badge(review) }}</span></p>
+    <p class="chips">{% if job.sample %}<span class="chip">Sample job: fictional</span> {% endif %}<span class="chip">Status: {{ m.status_badge(application.status) }}</span> <span class="chip">Package: {{ m.review_badge(review) }}</span></p>
   </div>
   <a class="btn-secondary" href="/jobs/{{ job.id }}/edit">Edit details</a>
 </div>

@@ -1,0 +1,13 @@
+{# Shown while sample data is loaded. Needs `sample` (services.sample.SampleData) in the context. #}
+{% if sample and sample.present %}
+{% set n = sample.jobs | length %}
+{% set jobs_text = 'the sample job' if n == 1 else 'the ' ~ n ~ ' sample jobs' %}
+<section class="notice sample-banner" aria-labelledby="sample-banner-title">
+  <p><strong id="sample-banner-title">You're exploring sample data.</strong>
+    {% if sample.candidate and n %}The profile of {{ sample.candidate.profile.contact.name }} and {{ jobs_text }} are fictional.
+    {% elif sample.candidate %}The profile of {{ sample.candidate.profile.contact.name }} is fictional.
+    {% else %}{{ jobs_text | capitalize }} {{ 'is' if n == 1 else 'are' }} fictional.{% endif %}
+    Remove the sample data before you add your own profile.</p>
+  <a class="btn-secondary" href="/sample/remove">Remove sample data</a>
+</section>
+{% endif %}

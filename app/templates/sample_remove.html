@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+{% block title %}Remove sample data{% endblock %}
+{% block content %}
+<p class="crumbs"><a href="/jobs">← Jobs</a></p>
+<div class="page-head">
+  <h1>Remove sample data</h1>
+</div>
+{% if sample.present %}
+<section class="card" aria-labelledby="removed-title">
+  <h2 id="removed-title">This removes</h2>
+  <ul class="plain-list">
+    {% if sample.candidate %}<li>The fictional profile of {{ sample.candidate.profile.contact.name }}, and what it was approved to share with the AI model</li>{% endif %}
+    {% for job in sample.jobs %}<li>The sample job {{ job.title }} at {{ job.company }}, with its resume, answers, notes and history</li>{% endfor %}
+    {% if sample.bank_entries %}<li>{{ sample.bank_entries | length }} answer{{ 's' if sample.bank_entries | length != 1 }} saved to the answer bank from {{ 'it' if sample.jobs | length == 1 else 'them' }}</li>{% endif %}
+  </ul>
+  <p class="hint">Jobs you added yourself are kept{% if sample.candidate %}; any you prepared with the sample profile will ask for your own profile{% endif %}. This can't be undone.</p>
+  <form method="post" action="/sample/remove" class="form-actions">
+    <button type="submit" class="btn-primary">Remove sample data</button>
+    <a class="btn-link" href="/jobs">Cancel</a>
+  </form>
+</section>
+{% else %}
+<div class="empty card">
+  <h2>There's no sample data</h2>
+  <p>Nothing here was added by Load sample data.</p>
+  <a class="btn-secondary" href="/welcome">Back to the welcome page</a>
+</div>
+{% endif %}
+{% endblock %}

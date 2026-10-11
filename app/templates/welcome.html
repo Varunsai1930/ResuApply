@@ -1,0 +1,60 @@
+{% extends "base.html" %}
+{% import "macros.html" as m with context %}
+{% block title %}Welcome{% endblock %}
+{% block content %}
+<section class="welcome-hero">
+  <p class="eyebrow">Your job application copilot</p>
+  <h1>Apply with evidence, not guesswork.</h1>
+  <p class="lead">ResuApply turns your profile and a pasted job description into a checklist, a tailored resume and reviewed answers. Every claim cites your own profile, and nothing leaves this computer unless you approve it.</p>
+</section>
+
+{% if error %}<p class="notice warn" role="alert" tabindex="-1" data-focus>{{ error }}</p>{% endif %}
+{% include "_sample_banner.html" %}
+
+<section aria-labelledby="start-title">
+  <h2 id="start-title">{{ 'How would you like to start?' if not candidate else 'Pick up where you left off' }}</h2>
+  <div class="start-options">
+    <article class="card start-option">
+      <h3>Try it with sample data</h3>
+      {% if sample.present %}
+        <p>The sample data is loaded. Open the sample job on the board to walk through its five steps.</p>
+        <a class="btn-primary" href="/jobs">Go to the jobs board</a>
+      {% elif candidate %}
+        <p>Sample data can only be loaded before you create a profile, so it never mixes with yours.</p>
+      {% else %}
+        <p>Load a fictional student profile and a job posting to walk through the whole flow in a couple of minutes. Both are marked Sample, and you can remove them whenever you like.</p>
+        <form method="post" action="/sample">
+          <button type="submit" class="btn-primary">Load sample data</button>
+        </form>
+      {% endif %}
+    </article>
+    <article class="card start-option">
+      <h3>{{ 'Start from scratch' if not candidate else 'Your profile' }}</h3>
+      {% if candidate %}
+        <p>Your profile holds the facts every resume and answer is built from. Keep it current, one section at a time.</p>
+        <a class="btn-secondary" href="/profile">Open your profile</a>
+      {% else %}
+        <p>Fill in the guided profile form: contact details, education, experience, projects and skills. It takes about fifteen minutes, and nothing is saved until you review it.</p>
+        <a class="btn-secondary" href="/profile/edit">Open the profile form</a>
+      {% endif %}
+    </article>
+  </div>
+</section>
+
+<section class="card" aria-labelledby="flow-title">
+  <h2 id="flow-title">What happens for each job</h2>
+  <ol class="flow-steps">
+    {% for title, text in [('Requirements', 'Met, unmet or unknown, with evidence'), ('Resume', 'Tailored wording, every line cited'),
+                           ('Questions', 'From your profile or your own words'), ('Review', 'Approve the package you checked'),
+                           ('Submit and track', 'You submit; ResuApply keeps the record')] %}
+      <li><span class="step-mark here" aria-hidden="true">{{ loop.index }}</span><span><strong>{{ title }}</strong><span class="hint">{{ text }}</span></span></li>
+    {% endfor %}
+  </ol>
+</section>
+
+<section class="promises" aria-label="Promises">
+  <div><strong>Local only</strong><p>Your data stays in one folder on this computer. Only content you approve is sent to the AI model.</p></div>
+  <div><strong>Nothing invented</strong><p>Drafts that add skills, numbers or dates you don't have are rejected before you see them.</p></div>
+  <div><strong>You submit</strong><p>ResuApply never clicks an employer's Submit button. Approving a package never marks a job Applied.</p></div>
+</section>
+{% endblock %}

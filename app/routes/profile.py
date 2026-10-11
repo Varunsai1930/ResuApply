@@ -17,6 +17,7 @@ from starlette.concurrency import run_in_threadpool
 from ..db import get_session
 from ..services import jobs as job_service
 from ..services import profile as profile_service
+from ..services import sample as sample_service
 from ..services.citations import Usage, citations
 from ..services.profile_gaps import asks_for_facts, gaps
 from ..services.profile_form import is_form_shaped, parse_form
@@ -141,6 +142,7 @@ def view_profile(request: Request, msg: str = "", session: Session = Depends(get
         "gaps": gaps(jobs, candidate.profile) if candidate else [],
         "asked_jobs": asks_for_facts(jobs),
         "citations": citations(jobs),
+        "sample": sample_service.current(session),
         "not_cited": Usage(),
     })
 

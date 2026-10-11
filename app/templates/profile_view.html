@@ -10,9 +10,10 @@
 </div>
 {% else %}
 {% set p = candidate.profile %}
+{% include "_sample_banner.html" %}
 <div class="page-head with-actions">
   <div>
-    <h1>{{ p.contact.name }}</h1>
+    <h1>{{ p.contact.name }}{% if candidate.sample %} <span class="tag">Sample</span>{% endif %}</h1>
     <p class="meta">Revision {{ candidate.revision }} · last saved {{ candidate.updated_at | local_datetime }} · <a href="/profile/sharing">What the AI model may see</a></p>
   </div>
   <a class="btn-primary" href="/profile/edit">Edit profile</a>

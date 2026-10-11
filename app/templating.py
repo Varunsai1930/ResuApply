@@ -56,6 +56,8 @@ MESSAGES = {
     "followed_up": "Noted that you followed up, and the reminder is cleared. Set a new one if you want another.",
     "reminder_set": "Follow-up reminder set.",
     "reminder_cleared": "Follow-up reminder cleared. You won't be reminded about this application.",
+    "sample_loaded": "Sample data loaded: a fictional profile and a job posting, marked Sample. Open the job to walk through its five steps, and remove the sample data whenever you like.",
+    "sample_removed": "Sample data removed. Your own jobs, if any, are unchanged.",
     "sharing_approved": "Saved what may be sent to the AI model.",
     "sharing_withdrawn": "Approval withdrawn. You'll be asked again before candidate content is sent.",
 }
