@@ -672,13 +672,22 @@ Builds backend services.
     assert draft["experience"] == [] and draft["education"] == [] and draft["summary"] == ""  # left out, not misfiled
 
 
-def test_a_long_line_of_repeated_month_names_drafts_quickly():
+def test_a_long_line_of_repeated_month_names_drafts_in_linear_time():
     import time
 
+    def seconds(prefix: str, size: int) -> float:
+        text = "Jordan Example\n\nEXPERIENCE\n" + (prefix * size)[:size] + "\n- Built an API\n"
+        best = float("inf")
+        for _ in range(3):  # the best of three, so a busy machine doesn't decide the result
+            started = time.perf_counter()
+            draft_profile(text)
+            best = min(best, time.perf_counter() - started)
+        return best
+
     for prefix in ("dec", "Sept", "jan ", "may."):
-        started = time.perf_counter()
-        draft_profile("Jordan Example\n\nEXPERIENCE\n" + (prefix * 100_000)[:100_000] + "\n- Built an API\n")
-        assert time.perf_counter() - started < 1, prefix
+        small, large = seconds(prefix, 25_000), seconds(prefix, 100_000)
+        # Four times the text takes about four times as long when linear, sixteen when quadratic.
+        assert large < 8 * max(small, 0.05) and large < 10, (prefix, small, large)
 
 
 @pytest.mark.parametrize("heading, start, end", [
