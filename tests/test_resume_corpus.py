@@ -244,3 +244,42 @@ Captain, Example Robotics Club
 def test_a_list_of_soft_skills_is_not_a_heading():
     draft = draft_profile("Jordan Example\n\nSkills\nPython\nLeadership, Research\nTeamwork and Communication\n")
     assert [s["name"] for s in draft["skills"]] == ["Python", "Leadership", "Research", "Teamwork and Communication"]
+
+
+def test_word_tables_are_read_where_they_are():
+    def build(document):
+        contact = document.add_table(rows=1, cols=2)
+        contact.cell(0, 0).text = "Jordan Example"
+        contact.cell(0, 1).text = "jordan@example.com | Austin, TX"
+        document.add_paragraph("Experience")
+        row = document.add_table(rows=1, cols=2)
+        row.cell(0, 0).text = "Sample Analytics | Software Engineering Intern"
+        row.cell(0, 1).text = "Jun 2024 – Aug 2024"
+        document.add_paragraph("Built a Flask REST API", style="List Bullet")
+        document.add_paragraph("Skills")
+        document.add_paragraph("Python, SQL")
+
+    draft = read(word(build))
+    assert (draft["contact"]["name"], draft["contact"]["email"]) == ("Jordan Example", "jordan@example.com")
+    (job,) = draft["experience"]
+    assert (job["organization"], job["start"], [b["text"] for b in job["bullets"]]) == (
+        "Sample Analytics", "2024-06", ["Built a Flask REST API"])
+    assert [s["name"] for s in draft["skills"]] == ["Python", "SQL"]
+
+
+def test_a_two_column_word_layout_table_is_read_column_by_column():
+    def build(document):
+        layout = document.add_table(rows=1, cols=2)
+        left, right = layout.cell(0, 0), layout.cell(0, 1)
+        left.paragraphs[0].text = "Jordan Example"
+        for line in ("jordan@example.com", "Skills", "Python, SQL"):
+            left.add_paragraph(line)
+        right.paragraphs[0].text = "Experience"
+        right.add_paragraph("Sample Analytics | Software Engineering Intern | Jun 2024 – Aug 2024")
+        right.add_paragraph("Built a Flask REST API", style="List Bullet")
+
+    draft = read(word(build))
+    assert draft["contact"]["email"] == "jordan@example.com"
+    assert [s["name"] for s in draft["skills"]] == ["Python", "SQL"]
+    assert [(e["organization"], [b["text"] for b in e["bullets"]]) for e in draft["experience"]] == [
+        ("Sample Analytics", ["Built a Flask REST API"])]

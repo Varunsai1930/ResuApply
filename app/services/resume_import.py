@@ -147,15 +147,43 @@ def _docx_lines(data: bytes) -> str:
     from docx import Document
 
     document = Document(io.BytesIO(data))
-    lines = [_paragraph_text(paragraph) for paragraph in document.paragraphs]
-    for table in document.tables:  # resumes often lay out dates or contact details in tables
-        for row in table.rows:
-            cells = []
-            for cell in row.cells:
-                if cell.text not in cells:  # merged cells repeat their text
-                    cells.append(cell.text)
-            lines.append(" | ".join(text for text in cells if text.strip()))
-    return "\n".join(lines)
+    return "\n".join(_block_lines(document.element.body, document))
+
+
+def _block_lines(element, parent) -> list[str]:
+    """The lines of a body or table cell in document order: paragraphs, tables and content controls.
+
+    Resumes lay out contact details, entry headings and whole columns in tables, so a table is read
+    where it stands. A row whose cells each hold one line reads as one line, "Sample Analytics |
+    Jun 2024 – Aug 2024"; a layout row whose cells hold blocks (a sidebar beside the main column)
+    is read cell by cell. Merged cells repeat their text and are read once.
+    """
+    from docx.oxml.ns import qn
+    from docx.table import Table
+    from docx.text.paragraph import Paragraph
+
+    lines: list[str] = []
+    for child in element.iterchildren():
+        if child.tag == qn("w:p"):
+            lines.append(_paragraph_text(Paragraph(child, parent)))
+        elif child.tag == qn("w:tbl"):
+            for row in Table(child, parent).rows:
+                cells: list[list[str]] = []
+                seen = set()
+                for cell in row.cells:
+                    if id(cell._tc) in seen:
+                        continue
+                    seen.add(id(cell._tc))
+                    text = [line for line in _block_lines(cell._tc, cell) if line.strip()]
+                    if text and text not in cells:
+                        cells.append(text)
+                if all(len(text) == 1 for text in cells):
+                    lines.append(" | ".join(text[0] for text in cells))
+                else:
+                    lines.extend(line for text in cells for line in text)
+        elif child.tag == qn("w:sdt") and (content := child.find(qn("w:sdtContent"))) is not None:
+            lines.extend(_block_lines(content, parent))
+    return lines
 
 
 def _numbered(paragraph) -> bool:
