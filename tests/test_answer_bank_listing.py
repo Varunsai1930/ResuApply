@@ -121,3 +121,12 @@ def test_the_answer_bank_reads_only_what_it_needs(client, sample_profile):
     app_reads = [s for s in statements if "FROM applications" in s]
     assert app_reads and not any("submitted_snapshots" in s for s in app_reads)  # no whole applications
     assert sum("FROM answer_bank" in s and "answer_bank.answer" in s for s in statements) == 1  # entries read once
+
+
+def test_every_sort_is_offered_accepted_and_ordered(client, sample_profile):
+    bank_with_three(client, sample_profile)
+    for sort in answer_service.BankSort:
+        page = client.get("/answers", params={"sort": sort.value})
+        assert page.status_code == 200
+        assert f'<option value="{sort.value}" selected>{sort.label}</option>' in page.text
+        assert len(listing(client, sort=sort)) == 3

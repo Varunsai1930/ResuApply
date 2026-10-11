@@ -14,7 +14,7 @@
     <input id="bank-search" name="q" type="search" value="{{ query }}" placeholder="Search saved answers" maxlength="200">
     <label class="visually-hidden" for="bank-sort">Sort</label>
     <select id="bank-sort" name="sort">
-      {% for value, label in sorts.items() %}<option value="{{ value }}"{% if value == sort %} selected{% endif %}>{{ label }}</option>{% endfor %}
+      {% for s in sorts %}<option value="{{ s.value }}"{% if s == sort %} selected{% endif %}>{{ s.label }}</option>{% endfor %}
     </select>
     <button type="submit" class="btn-secondary">Apply</button>
   </form>

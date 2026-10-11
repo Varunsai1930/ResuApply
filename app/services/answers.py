@@ -28,6 +28,7 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 from datetime import datetime
+from enum import StrEnum
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -613,7 +614,20 @@ class BankUse:
     last_used: datetime | None = None
 
 
-BANK_SORTS = {"recent": "Most recently used", "most_used": "Most used", "saved": "Recently saved"}
+class BankSort(StrEnum):
+    """The orders the answer bank can be listed in."""
+
+    RECENT = "recent"  # by the latest reuse, else the last save
+    MOST_USED = "most_used"  # by how many jobs reused it
+    SAVED = "saved"  # by when it was first saved
+
+    @property
+    def label(self) -> str:
+        return _BANK_SORT_LABELS[self]
+
+
+_BANK_SORT_LABELS = {BankSort.RECENT: "Most recently used", BankSort.MOST_USED: "Most used",
+                     BankSort.SAVED: "Recently saved"}
 
 
 def bank_usage(session: Session) -> dict[int, BankUse]:
@@ -643,7 +657,7 @@ class BankListing:
     total: int  # every saved entry
 
 
-def bank_listing(session: Session, query: str = "", sort: str = "recent") -> BankListing:
+def bank_listing(session: Session, query: str = "", sort: BankSort | str = BankSort.RECENT) -> BankListing:
     """Saved answers whose question or answer contains every word of ``query``, in the chosen order.
 
     "recent" orders by the latest reuse or save, "most_used" by how many jobs reused it,
@@ -654,11 +668,11 @@ def bank_listing(session: Session, query: str = "", sort: str = "recent") -> Ban
     found = [(entry, usage.get(entry.id, BankUse())) for entry in entries
              if matches(f"{entry.question} {entry.answer}", query)]
     keys = {
-        "recent": lambda pair: (max(filter(None, (pair[1].last_used, pair[0].updated_at))), pair[0].id),
-        "most_used": lambda pair: (pair[1].jobs, pair[0].updated_at, pair[0].id),
-        "saved": lambda pair: (pair[0].created_at, pair[0].id),
+        BankSort.RECENT: lambda pair: (max(filter(None, (pair[1].last_used, pair[0].updated_at))), pair[0].id),
+        BankSort.MOST_USED: lambda pair: (pair[1].jobs, pair[0].updated_at, pair[0].id),
+        BankSort.SAVED: lambda pair: (pair[0].created_at, pair[0].id),
     }
-    return BankListing(sorted(found, key=keys[sort], reverse=True), len(entries))
+    return BankListing(sorted(found, key=keys[BankSort(sort)], reverse=True), len(entries))
 
 
 def delete_bank_entry(session: Session, entry_id: int) -> None:

@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-from typing import Literal
-
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from sqlalchemy.orm import Session
@@ -19,7 +17,7 @@ router = APIRouter(prefix="/answers")
 
 
 @router.get("", response_class=HTMLResponse)
-def bank(request: Request, msg: str = "", q: str = "", sort: Literal["recent", "most_used", "saved"] = "recent",
+def bank(request: Request, msg: str = "", q: str = "", sort: answer_service.BankSort = answer_service.BankSort.RECENT,
          session: Session = Depends(get_session)):
     """The answer bank, searched (``q``: every word in the question or answer) and sorted."""
     query = clean_query(q)
@@ -30,7 +28,7 @@ def bank(request: Request, msg: str = "", q: str = "", sort: Literal["recent", "
         for entry, use in listing.items
     ]
     return templates.TemplateResponse(request, "answers.html", {
-        "entries": entries, "total": listing.total, "query": query, "sort": sort, "sorts": answer_service.BANK_SORTS,
+        "entries": entries, "total": listing.total, "query": query, "sort": sort, "sorts": list(answer_service.BankSort),
         "msg": msg, "active": "answers",
     })
 
