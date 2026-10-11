@@ -410,3 +410,40 @@ def test_a_two_column_pdf_is_read_column_by_column_however_it_is_drawn():
         assert [(e["organization"], e["start"], len(e["bullets"])) for e in draft["experience"]] == [
             ("Sample Analytics", "2024-06", 2)]
         assert [p["name"] for p in draft["projects"]] == ["TaskBot"]
+
+
+def text_box(document, lines: list[str]) -> None:
+    """A paragraph anchoring a text box, as Word saves one: the box's text in a DrawingML choice and again
+    in a VML fallback for older readers."""
+    from lxml import etree
+
+    w = "http://schemas.openxmlformats.org/wordprocessingml/2006/main"
+    content = "".join(f"<w:p><w:r><w:t>{line}</w:t></w:r></w:p>" for line in lines)
+    xml = (
+        f'<w:r xmlns:w="{w}" xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006" '
+        'xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing" '
+        'xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" '
+        'xmlns:wps="http://schemas.microsoft.com/office/word/2010/wordprocessingShape" '
+        'xmlns:v="urn:schemas-microsoft-com:vml">'
+        '<mc:AlternateContent><mc:Choice Requires="wps"><w:drawing><wp:anchor><a:graphic><a:graphicData>'
+        f"<wps:wsp><wps:txbx><w:txbxContent>{content}</w:txbxContent></wps:txbx></wps:wsp>"
+        "</a:graphicData></a:graphic></wp:anchor></w:drawing></mc:Choice>"
+        f"<mc:Fallback><w:pict><v:shape><v:textbox><w:txbxContent>{content}</w:txbxContent></v:textbox>"
+        "</v:shape></w:pict></mc:Fallback></mc:AlternateContent></w:r>"
+    )
+    document.add_paragraph()._p.append(etree.fromstring(xml))
+
+
+def test_word_text_boxes_are_read_once():
+    def build(document):
+        text_box(document, ["Jordan Example", "jordan@example.com | Austin, TX", "Skills", "Python, SQL"])
+        for line in ("Experience", "Sample Analytics | Software Engineering Intern | Jun 2024 – Aug 2024"):
+            document.add_paragraph(line)
+        document.add_paragraph("Built a Flask REST API", style="List Bullet")
+
+    data = word(build)
+    assert extract_text(data).count("jordan@example.com") == 1  # the fallback copy is not read again
+    draft = read(data)
+    assert (draft["contact"]["name"], draft["contact"]["email"]) == ("Jordan Example", "jordan@example.com")
+    assert [s["name"] for s in draft["skills"]] == ["Python", "SQL"]
+    assert [e["organization"] for e in draft["experience"]] == ["Sample Analytics"]

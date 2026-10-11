@@ -193,6 +193,21 @@ def _header_lines(document) -> list[str]:
     return lines
 
 
+_MC = "http://schemas.openxmlformats.org/markup-compatibility/2006"
+
+
+def _outermost(box, paragraph) -> bool:
+    """Whether a text box belongs to the paragraph itself: not Word's fallback copy, nor inside another box."""
+    from docx.oxml.ns import qn
+
+    for ancestor in box.iterancestors():
+        if ancestor is paragraph:
+            return True
+        if ancestor.tag in (f"{{{_MC}}}Fallback", qn("w:txbxContent")):
+            return False
+    return True
+
+
 def _block_lines(element, parent) -> list[str]:
     """The lines of a body or table cell in document order: paragraphs, tables and content controls.
 
@@ -209,6 +224,11 @@ def _block_lines(element, parent) -> list[str]:
     for child in element.iterchildren():
         if child.tag == qn("w:p"):
             lines.append(_paragraph_text(Paragraph(child, parent)))
+            # A text box anchored in the paragraph (some templates put a sidebar in one). Word saves
+            # its text twice, for new and old readers; the copy under mc:Fallback is skipped.
+            for box in child.iter(qn("w:txbxContent")):
+                if _outermost(box, child):
+                    lines.extend(_block_lines(box, parent))
         elif child.tag == qn("w:tbl"):
             for row in Table(child, parent).rows:
                 cells: list[list[str]] = []
