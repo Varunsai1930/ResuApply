@@ -267,7 +267,8 @@ def _entries(lines: list[str], section: str = "") -> list[_Entry]:
     the bullet didn't end a sentence, neither this line nor the next reads as an entry's heading (a
     two-line heading), and either the bullet's last line was long enough to wrap or this line reads
     as part of a sentence rather than a title. A bullet that stopped mid-phrase ("... reports to")
-    always goes on, unless the line is an entry's heading. A blank line ends a bullet and an entry.
+    always goes on, unless the line is an entry's heading. A blank line ends a bullet, and the entry
+    too unless a bullet comes next.
     """
     entries: list[_Entry] = []
     blank, last = False, 0  # a blank line came before this one; the length of the bullet's last line
@@ -277,7 +278,7 @@ def _entries(lines: list[str], section: str = "") -> list[_Entry]:
             continue
         after = lines[i + 1] if i + 1 < len(lines) else ""
         if m := _BULLET.match(line):
-            if not entries or blank:
+            if not entries:  # after a blank line too: spacing between bullets doesn't end the entry
                 entries.append(_Entry())
             entries[-1].bullets.append(line[m.end():].strip())
             last = len(entries[-1].bullets[-1])

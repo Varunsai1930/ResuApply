@@ -618,3 +618,16 @@ def test_only_lines_repeated_at_the_same_edge_are_running_and_page_numbers_fit_t
     draft = draft_profile(text)
     assert (draft["contact"]["name"], draft["contact"]["email"], draft["contact"]["phone"]) == (
         "Jordan Example", "jordan@example.com", "+1 555 0100")
+
+
+def test_an_empty_paragraph_between_bullets_keeps_them_with_their_job():
+    def build(document):
+        for line in ("Jordan Example", "Experience", "Acme Corp | Software Engineer | 2020 - 2022"):
+            document.add_paragraph(line)
+        document.add_paragraph("Built a Flask REST API", style="List Bullet")
+        document.add_paragraph("")  # spacing
+        document.add_paragraph("Cut costs by 20%", style="List Bullet")
+
+    (job,) = read(word(build))["experience"]
+    assert (job["organization"], [b["text"] for b in job["bullets"]]) == (
+        "Acme Corp", ["Built a Flask REST API", "Cut costs by 20%"])
