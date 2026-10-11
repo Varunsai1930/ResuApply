@@ -63,6 +63,7 @@
 {% set answered = item.answer is not none and not item.answer.skipped %}
 {% set own_answer = answered and item.answer.origin in ['user', 'bank'] %}
 {% set tone = 'tag' if (item.skipped or pending) else ('badge check-met' if item.resolved else 'badge check-unknown') %}
+{% set field = job.posting_import.fields.get(q.id) if job.posting_import else none %}
 <article class="question-row" id="question-{{ q.id }}">
   <header class="question-head">
     <h4>{{ q.text }}</h4>
@@ -72,9 +73,15 @@
     <span class="tag importance-{{ 'required' if q.required else 'preferred' }}">{{ 'Required' if q.required else 'Optional' }}</span>
     {% if q.limit %}<span class="tag">Limit {{ '{:,}'.format(q.limit) }} {{ unit_words[q.limit_unit] }}</span>{% endif %}
     <span class="tag">{{ row.category_label }}</span>
+    {% if field %}<span class="tag">{{ field_labels[field.field_type] }}</span>{% endif %}
     <span class="{{ tone }}">{{ item.label }}</span>
   </div>
   <p class="hint question-hint">{{ hints[q.category] }}</p>
+  {% if field and field.options %}
+    <p class="hint">{{ 'Choose one' if field.field_type == 'single_select' else 'Choose any' }} on the employer's form: {{ field.options | join(' · ') }}. Answer with the choice{{ 's' if field.field_type == 'multi_select' }} as written there.</p>
+  {% elif field and field.field_type == 'unsupported' %}
+    <p class="hint">On the employer's form this is a kind of field ResuApply doesn't know{% if field.greenhouse_type %} ({{ field.greenhouse_type }}){% endif %}. Check it there before you answer.</p>
+  {% endif %}
   {% if err %}{{ error_block(err) }}{% endif %}
 
   {# What the question currently shows #}
@@ -196,8 +203,17 @@
   <h2 id="questions-title">Questions</h2>
   <p class="hint">Enter the questions from the employer's application form. Each is answered from your profile, by you, or as a source-backed AI draft you review. Approval later covers only the questions entered here.</p>
 
+  {% if job.posting_import %}
+    <p class="hint">Questions imported from the job's Greenhouse posting on {{ job.posting_import.fetched_at | local_datetime }}. Check each one's category and required flag; the employer's form is what counts.</p>
+    {% if job.posting_import.left_out %}
+    <details class="left-out">
+      <summary>Left for you on the employer's form ({{ job.posting_import.left_out | length }})</summary>
+      <ul>{% for item in job.posting_import.left_out %}<li>{{ item.label }}: {{ item.reason }}</li>{% endfor %}</ul>
+    </details>
+    {% endif %}
+  {% endif %}
   {% if not candidate %}
-    <p class="notice"><a href="/profile/edit">Create your profile</a> before adding questions. Answers are filled in and checked against it.</p>
+    <p class="notice"><a href="/profile/edit">Create your profile</a> before {{ 'answering the %d questions saved with this job' % job.questions | length if job.questions else 'adding questions' }}. Answers are filled in and checked against it.</p>
   {% else %}
     {% if question_error and not question_error.id %}{{ error_block(question_error) }}{% endif %}
     {% if questions_notice %}<p class="notice" role="status" tabindex="-1" data-focus>{{ questions_notice }}</p>{% endif %}

@@ -168,6 +168,7 @@ def _render_workspace(request: Request, session: Session, job: Job, msg: str = "
             "question_form": forms.get("question_form") or {},
             "questions_notice": forms.get("questions_notice"),
             "question_categories": [(c, CATEGORY_LABELS[c]) for c in CATEGORIES if c != UNKNOWN],
+            "field_labels": greenhouse.FIELD_LABELS,
             "review": review,
             "blockers": blockers,
             "warnings": warnings,

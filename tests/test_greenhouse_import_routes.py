@@ -15,7 +15,7 @@ from app.services import jobs as job_service
 from tests.conftest import DEMO_JOB
 from tests.greenhouse_fake import API_URL, POSTING_URL, FakeGreenhouse, posting
 from tests.test_profile_sections import form_fields
-from tests.test_routes import hidden
+from tests.test_routes import hidden, profile_form, review_and_save
 
 
 @pytest.fixture
@@ -194,3 +194,33 @@ def test_an_existing_database_gains_the_import_column_and_questions_keep_their_s
     with client.app.state.engine.connect() as conn:
         stored = json.loads(conn.execute(text("SELECT questions FROM jobs")).scalar_one())
     assert stored and all(set(q) == set(Question.model_fields) for q in stored)
+
+
+def _import_and_save(client, greenhouse) -> str:
+    greenhouse.queue.append(posting())
+    saved = client.post("/jobs", data=job_fields(client.post("/jobs/import", data={"url": POSTING_URL}).text),
+                        follow_redirects=False)
+    return saved.headers["location"]
+
+
+def test_the_questions_step_shows_each_imported_field_and_what_was_left_out(client, greenhouse, sample_profile):
+    review_and_save(client, profile_form(sample_profile))
+    page = client.get(_import_and_save(client, greenhouse)).text
+    assert "Questions imported from the job's Greenhouse posting on" in page
+    assert "Left for you on the employer's form (2)" in page
+    assert "<li>Portfolio sample: A file upload: attach it on the employer&#39;s form.</li>" in page
+    assert "Choose any on the employer's form: Git · Docker. Answer with the choices as written there." in page
+    assert "Choose one on the employer's form: Yes · No. Answer with the choice as written there." in page
+    assert "a kind of field ResuApply doesn't know (date_picker)" in page
+    assert page.count('<span class="tag">Short text</span>') == 6
+
+
+def test_a_job_entered_by_hand_shows_no_import_details(client, sample_profile):
+    review_and_save(client, profile_form(sample_profile))
+    page = client.get(f"/jobs/{_saved_job(client)}?step=questions").text
+    assert "Greenhouse" not in page and "Left for you" not in page
+
+
+def test_without_a_profile_the_imported_questions_are_counted(client, greenhouse):
+    page = client.get(_import_and_save(client, greenhouse)).text
+    assert "before answering the 14 questions saved with this job" in page
