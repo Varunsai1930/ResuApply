@@ -22,6 +22,14 @@ from tests.synthetic import DEMO_JOB, DEMO_REQUIREMENTS, SAMPLE_JOB, SAMPLE_PROF
 
 BASE_URL = "http://127.0.0.1:8000"
 
+
+def _no_network(request):
+    raise AssertionError(f"A test tried to reach the network: {request.url}")
+
+
+# Every app a test builds refuses Greenhouse requests unless the test gives its own stand-in.
+NO_NETWORK = httpx.MockTransport(_no_network)
+
 @pytest.fixture
 def sample_profile() -> dict:
     return copy.deepcopy(SAMPLE_PROFILE)
@@ -46,7 +54,7 @@ def session(settings) -> Iterator[Session]:
 
 @pytest.fixture
 def client(settings) -> Iterator[TestClient]:
-    with TestClient(create_app(settings), base_url=BASE_URL) as test_client:
+    with TestClient(create_app(settings, greenhouse_transport=NO_NETWORK), base_url=BASE_URL) as test_client:
         yield test_client
 
 
@@ -129,5 +137,6 @@ def ai_settings(tmp_path) -> Settings:
 
 @pytest.fixture
 def ai_app_client(ai_settings, fake_ai) -> Iterator[TestClient]:
-    with TestClient(create_app(ai_settings, ai_transport=fake_ai.transport), base_url=BASE_URL) as test_client:
+    with TestClient(create_app(ai_settings, ai_transport=fake_ai.transport, greenhouse_transport=NO_NETWORK),
+                    base_url=BASE_URL) as test_client:
         yield test_client

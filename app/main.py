@@ -31,8 +31,10 @@ from .templating import STATIC_DIR, templates
 FORM_TOO_LARGE = re.compile(r"Too many (fields|files)|exceeded maximum size", re.IGNORECASE)
 
 
-def create_app(settings: Settings | None = None, ai_transport: httpx.BaseTransport | None = None) -> FastAPI:
-    """Build the app. ``ai_transport`` replaces the network for OpenRouter calls (tests use a mock)."""
+def create_app(settings: Settings | None = None, ai_transport: httpx.BaseTransport | None = None,
+               greenhouse_transport: httpx.BaseTransport | None = None) -> FastAPI:
+    """Build the app. ``ai_transport`` and ``greenhouse_transport`` replace the network for OpenRouter
+    calls and Greenhouse imports (tests use mocks)."""
     settings = settings or get_settings()
 
     @asynccontextmanager
@@ -56,6 +58,7 @@ def create_app(settings: Settings | None = None, ai_transport: httpx.BaseTranspo
 
     app = FastAPI(title="ResuApply", version=__version__, lifespan=lifespan, docs_url=None, redoc_url=None, openapi_url=None)
     app.state.settings = settings
+    app.state.greenhouse_transport = greenhouse_transport
     app.add_middleware(ControlCharacterMiddleware)  # innermost: routes only ever see cleaned forms
     app.add_middleware(HeadAsGetMiddleware)
     app.add_middleware(SameOriginMiddleware)

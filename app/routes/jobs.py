@@ -14,11 +14,11 @@ from ..models import Job
 from ..schemas.tracking import TrackingStatus
 from ..services import board as board_service
 from ..services import sample as sample_service
-from ..services import checklist, outbound, package, question_rows, tracking
+from ..services import checklist, greenhouse, outbound, package, question_rows, tracking
 from ..services import jobs as job_service
 from ..services import workspace as guide_service
 from ..services.profile import get_candidate
-from ..services.questions import CATEGORIES, CATEGORY_LABELS, UNKNOWN
+from ..services.questions import CATEGORIES, CATEGORY_LABELS, UNKNOWN, classify
 from ..templating import templates
 
 router = APIRouter(prefix="/jobs")
@@ -32,14 +32,25 @@ def _job_or_404(session: Session, job_id: int) -> Job:
 
 
 def _render_job_form(request: Request, values: dict, errors: dict | None = None, job: Job | None = None,
-                     status_code: int = 200, guessed: set[str] | None = None):
+                     status_code: int = 200, guessed: set[str] | None = None,
+                     preview: greenhouse.ImportPreview | None = None, import_error: str = "", import_url: str = ""):
+    """The job editor. On the Add a job page, ``preview`` is a Greenhouse import under review: its
+    questions are listed and travel with the form, to be added when the job is saved."""
     return templates.TemplateResponse(
         request,
         "job_form.html",
         {"values": values, "errors": errors or {}, "job": job, "active": "jobs", "guessed": guessed or set(),
-         "saved_token": job_service.edit_token(job) if job else ""},
+         "saved_token": job_service.edit_token(job) if job else "",
+         "preview": preview, "preview_json": greenhouse.preview_json(preview) if preview else "",
+         "field_labels": greenhouse.FIELD_LABELS, "import_error": import_error, "import_url": import_url,
+         "category_of": _imported_category},
         status_code=status_code,
     )
+
+
+def _imported_category(question: greenhouse.ImportedQuestion) -> str:
+    """How an imported question will be added, for the Add a job page's list."""
+    return CATEGORY_LABELS[greenhouse.category(question) or classify(question.label)[0]]
 
 
 def reviewed_revision_of(base_revision: object, replace_revision: object = None) -> int | None:
@@ -192,6 +203,26 @@ def new_job(request: Request):
     return _render_job_form(request, {})
 
 
+@router.post("/import")
+def import_job(request: Request, url: str = Form("")):
+    """Fetch a Greenhouse posting the user asked to import, into the Add a job form. Nothing is saved.
+
+    This is the only route that fetches a posting, and only for the link the user gave. A sync
+    route, so the fetch runs in the thread pool. The posting fills the form and its questions are
+    listed with it; the user checks both, and only Save job stores them.
+    """
+    url = url.strip()
+    try:
+        posting, preview = greenhouse.import_posting(url, request.app.state.greenhouse_transport)
+    except greenhouse.GreenhouseError as exc:
+        status = 422 if greenhouse.posting_ref(url) is None else 502
+        return _render_job_form(request, {}, status_code=status, import_error=str(exc), import_url=url)
+    values = {"title": posting.title, "company": posting.company, "location": posting.location,
+              "description": posting.description, "url": url}
+    return _render_job_form(request, values, preview=preview, import_url=url,
+                            guessed={name for name in ("title", "company", "location") if values[name]})
+
+
 @router.post("")
 def create_job(
     request: Request,
@@ -200,9 +231,17 @@ def create_job(
     description: str = Form(""),
     location: str = Form(""),
     url: str = Form(""),
+    imported: str = Form(""),
+    add_questions: str = Form(""),
     session: Session = Depends(get_session),
 ):
     values = {"title": title, "company": company, "description": description, "location": location, "url": url}
+    preview = greenhouse.read_preview(imported)
+    form = {"preview": preview, "import_url": url.strip() if preview else ""}
+    if preview and add_questions and greenhouse.posting_ref(url) != greenhouse.PostingRef(preview.board, preview.job_id):
+        return _render_job_form(request, values, {"url": "This isn't the link of the posting you imported, so its "
+                                                  "questions can't be added. Import this link again, or untick "
+                                                  "Add these questions."}, status_code=422, **form)
     if description.strip() and not (title.strip() and company.strip()):
         # Missing details are filled in from the posting for the user to check; nothing is saved yet.
         filled = {k: v for k, v in job_service.guess_details(description).items() if not values[k].strip()}
@@ -214,12 +253,15 @@ def create_job(
             except job_service.JobInvalid as exc:
                 errors = exc.errors
             return _render_job_form(request, values | filled, errors, status_code=422 if errors else 200,
-                                    guessed=set(filled))
+                                    guessed=set(filled), **form)
     try:
         data = job_service.clean_input(**values)
     except job_service.JobInvalid as exc:
-        return _render_job_form(request, values, exc.errors, status_code=422)
+        return _render_job_form(request, values, exc.errors, status_code=422, **form)
     job = job_service.create(session, data)
+    if preview and add_questions:
+        greenhouse.save_import(session, job, preview)
+        return RedirectResponse(f"/jobs/{job.id}?step=questions&msg=job_imported", status_code=303)
     return RedirectResponse(f"/jobs/{job.id}?msg=job_created", status_code=303)
 
 

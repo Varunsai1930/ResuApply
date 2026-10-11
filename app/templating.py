@@ -27,6 +27,8 @@ MESSAGES = {
     "profile_saved": "Profile saved.",
     "profile_unchanged": "Nothing changed, so the profile and its revision were left as they were.",
     "job_created": "Job saved. Its tracking status is Saved.",
+    "job_imported": "Job saved with the questions from its Greenhouse posting. Check each question's category "
+                    "and required flag before answering.",
     "job_updated": "Job updated.",
     "job_unchanged": "Nothing changed in the job details.",
     "status_changed": "Tracking status updated.",

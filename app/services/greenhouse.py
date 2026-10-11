@@ -23,7 +23,13 @@ from html.parser import HTMLParser
 from urllib.parse import parse_qs, urlsplit
 
 import httpx
+from pydantic import TypeAdapter, ValidationError
+from sqlalchemy.orm import Session
 
+from ..db import utcnow
+from ..models import Job
+from ..schemas.posting_import import ImportedQuestion, ImportPreview, LeftOut, PostingImport, QuestionField
+from . import answers
 from . import questions as q_rules
 from .answers import QUESTION_LIMIT
 from .text import clean_text
@@ -223,28 +229,6 @@ FIELD_LABELS = {
 _RESUME_FIELDS = ("resume", "resume_text")
 
 
-@dataclass(frozen=True)
-class ImportedQuestion:
-    """One question of the posting's application form, as it will be added to the job."""
-
-    label: str
-    required: bool
-    field_type: str  # a value of FIELD_TYPES, or "unsupported"
-    options: tuple[str, ...] = ()
-    # From the voluntary self-identification (EEOC) or demographic sections: always the user's own
-    # answer, whatever the wording, so it is added as Sensitive.
-    sensitive: bool = False
-    greenhouse_type: str = ""  # Greenhouse's own name for the field, shown for an unsupported one
-
-
-@dataclass(frozen=True)
-class LeftOut:
-    """A form field that isn't added as a question, and what the user does instead."""
-
-    label: str
-    reason: str
-
-
 def _options(values: object) -> tuple[str, ...]:
     if not isinstance(values, list):
         return ()
@@ -327,3 +311,58 @@ def category(question: ImportedQuestion) -> str | None:
     if question.field_type == "unsupported" and detected not in q_rules.SENSITIVE_CATEGORIES:
         return q_rules.UNKNOWN
     return None
+
+
+# ---------------------------------------------------------------- reviewing and saving an import
+
+_PREVIEW = TypeAdapter(ImportPreview)
+
+
+def import_posting(url: str, transport: httpx.BaseTransport | None = None) -> tuple[Posting, ImportPreview]:
+    """Fetch and read the posting a Greenhouse link names: its details, and its questions for review."""
+    ref = posting_ref(url)
+    if ref is None:
+        raise GreenhouseError("Only a Greenhouse posting link can be imported: https://boards.greenhouse.io/… or "
+                              "https://job-boards.greenhouse.io/…, ending in /jobs/ and a number. Other links are "
+                              "saved as a reference; paste the posting instead.")
+    data = fetch(ref, transport)
+    posting = read_posting(data)
+    questions, left_out = read_questions(data)
+    return posting, ImportPreview(ref.board, ref.job_id, utcnow(), tuple(questions), tuple(left_out))
+
+
+def preview_json(preview: ImportPreview) -> str:
+    return _PREVIEW.dump_json(preview).decode()
+
+
+def read_preview(raw: object) -> ImportPreview | None:
+    """The import carried by the Add a job form, or None when there is none or it is damaged."""
+    if not isinstance(raw, str) or not raw:
+        return None
+    try:
+        return _PREVIEW.validate_json(raw)
+    except (ValidationError, ValueError, RecursionError):
+        return None
+
+
+def save_import(session: Session, job: Job, preview: ImportPreview) -> None:
+    """Add the reviewed questions to a newly saved job and keep each one's form field.
+
+    Each question is added as the user would add it (``answers.add_question``), so its category
+    is detected by the same rules and a sensitive question can't be made anything else; only
+    ``category`` narrows it further. One that is refused is listed as left out instead.
+    """
+    fields: dict[str, QuestionField] = {}
+    left_out = list(preview.left_out)
+    for question in preview.questions:
+        try:
+            added = answers.add_question(session, job, question.label, required=question.required,
+                                         category=category(question))
+        except answers.AnswerError as exc:
+            left_out.append(LeftOut(question.label[:200], str(exc)[:300]))
+            continue
+        fields[added.id] = QuestionField(field_type=question.field_type, options=list(question.options),
+                                         greenhouse_type=question.greenhouse_type)
+    job.posting_import = PostingImport(board=preview.board, job_id=preview.job_id, fetched_at=preview.fetched_at,
+                                       fields=fields, left_out=left_out)
+    session.commit()
