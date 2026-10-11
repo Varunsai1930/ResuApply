@@ -526,3 +526,25 @@ def test_a_word_file_without_section_settings_is_read():
 
     draft = read(word(build))
     assert draft["contact"]["email"] == "jordan@example.com" and [s["name"] for s in draft["skills"]] == ["Python", "SQL"]
+
+
+def test_a_short_bullet_that_wraps_onto_a_capitalized_line_stays_one_bullet():
+    draft = draft_profile("""Jordan Example
+
+Experience
+Acme Corp | Software Engineer | 2020 - 2022
+• Built a REST API using
+Flask and PostgreSQL for orders
+• Cut costs by 20%
+• Led the migration of reports to
+Snowflake
+University Lab | Research Assistant | 2019
+• Assisted with experiments
+Example Robotics Club
+""")
+    first, second, third = draft["experience"]
+    assert (first["organization"], [b["text"] for b in first["bullets"]]) == ("Acme Corp", [
+        "Built a REST API using Flask and PostgreSQL for orders", "Cut costs by 20%",
+        "Led the migration of reports to Snowflake"])
+    assert second["organization"] == "University Lab" and len(second["bullets"]) == 1
+    assert third["organization"] == "Example Robotics Club"  # a title after a short bullet is a new entry

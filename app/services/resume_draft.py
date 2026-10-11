@@ -217,16 +217,33 @@ def _starts_entry(line: str) -> bool:
                 or re.search(rf"(?i)\b(?:{_MONTH}[a-z]*\.?\s+\d{{4}}|present)\b", line))
 
 
-WRAP = 40  # a bullet line shorter than this ended there: it didn't wrap onto the next line
+WRAP = 40  # a bullet line this long may have wrapped onto the next line
+# Words a phrase doesn't end on: a bullet ending with one goes on in the next line.
+_DANGLING = {"a", "an", "the", "to", "and", "or", "of", "for", "with", "using", "in", "on", "by", "from", "that",
+             "which", "into", "across", "via", "as", "at", "while", "including", "through", "over", "per"}
+
+
+def _dangling(text: str) -> bool:
+    """Whether a bullet stops mid-phrase: on a comma, a dash or a word like "using" or "to"."""
+    words = text.rstrip().split()
+    return bool(words) and (words[-1][-1] in ",-–&/" or words[-1].lower() in _DANGLING)
+
+
+def _fragment(line: str) -> bool:
+    """Whether a line reads as part of a sentence rather than a title: it has a lower-case word longer
+    than three letters ("Flask and PostgreSQL for orders"), which a name such as "University of Texas
+    at Austin" or "Budget Tracker" doesn't have."""
+    return any(len(word) > 3 and word[0].islower() for word in re.findall(r"[A-Za-z][\w'-]*", line))
 
 
 def _entries(lines: list[str], section: str = "") -> list[_Entry]:
     """Entries of a section, from its lines with "" where the text had a blank line.
 
     A line after a bullet continues it (the bullet wrapped) when it starts in lower case, or when
-    the bullet's last line was long enough to wrap, didn't end a sentence, and neither this line
-    nor the next reads as an entry's heading (a two-line heading). A blank line ends a bullet and
-    an entry.
+    the bullet didn't end a sentence, neither this line nor the next reads as an entry's heading (a
+    two-line heading), and either the bullet's last line was long enough to wrap or this line reads
+    as part of a sentence rather than a title. A bullet that stopped mid-phrase ("... reports to")
+    always goes on, unless the line is an entry's heading. A blank line ends a bullet and an entry.
     """
     entries: list[_Entry] = []
     blank, last = False, 0  # a blank line came before this one; the length of the bullet's last line
@@ -242,8 +259,10 @@ def _entries(lines: list[str], section: str = "") -> list[_Entry]:
             last = len(entries[-1].bullets[-1])
         elif entries and entries[-1].bullets and not blank and (
                 line[:1].islower()
-                or (last >= WRAP and not entries[-1].bullets[-1].endswith((".", "!", "?"))
-                    and not _starts_entry(line) and not (after and not _BULLET.match(after) and _starts_entry(after)))):
+                or (not entries[-1].bullets[-1].endswith((".", "!", "?")) and not _starts_entry(line)
+                    and (_dangling(entries[-1].bullets[-1])
+                         or ((last >= WRAP or _fragment(line))
+                             and not (after and not _BULLET.match(after) and _starts_entry(after)))))):
             entries[-1].bullets[-1] += " " + line  # a bullet that wrapped onto the next line
             last = len(line)
         elif not entries or entries[-1].bullets or blank or _another_entry(entries[-1].heading, line, section):
