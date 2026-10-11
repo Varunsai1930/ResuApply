@@ -72,6 +72,11 @@ HEADER_LINES = 30  # contact details are read from at most this many lines befor
 _SEPARATORS = re.compile(r"\s*(?:\||•|·|–|—|\s-\s)\s*")
 
 
+def _bare(url: str) -> str:
+    """A web address without its scheme or "www.", as the profile keeps links."""
+    return re.sub(r"^(?:https?://)?(?:www\.)?", "", url, flags=re.I)
+
+
 def _contact(lines: list[str]) -> dict:
     contact: dict = {"name": "", "email": "", "phone": "", "location": "", "links": {k: "" for k in LINK_KEYS}}
     for line in lines:
@@ -80,7 +85,7 @@ def _contact(lines: list[str]) -> dict:
             contact["email"], rest = m.group(0), rest.replace(m.group(0), " ")
         for m in _LINK.finditer(rest):
             key = "linkedin" if m.group(1).lower().startswith("linkedin") else "github"
-            contact["links"][key] = contact["links"][key] or re.sub(r"^(?:https?://)?(?:www\.)?", "", m.group(0))
+            contact["links"][key] = contact["links"][key] or _bare(m.group(0))
         rest = _LINK.sub(" ", rest)
         if not contact["links"]["portfolio"] and (m := _URL.search(rest)):
             contact["links"]["portfolio"], rest = m.group(0), rest.replace(m.group(0), " ")
@@ -234,7 +239,7 @@ def _project(entry: _Entry) -> dict:
     link = m.group(0) if (m := _URL.search(rest) or _LINK.search(rest)) else ""
     parts = [p for p in _parts(rest.replace(link, " ")) if p]
     return {"id": "", "name": parts[0] if parts else "", "role": parts[1] if len(parts) > 1 else "",
-            "link": re.sub(r"^(?:https?://)?(?:www\.)?", "", link), "start": start, "end": end,
+            "link": _bare(link), "start": start, "end": end,
             "technologies": [], "bullets": _bullets(entry)}
 
 
@@ -322,6 +327,17 @@ def _entry_key(entry: dict, fields: tuple[str, ...]) -> tuple[str, ...]:
     return tuple(_key(entry.get(name, "")) for name in fields)
 
 
+def _count(n: int, one: str, many: str) -> str:
+    return f"{n} {one if n == 1 else many}"
+
+
+# How the notice counts what was added to each list.
+_NOUNS = {"education": ("education entry", "education entries"),
+          "experience": ("experience entry", "experience entries"), "projects": ("project", "projects"), "skills": ("skill", "skills"),
+          "certifications": ("certification", "certifications")}
+_LINK_LABELS = {"linkedin": "LinkedIn", "github": "GitHub", "portfolio": "Portfolio"}
+
+
 def merge(current: dict, draft: dict) -> Merged:
     """The current profile with the draft's new facts added; nothing it already holds is changed."""
     data = copy.deepcopy(current)
@@ -335,10 +351,16 @@ def merge(current: dict, draft: dict) -> Merged:
     for name in LINK_KEYS:
         if not links.get(name) and draft["contact"]["links"].get(name):
             links[name] = draft["contact"]["links"][name]
-            added.append({"linkedin": "LinkedIn", "github": "GitHub", "portfolio": "Portfolio"}[name])
+            added.append(_LINK_LABELS[name])
     if not data.get("summary") and draft["summary"]:
         data["summary"] = draft["summary"]
         added.append("Summary")
+
+    def add(section: str, new: list[dict]) -> None:
+        data[section] = [*(data.get(section) or []), *new]
+        if new:
+            added.append(_count(len(new), *_NOUNS[section]))
+
     for section, fields in _ENTRY_KEY.items():
         have = {_entry_key(e, fields) for e in data.get(section) or []}
         new = []
@@ -347,19 +369,9 @@ def merge(current: dict, draft: dict) -> Merged:
             if (any(key) or entry.get("bullets")) and key not in have:
                 have.add(key)
                 new.append(entry)
-        data[section] = [*(data.get(section) or []), *new]
-        if new:
-            noun = {"education": "education", "experience": "experience", "projects": "project"}[section]
-            added.append(f"{len(new)} {noun} entr{'ies' if len(new) != 1 else 'y'}"
-                         if section != "projects" else f"{len(new)} project{'s' if len(new) != 1 else ''}")
+        add(section, new)
     have_skills = {canon(s["name"]) for s in data.get("skills") or []}
-    new_skills = [s for s in draft["skills"] if canon(s["name"]) not in have_skills]
-    data["skills"] = [*(data.get("skills") or []), *new_skills]
-    if new_skills:
-        added.append(f"{len(new_skills)} skill{'s' if len(new_skills) != 1 else ''}")
+    add("skills", [s for s in draft["skills"] if canon(s["name"]) not in have_skills])
     have_certs = {_key(c.get("name", "")) for c in data.get("certifications") or []}
-    new_certs = [c for c in draft["certifications"] if _key(c["name"]) and _key(c["name"]) not in have_certs]
-    data["certifications"] = [*(data.get("certifications") or []), *new_certs]
-    if new_certs:
-        added.append(f"{len(new_certs)} certification{'s' if len(new_certs) != 1 else ''}")
+    add("certifications", [c for c in draft["certifications"] if _key(c["name"]) and _key(c["name"]) not in have_certs])
     return Merged(data, added)

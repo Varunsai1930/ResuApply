@@ -233,3 +233,22 @@ Languages: Python, SQL
 Amazon Web Services (AWS), Machine Learning
 """)
     assert [s["name"] for s in draft["skills"]] == ["Python", "SQL", "Amazon Web Services (AWS)", "Machine Learning"]
+
+
+def test_merge_names_what_it_adds_in_plain_counts():
+    empty = {"contact": {"links": {}}, "education": [], "experience": [], "projects": [], "skills": [],
+             "certifications": []}
+    draft = draft_profile(RESUME)
+    draft["projects"].append(draft["projects"][0] | {"name": "Second project"})
+    assert merge(empty, draft).added == [
+        "Name", "Email", "Phone", "Location", "LinkedIn", "GitHub", "Summary", "1 education entry",
+        "1 experience entry", "2 projects", "5 skills", "1 certification"]
+    draft["projects"] = draft["projects"][:1]
+    assert "1 project" in merge(empty, draft).added
+
+
+def test_links_are_kept_without_their_scheme():
+    draft = draft_profile("Jordan Example\nhttps://www.github.com/jordan-example\n\nProjects\n"
+                          "TaskBot | https://www.example.com/taskbot | 2024\n- Built it")
+    assert draft["contact"]["links"]["github"] == "github.com/jordan-example"
+    assert draft["projects"][0]["link"] == "example.com/taskbot"
