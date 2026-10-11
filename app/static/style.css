@@ -502,6 +502,8 @@ mark { color: var(--accent); background: var(--accent-wash); padding: 0 2px; bor
 .bank-controls select { min-height: 38px; }
 .bank-use { margin-left: auto; font-size: 0.82rem; color: var(--ink-3); white-space: nowrap; }
 
+input.guessed { background: var(--accent-wash); border-color: var(--progress); }
+
 /* Follow-up reminders: the Track step card and the board banner. */
 .follow-up.due, .follow-up-banner { background: var(--unknown-wash); border-color: var(--unknown); }
 .follow-up h2 { font-size: 1.05rem; }

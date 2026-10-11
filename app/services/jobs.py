@@ -6,6 +6,7 @@ Requirement extraction arrives in Milestone 2; for now a job is its details plus
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
 from datetime import date
 from urllib.parse import urlsplit
@@ -72,6 +73,58 @@ def clean_input(title: str, company: str, description: str, location: str = "", 
     if errors:
         raise JobInvalid(errors)
     return JobInput(**values)
+
+
+# ---------------------------------------------------------------- details from a pasted posting
+
+GUESS_LINES = 8  # only the first lines of a posting name the job
+GUESS_MAX = 120  # a longer line is a sentence, not a detail
+_LABELLED = re.compile(r"(job title|title|position|role|company|employer|organization|location)\s*:\s*(.+)", re.I)
+_LABEL_FIELDS = {"job title": "title", "title": "title", "position": "title", "role": "title",
+                 "company": "company", "employer": "company", "organization": "company", "location": "location"}
+# Separators between details on one line. A plain hyphen isn't one: titles contain them ("Back-end").
+_SEPARATOR = re.compile(r"\s+[·|•—–]\s+")
+_AT = re.compile(r"(?P<title>.+?)\s+(?:at|@)\s+(?P<company>.+)")
+_HEADING = re.compile(r"(about|job description|description|overview|summary|responsibilities|requirements|"
+                      r"qualifications|what you|who you|the role|role overview|benefits)\b", re.I)
+
+
+def _detail_line(line: str) -> bool:
+    """Whether a line can be details (a title, a company), not a heading or a sentence."""
+    return len(line) <= GUESS_MAX and not line.endswith((".", ":", "!", "?")) and not _HEADING.match(line)
+
+
+def guess_details(description: str) -> dict[str, str]:
+    """Title, company and location as the first lines of a pasted posting usually give them.
+
+    Read from labelled lines ("Company: Example Corp") first, then from the first lines:
+    "Title", "Title at Company", "Title · Company · Location", then "Company · Location".
+    Only a suggestion for the user to check; a field it can't tell is left out.
+    """
+    lines = [line.strip() for line in (description or "").splitlines() if line.strip()][:GUESS_LINES]
+    found: dict[str, str] = {}
+    plain = []
+    for line in lines:
+        if match := _LABELLED.fullmatch(line):
+            found.setdefault(_LABEL_FIELDS[match.group(1).lower()], match.group(2).strip())
+        else:
+            plain.append(line)
+    rest: list[str] = []
+    if plain and "title" not in found and _detail_line(plain[0]):
+        first, *rest = _SEPARATOR.split(plain[0])
+        if at := _AT.fullmatch(first):
+            found["title"] = at.group("title")
+            rest.insert(0, at.group("company"))
+        else:
+            found["title"] = first
+        plain = plain[1:]
+    if not rest and plain and "company" not in found and _detail_line(plain[0]):
+        rest = _SEPARATOR.split(plain[0])
+    if rest:
+        found.setdefault("company", rest[0])
+        if rest[1:]:
+            found.setdefault("location", " · ".join(rest[1:]))
+    return {k: v.strip()[:LIMITS[k]] for k, v in found.items() if v.strip()}
 
 
 def create(session: Session, data: JobInput, today: date | None = None) -> Job:

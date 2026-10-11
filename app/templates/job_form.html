@@ -1,19 +1,28 @@
 {% extends "base.html" %}
+{% import "macros.html" as m with context %}
 {% block title %}{{ 'Edit job' if job else 'Add job' }}{% endblock %}
 {% macro field_error(name) -%}
   {% if errors.get(name) %}<small id="{{ name }}-error" class="field-error">{{ errors[name] }}</small>{% endif %}
 {%- endmacro %}
 {% macro attrs(name) -%}
-  {%- if errors.get(name) %} class="invalid" aria-invalid="true" aria-describedby="{{ name }}-error"{% endif -%}
+  {%- if errors.get(name) %} class="invalid" aria-invalid="true" aria-describedby="{{ name }}-error"
+  {%- elif name in guessed %} class="guessed" aria-describedby="{{ name }}-guessed"{% endif -%}
+{%- endmacro %}
+{% macro guessed_hint(name) -%}
+  {% if name in guessed %}<small id="{{ name }}-guessed" class="hint">Filled in from the posting. Check it.</small>{% endif %}
 {%- endmacro %}
 {% block content %}
 <div class="page-head">
   <h1>{{ 'Edit job details' if job else 'Add a job' }}</h1>
   <p class="lead">
     {% if job %}Changing the title, company, location or description increases the job revision (now {{ job.revision }}).
-    {% else %}Paste the full job description. It is saved exactly as pasted and is treated as information only.{% endif %}
+    {% else %}Paste the whole posting. It is saved exactly as pasted and is treated as information only. Leave the title or company empty and ResuApply fills them in from the posting for you to check before saving.{% endif %}
   </p>
 </div>
+{% if guessed %}
+<p class="notice" role="status" tabindex="-1" data-focus>{{ m.status_icon(Status.NEEDS_YOU) }} <strong>Check these before saving:</strong> filled in from the posting's first lines:
+  {% for name, label in [('title', 'job title'), ('company', 'company'), ('location', 'location')] if name in guessed %}{{ label }}{{ ', ' if not loop.last }}{% endfor %}. Nothing is saved until you choose Save job.</p>
+{% endif %}
 
 {% if errors %}
 <div class="error-summary" role="alert" tabindex="-1" data-focus>
@@ -48,17 +57,17 @@
     <div class="field">
       <label for="title">Job title <span class="req" aria-hidden="true">*</span></label>
       <input id="title" name="title" value="{{ values.get('title', '') }}" required{{ attrs('title') }}>
-      {{ field_error('title') }}
+      {{ field_error('title') }}{{ guessed_hint('title') }}
     </div>
     <div class="field">
       <label for="company">Company <span class="req" aria-hidden="true">*</span></label>
       <input id="company" name="company" value="{{ values.get('company', '') }}" required{{ attrs('company') }}>
-      {{ field_error('company') }}
+      {{ field_error('company') }}{{ guessed_hint('company') }}
     </div>
     <div class="field">
       <label for="location">Location</label>
       <input id="location" name="location" value="{{ values.get('location', '') }}" placeholder="e.g. Austin, TX or Remote"{{ attrs('location') }}>
-      {{ field_error('location') }}
+      {{ field_error('location') }}{{ guessed_hint('location') }}
     </div>
     <div class="field">
       <label for="url">Posting URL</label>

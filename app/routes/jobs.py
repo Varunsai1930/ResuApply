@@ -30,11 +30,12 @@ def _job_or_404(session: Session, job_id: int) -> Job:
     return job
 
 
-def _render_job_form(request: Request, values: dict, errors: dict | None = None, job: Job | None = None, status_code: int = 200):
+def _render_job_form(request: Request, values: dict, errors: dict | None = None, job: Job | None = None,
+                     status_code: int = 200, guessed: set[str] | None = None):
     return templates.TemplateResponse(
         request,
         "job_form.html",
-        {"values": values, "errors": errors or {}, "job": job, "active": "jobs",
+        {"values": values, "errors": errors or {}, "job": job, "active": "jobs", "guessed": guessed or set(),
          "saved_token": job_service.edit_token(job) if job else ""},
         status_code=status_code,
     )
@@ -200,6 +201,11 @@ def create_job(
     session: Session = Depends(get_session),
 ):
     values = {"title": title, "company": company, "description": description, "location": location, "url": url}
+    if description.strip() and not (title.strip() and company.strip()):
+        # Missing details are filled in from the posting for the user to check; nothing is saved yet.
+        filled = {k: v for k, v in job_service.guess_details(description).items() if not values[k].strip()}
+        if filled:
+            return _render_job_form(request, values | filled, guessed=set(filled))
     try:
         data = job_service.clean_input(**values)
     except job_service.JobInvalid as exc:
