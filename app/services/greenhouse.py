@@ -38,9 +38,6 @@ from .text import clean_text
 HOSTS = ("boards.greenhouse.io", "job-boards.greenhouse.io")
 API = "https://boards-api.greenhouse.io/v1/boards/{board}/jobs/{job_id}?questions=true"
 TIMEOUT_SECONDS = 10.0  # for the whole exchange, not per read
-# httpx limits each phase on its own, so each gets a share: connecting, sending the request and waiting for
-# the headers take at most 9 seconds together, and a read of the body starts only while one fits.
-PHASE_SECONDS = 3.0
 _clock = time.monotonic  # the import's clock, on its own so tests can set it without touching anything else
 MAX_BYTES = 2 * 1024 * 1024  # a posting with its questions is tens of kilobytes
 
@@ -152,7 +149,7 @@ def _client(transport: httpx.BaseTransport | None, network: httpcore.NetworkBack
             deadline: float) -> httpx.Client:
     """The client for one fetch. Its own transports (the direct one and any proxy the environment sets)
     reach the network through ``_Deadline``; a test transport or network replaces the network."""
-    timeout = httpx.Timeout(PHASE_SECONDS)
+    timeout = httpx.Timeout(TIMEOUT_SECONDS)  # each step's own limit; _Deadline holds them all to the deadline
     if transport is not None:
         return httpx.Client(transport=transport, timeout=timeout, follow_redirects=False)
     client = httpx.Client(timeout=timeout, follow_redirects=False, trust_env=network is None)

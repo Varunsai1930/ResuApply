@@ -212,21 +212,6 @@ def test_list_items_stay_on_consecutive_lines():
     assert "Requirements\n\n- Experience with Python and SQL\n- Familiarity with Git\n\nIgnore" in text
 
 
-def test_every_phase_together_stays_within_the_deadline(monkeypatch):
-    seen = {}
-    original = httpx.Client
-
-    def client(*args, **kwargs):
-        seen["timeout"] = kwargs["timeout"]
-        return original(*args, **kwargs)
-
-    monkeypatch.setattr(greenhouse.httpx, "Client", client)
-    fetch(ref(), FakeGreenhouse(posting()).transport)
-    timeout = seen["timeout"]
-    # connecting, sending the request and waiting for the answer's headers
-    assert timeout.connect + timeout.write + timeout.read <= greenhouse.TIMEOUT_SECONDS
-
-
 def test_the_deadline_reads_only_the_imports_own_clock(monkeypatch):
     import time
 
@@ -280,3 +265,13 @@ def test_the_real_client_gets_the_deadline_on_every_transport():
 def test_a_posting_that_has_arrived_before_the_deadline_is_kept(monkeypatch):
     monkeypatch.setattr(greenhouse, "_clock", Clock(0.0, 7.5))  # the whole answer is in at 7.5 of the 10 seconds
     assert fetch(ref(), FakeGreenhouse(posting()).transport)["title"] == "Software Engineering Intern"
+
+
+def test_a_slow_but_healthy_answer_within_the_deadline_is_read(monkeypatch):
+    import json
+
+    whole = http_response(json.dumps(posting()).encode())
+    for reads in ([(7.2, whole)], [(4.0, whole[:200]), (4.5, whole[200:])]):  # the first byte after 7.2 s; 4 s
+        clock = TickingClock()
+        monkeypatch.setattr(greenhouse, "_clock", clock)
+        assert fetch(ref(), network=SlowNetwork(clock, reads))["title"] == "Software Engineering Intern"
