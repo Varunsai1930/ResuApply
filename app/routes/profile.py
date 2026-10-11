@@ -18,7 +18,7 @@ from ..db import get_session
 from ..services import jobs as job_service
 from ..services import profile as profile_service
 from ..services.citations import Usage, citations
-from ..services.profile_gaps import gaps
+from ..services.profile_gaps import asks_for_facts, gaps
 from ..services.profile_form import is_form_shaped, parse_form
 from ..templating import templates
 from .forms import read_form
@@ -139,7 +139,7 @@ def view_profile(request: Request, msg: str = "", session: Session = Depends(get
     return templates.TemplateResponse(request, "profile_view.html", {
         "candidate": candidate, "msg": msg, "active": "profile",
         "gaps": gaps(jobs, candidate.profile) if candidate else [],
-        "asked_jobs": any(q.factual_key for j in jobs for q in j.questions),
+        "asked_jobs": asks_for_facts(jobs),
         "citations": citations(jobs),
         "not_cited": Usage(),
     })

@@ -96,3 +96,12 @@ def test_adding_the_fact_clears_the_gap(client, sample_profile):
     sample_profile["contact"]["links"]["portfolio"] = "https://jordan.example"
     review_and_save(client, profile_form(sample_profile))
     assert "Portfolio" not in gaps_card(client)
+
+
+def test_closed_jobs_alone_never_say_the_profile_is_complete(client, sample_profile):
+    setup_profile(client, sample_profile)
+    job_id = new_job(client)
+    add(client, job_id, PORTFOLIO_Q)  # the profile has no portfolio
+    set_status(client, job_id, "rejected", "2026-10-01")
+    card = gaps_card(client)
+    assert "is in your profile" not in card and "Once you add questions to a job" in card

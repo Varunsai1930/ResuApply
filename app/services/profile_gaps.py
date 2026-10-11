@@ -6,9 +6,11 @@ A gap only names the missing fact and the jobs that ask for it; the user decides
 
 from __future__ import annotations
 
+from collections.abc import Iterator
 from dataclasses import dataclass
 
 from ..models import Job
+from ..schemas.package import Question
 from ..schemas.profile import Profile
 from ..schemas.tracking import TrackingStatus
 from . import questions as q_rules
@@ -51,17 +53,27 @@ def _describe(gap: str) -> tuple[str, str]:
     return label, section
 
 
-def gaps(jobs: list[Job], profile: Profile) -> list[Gap]:
-    """Missing profile facts asked for by the factual questions of jobs that aren't closed, most asked first."""
-    asked: dict[str, list[Job]] = {}
+def _factual_questions(jobs: list[Job]) -> Iterator[tuple[Job, Question]]:
+    """The questions answered from profile facts, in jobs that aren't closed."""
     for job in jobs:
         if job.application.status in CLOSED:
             continue
         for question in job.questions:
-            if question.category not in (q_rules.FACTUAL, q_rules.SENSITIVE_FACTUAL) or not question.factual_key:
-                continue
-            gap = q_rules.profile_gap(question.factual_key, question.text, profile)
-            if gap and job not in asked.setdefault(gap, []):
-                asked[gap].append(job)
+            if question.category in (q_rules.FACTUAL, q_rules.SENSITIVE_FACTUAL) and question.factual_key:
+                yield job, question
+
+
+def asks_for_facts(jobs: list[Job]) -> bool:
+    """Whether any job that isn't closed has a question answered from profile facts."""
+    return next(_factual_questions(jobs), None) is not None
+
+
+def gaps(jobs: list[Job], profile: Profile) -> list[Gap]:
+    """Missing profile facts asked for by the factual questions of jobs that aren't closed, most asked first."""
+    asked: dict[str, list[Job]] = {}
+    for job, question in _factual_questions(jobs):
+        gap = q_rules.profile_gap(question.factual_key, question.text, profile)
+        if gap and job not in asked.setdefault(gap, []):
+            asked[gap].append(job)
     found = [Gap(key, *_describe(key), jobs) for key, jobs in asked.items()]
     return sorted(found, key=lambda g: (-len(g.jobs), g.label))
