@@ -50,7 +50,7 @@ class Section(StrEnum):
     PREFERENCES = "preferences"
 
     @property
-    def title(self) -> str:
+    def label(self) -> str:  # not "title": that would hide str.title() on this str enum
         return SECTION_TITLES[self]
 
     def owns(self, field: str) -> bool:

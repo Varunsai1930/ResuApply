@@ -32,7 +32,7 @@ class Step(StrEnum):
         return list(Step).index(self) + 1
 
     @property
-    def title(self) -> str:
+    def label(self) -> str:  # not "title": that would hide str.title() on this str enum
         return _TITLES[self]
 
     @property

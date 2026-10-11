@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 {% import "macros.html" as m with context %}
-{% block title %}{{ step.title }} · {{ job.title }} at {{ job.company }}{% endblock %}
+{% block title %}{{ step.label }} · {{ job.title }} at {{ job.company }}{% endblock %}
 {% block content %}
 {% set intros = {
   Step.REQUIREMENTS: ("Check the requirements", "Each requirement is compared with your profile. Gaps stay visible but never block an application."),
@@ -36,7 +36,7 @@
                 {%- if s.meaning.status == Status.DONE and not here %}{{ m.status_icon(Status.DONE) }}<span class="visually-hidden">Step {{ s.step.number }}</span>{% else %}{{ s.step.number }}{% endif -%}
               </span>
               <span class="step-text">
-                <strong>{{ s.step.number }} · {{ s.step.title }}</strong>
+                <strong>{{ s.step.number }} · {{ s.step.label }}</strong>
                 <span class="step-status st-{{ s.meaning.status.value }}">{{ s.meaning.status.label }}{% if s.meaning.note %} · {{ s.meaning.note }}{% endif %}</span>
               </span>
             </a>
@@ -60,7 +60,7 @@
       </div>
       <div class="step-next">
         <a class="btn-primary" href="{{ guide.next.href }}">{{ guide.next.label }} <span aria-hidden="true">→</span></a>
-        {% if guide.next.step != step %}<small class="hint">Next: step {{ guide.next.step.number }}, {{ guide.next.step.title }}</small>{% endif %}
+        {% if guide.next.step != step %}<small class="hint">Next: step {{ guide.next.step.number }}, {{ guide.next.step.label }}</small>{% endif %}
       </div>
     </section>
 

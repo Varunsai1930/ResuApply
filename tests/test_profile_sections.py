@@ -158,3 +158,14 @@ def test_a_missing_or_damaged_opened_revision_is_treated_as_stale(client, sample
     saved_profile(client, sample_profile)
     fields = form_fields(client.get("/profile/edit?section=skills").text) | {"opened_revision": opened}
     assert client.post("/profile/review", data=fields).status_code == 409
+
+
+def test_section_and_step_names_keep_str_title_working():
+    from app.routes.profile import Section
+    from app.services.workspace import Step
+    from app.templating import templates
+
+    # Both are str enums: a "title" property would hide str.title() and break Jinja's title filter.
+    assert Section.CONTACT.title() == "Contact" and Section.CONTACT.label == "Contact and summary"
+    assert Step.TRACK.title() == "Track" and Step.TRACK.label == "Submit and track"
+    assert templates.env.from_string("{{ s | title }}").render(s=Section.SKILLS) == "Skills"

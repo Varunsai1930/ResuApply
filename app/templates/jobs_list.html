@@ -82,7 +82,7 @@
         <span class="st st-{{ c.meaning.status.value }}">{{ m.status_icon(c.meaning.status) }}<span class="st-text">{% if c.meaning.status == Status.INFO %}<span class="visually-hidden">Info: </span>{% else %}{{ c.meaning.status.label }}: {% endif %}{{ c.meaning.note }}</span></span>
         {% if c.step %}
         <span class="job-card-progress" aria-hidden="true"><span style="width: {{ (2 * c.step.number - 1) * 10 }}%"></span></span>
-        <span class="job-card-step">Step {{ c.step.number }} of {{ Step | length }} · {{ c.step.title }}</span>
+        <span class="job-card-step">Step {{ c.step.number }} of {{ Step | length }} · {{ c.step.label }}</span>
         {% endif %}
         <span class="job-card-foot">Package: {{ m.review_badge(job.application.review) }}</span>
       </a>

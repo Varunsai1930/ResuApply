@@ -1,17 +1,17 @@
 {% extends "base.html" %}
 {% import "macros.html" as m with context %}
-{% block title %}{{ 'Edit ' ~ section.title | lower if section else 'Edit profile' }}{% endblock %}
+{% block title %}{{ 'Edit ' ~ section.label | lower if section else 'Edit profile' }}{% endblock %}
 {# In a section, the other sections stay in the form, hidden, so their saved values are posted unchanged. #}
 {% macro shown(key) %}{% if section and section.value != key %} hidden{% endif %}{% endmacro %}
 {% block content %}
 {% if section %}<p class="crumbs"><a href="/profile">← Profile</a></p>{% endif %}
 <div class="page-head">
-  <h1>{{ 'Edit ' ~ section.title | lower if section else 'Edit profile' }}</h1>
+  <h1>{{ 'Edit ' ~ section.label | lower if section else 'Edit profile' }}</h1>
   <p class="lead">Enter facts exactly as they are. Leave anything you don't know empty; it stays unknown. Nothing is saved until you review the changes.{% if section %} Other sections are kept as they are.{% endif %}</p>
 </div>
 {% if section %}
 <nav aria-label="Profile sections" class="section-nav">
-  {% for s in sections %}<a href="/profile/edit?section={{ s.value }}"{% if s == section %} aria-current="page"{% endif %}>{{ s.title }}</a>{% endfor %}
+  {% for s in sections %}<a href="/profile/edit?section={{ s.value }}"{% if s == section %} aria-current="page"{% endif %}>{{ s.label }}</a>{% endfor %}
   <a href="/profile/edit">All sections</a>
 </nav>
 {% endif %}
