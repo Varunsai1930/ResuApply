@@ -719,3 +719,9 @@ def test_deeply_nested_brackets_in_skills_are_read_as_text():
     assert [s["name"] for s in draft_profile("Jordan Example\n\nSkills\nPython (Pandas (DataFrames, Series), NumPy, "
                                              "SciPy, Matplotlib, Seaborn, scikit-learn), Go\n")["skills"]][:3] == [
         "Python", "Pandas (DataFrames, Series)", "NumPy"]
+
+
+def test_skills_three_brackets_deep_are_all_kept():
+    line = "Languages (Python (Web frameworks (Django, Flask, FastAPI, Celery, SQLAlchemy, Pydantic)), Go, Rust)"
+    names = [s["name"] for s in draft_profile(f"Jordan Example\n\nSkills\n{line}\n")["skills"]]
+    assert {"Django", "Flask", "FastAPI", "Celery", "SQLAlchemy", "Pydantic", "Python", "Go", "Rust"} <= set(names)

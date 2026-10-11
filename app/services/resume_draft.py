@@ -418,9 +418,8 @@ NESTING = 2  # bracket groups opened inside a skills item at most this deep; dee
 def _split_list(text: str, nesting: int = 0) -> list[str]:
     """A list split at commas, semicolons, bars and dots, but not inside brackets: "Python (Pandas, NumPy)" stays whole.
 
-    A bracket group too long to be one skill's name is read as its head and its items, at most
-    ``NESTING`` groups deep (deeper ones stay text, too long to be a skill), and a bracket that never
-    closes doesn't hold back the rest of the line.
+    A bracket group too long to be one skill's name is read as its head and its items; deeper than
+    ``NESTING`` groups, and when a bracket never closes, the brackets are dropped and every item kept.
     """
     items, depth, current = [], 0, []
     for ch in text:
@@ -432,15 +431,22 @@ def _split_list(text: str, nesting: int = 0) -> list[str]:
             current.append(ch)
     items.append("".join(current))
     if depth > 0:
-        return [item.strip() for item in re.split(r"[,;|•·(\[]", re.sub(r"[)\]]", "", text))]
+        return _flat(text)
     out = []
     for item in (item.strip() for item in items):
         head, bracket, inner = item.partition("(")
         if bracket and len(item) > 60 and nesting < NESTING:
             out += [head.strip(), *_split_list(inner.rsplit(")", 1)[0], nesting + 1)]
+        elif bracket and len(item) > 60:
+            out += _flat(item)  # nested deeper than NESTING: every item kept, without the brackets
         else:
             out.append(item)
     return out
+
+
+def _flat(text: str) -> list[str]:
+    """A list split at every separator and bracket, the brackets dropped: for nesting not worth following."""
+    return [item.strip() for item in re.split(r"[,;|•·(\[]", re.sub(r"[)\]]", "", text))]
 
 
 def _categorized(line: str) -> list[tuple[str, str]]:
