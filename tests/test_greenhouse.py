@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import json
+
 import httpx
 import pytest
 
@@ -242,3 +244,18 @@ def test_no_read_starts_without_the_time_for_it(monkeypatch):
     with pytest.raises(GreenhouseError, match="longer than 10 seconds"):
         fetch(ref(), FakeGreenhouse(httpx.Response(200, content=chunks())).transport)
     assert pulled == []  # a read that may wait its full timeout would end after the deadline
+
+
+def test_a_complete_answer_is_not_refused_for_the_time_a_further_read_could_take(monkeypatch):
+    # The body's last bytes arrive 8 seconds in: past the point where a further read could still wait its
+    # full timeout, but nothing more is read once the announced length is in.
+    clock = iter([0.0, 5.0, 6.0, 8.0])
+    monkeypatch.setattr(greenhouse.time, "monotonic", lambda: next(clock))
+    body = json.dumps(posting()).encode()
+
+    def chunks():
+        yield body[:100]
+        yield body[100:]
+
+    response = httpx.Response(200, headers={"Content-Length": str(len(body))}, content=chunks())
+    assert fetch(ref(), FakeGreenhouse(response).transport)["title"] == "Software Engineering Intern"

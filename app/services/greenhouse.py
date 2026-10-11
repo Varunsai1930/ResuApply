@@ -100,7 +100,10 @@ def posting_ref(url: str) -> PostingRef | None:
 def fetch(ref: PostingRef, transport: httpx.BaseTransport | None = None) -> dict:
     """The posting's JSON, read within TIMEOUT_SECONDS in all and up to MAX_BYTES.
 
-    ``transport`` replaces the network in tests.
+    A read of the body starts only while its full wait still ends before the deadline, and once the
+    announced length is in, no further read is waited for: a complete answer is never refused for
+    the time a read could have taken. (The name lookup before connecting is the system's own and
+    isn't covered by these limits.) ``transport`` replaces the network in tests.
     """
     deadline = time.monotonic() + TIMEOUT_SECONDS
     body = bytearray()
@@ -121,14 +124,23 @@ def fetch(ref: PostingRef, transport: httpx.BaseTransport | None = None) -> dict
                     raise GreenhouseError(f"Greenhouse answered with an error ({response.status_code}). Nothing was "
                                           "imported; try again later or paste the posting instead.")
                 length = response.headers.get("content-length", "")
-                if length.isdigit() and int(length) > MAX_BYTES:
+                expected = int(length) if length.isascii() and length.isdigit() else None
+                if expected is not None and expected > MAX_BYTES:
                     raise _too_large()
-                time_for_a_read()
+
+                def received() -> bool:
+                    """Whether every byte the headers announced is in: no read waits for more after that.
+                    Counted as sent (compressed, if so), as Content-Length counts them."""
+                    return expected is not None and response.num_bytes_downloaded >= expected
+
+                if not received():
+                    time_for_a_read()
                 for chunk in response.iter_bytes():
                     body.extend(chunk)
                     if len(body) > MAX_BYTES:
                         raise _too_large()
-                    time_for_a_read()
+                    if not received():
+                        time_for_a_read()
     except httpx.TimeoutException:
         raise GreenhouseError(f"Greenhouse took longer than {TIMEOUT_SECONDS:.0f} seconds. Nothing was imported; "
                               "try again, or paste the posting instead.") from None
