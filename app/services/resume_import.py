@@ -79,7 +79,7 @@ def _docx_lines(data: bytes) -> str:
     from docx import Document
 
     document = Document(io.BytesIO(data))
-    lines = [paragraph.text for paragraph in document.paragraphs]
+    lines = [_paragraph_text(paragraph) for paragraph in document.paragraphs]
     for table in document.tables:  # resumes often lay out dates or contact details in tables
         for row in table.rows:
             cells = []
@@ -88,6 +88,30 @@ def _docx_lines(data: bytes) -> str:
                     cells.append(cell.text)
             lines.append(" | ".join(text for text in cells if text.strip()))
     return "\n".join(lines)
+
+
+def _numbered(paragraph) -> bool:
+    """Whether Word shows the paragraph as a list item: numbering on the paragraph or in its style chain.
+
+    Word keeps a list's bullet in the numbering, not in the text, so without this every bullet
+    reads as a line of its own. Numbering with ID 0 is Word's way of switching it off.
+    """
+    properties = paragraph._p.pPr
+    if properties is not None and properties.numPr is not None:
+        number = properties.numPr.numId
+        return number is None or number.val != 0
+    style = paragraph.style
+    while style is not None:
+        properties = style.element.pPr
+        if properties is not None and properties.numPr is not None:
+            return True
+        style = style.base_style
+    return False
+
+
+def _paragraph_text(paragraph) -> str:
+    text = paragraph.text
+    return f"• {text}" if text.strip() and _numbered(paragraph) else text
 
 
 def _tidy(text: str) -> str:
