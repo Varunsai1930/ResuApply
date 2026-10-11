@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from app.services.resume_draft import draft_profile
 from app.services.resume_import import extract_text
-from tests.resume_files import layout_pdf_bytes
+from tests.resume_files import column, layout_pdf_bytes
 
 
 def read(data: bytes) -> dict:
@@ -172,3 +172,26 @@ def test_ligatures_read_as_letters():
     assert [b["text"] for b in draft["experience"][0]["bullets"]] == [
         "Profiled slow queries and streamlined flaky tests", "Wrote efficient Python"]
     assert [s["name"] for s in draft["skills"]] == ["Confluence", "Python"]
+
+
+def test_page_numbers_and_running_headers_are_left_out():
+    running = (50, 770, "Jordan Example · jordan@example.com · +1 555 0100")
+    first = [running, *column(["EXPERIENCE", "Sample Analytics | Software Engineering Intern | Jun 2024 – Aug 2024",
+                               "• Built a Flask REST API", "• Added PostgreSQL indexes"], top=740),
+             (280, 30, "Page 1 of 2")]
+    second = [running, *column(["Example Labs | Research Assistant | Jan 2025 – Present", "• Cleaned survey data",
+                                "SKILLS", "Python, SQL"], top=740),
+              (300, 30, "2")]
+    draft = read(layout_pdf_bytes([first, second]))
+    assert (draft["contact"]["name"], draft["contact"]["email"]) == ("Jordan Example", "jordan@example.com")
+    assert [(e["organization"], [b["text"] for b in e["bullets"]]) for e in draft["experience"]] == [
+        ("Sample Analytics", ["Built a Flask REST API", "Added PostgreSQL indexes"]),
+        ("Example Labs", ["Cleaned survey data"]),
+    ]
+    assert [s["name"] for s in draft["skills"]] == ["Python", "SQL"]
+    assert "Page 1 of 2" not in extract_text(layout_pdf_bytes([first, second]))
+
+
+def test_a_one_page_resume_keeps_every_line():
+    lines = column(["Jordan Example", "jordan@example.com", "SKILLS", "Python", "3"])
+    assert extract_text(layout_pdf_bytes([lines])).splitlines()[-1] == "3"

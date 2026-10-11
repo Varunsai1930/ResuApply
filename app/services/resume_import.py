@@ -52,7 +52,7 @@ def _pdf_text(data: bytes) -> str:
             if not reader.decrypt(""):
                 raise ResumeImportError("This PDF is password-protected. Save a copy without a password, "
                                         "then import that.")
-        return "\n".join(_page_text(page) for page in reader.pages[:MAX_PAGES])
+        return "\n".join(_without_running_lines([_page_text(page) for page in reader.pages[:MAX_PAGES]]))
     except ResumeImportError:
         raise
     # PyPdfError is pypdf's own base error; DependencyError (a missing optional package) is not one.
@@ -85,6 +85,47 @@ def _page_text(page) -> str:
         if len(parts) > 1:
             gapped.setdefault(" ".join(line.split()), " | ".join(parts))
     return "\n".join(gapped.get(" ".join(line.split()), line) for line in plain.splitlines())
+
+
+EDGE_LINES = 3  # a running header or footer is among the first or last lines of a page
+_PAGE_NUMBER = re.compile(r"(?i)(?:page\s*)?\d{1,3}(?:\s*(?:of|/)\s*\d{1,3})?|-\s*\d{1,3}\s*-")
+
+
+def _without_running_lines(pages: list[str]) -> list[str]:
+    """The pages' text without page numbers or the header and footer repeated on every page.
+
+    In a resume of several pages, "Page 1 of 2" and a running header ("Jordan Example ·
+    jordan@example.com") land between entries, where they read as an entry or a skill. A line among
+    the first or last lines of two or more pages is running; only its copy at the top of the first
+    page is kept, since that is where contact details belong. A one-page resume is left as it is.
+    """
+    if len(pages) < 2:
+        return pages
+    split = [[line for line in page.splitlines() if line.strip()] for page in pages]
+
+    def edges(lines: list[str]) -> list[str]:
+        return lines[:EDGE_LINES] + lines[-EDGE_LINES:]
+
+    def key(line: str) -> str:
+        return " ".join(line.split()).casefold()
+
+    seen: dict[str, int] = {}
+    for lines in split:
+        for line in {key(line) for line in edges(lines)}:
+            seen[line] = seen.get(line, 0) + 1
+    running = {line for line, count in seen.items() if count > 1}
+    kept = []
+    for number, lines in enumerate(split):
+        out = []
+        for index, line in enumerate(lines):
+            at_edge = index < EDGE_LINES or index >= len(lines) - EDGE_LINES
+            if at_edge and _PAGE_NUMBER.fullmatch(line.strip()):
+                continue
+            if at_edge and key(line) in running and not (number == 0 and index < EDGE_LINES):
+                continue
+            out.append(line)
+        kept.append("\n".join(out))
+    return kept
 
 
 def _docx_text(data: bytes) -> str:
