@@ -237,7 +237,7 @@ def _education(entry: _Entry) -> dict:
 def _project(entry: _Entry) -> dict:
     start, end, rest = _dates(" | ".join(entry.heading), single_is_end=False)
     link = m.group(0) if (m := _URL.search(rest) or _LINK.search(rest)) else ""
-    parts = [p for p in _parts(rest.replace(link, " ")) if p]
+    parts = [p for p in _parts(rest.replace(link, " ") if link else rest) if p]  # replacing "" spaces out every letter
     return {"id": "", "name": parts[0] if parts else "", "role": parts[1] if len(parts) > 1 else "",
             "link": _bare(link), "start": start, "end": end,
             "technologies": [], "bullets": _bullets(entry)}
