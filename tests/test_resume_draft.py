@@ -169,3 +169,24 @@ def test_a_comma_separated_education_line_is_split_into_its_parts():
         "Example State University", "B.S.", "Computer Science", "2027-05")
     assert school("Bachelor of Science, Computer Science, Example State University, 2027") == (
         "Example State University", "Bachelor of Science", "Computer Science", "2027")
+
+
+def test_a_wrapped_bullet_continuing_with_a_capital_or_digit_stays_one_bullet():
+    draft = draft_profile("""Jordan Example
+
+Experience
+Software Engineering Intern | Sample Analytics | Jun 2024 - Aug 2024
+- Built a Flask REST API that served reporting data to
+1,200 internal users
+- Moved the nightly reports from cron jobs to
+Airflow DAGs with retries
+Example Labs
+Research Assistant, Jan 2025 - Present
+- Cleaned survey data in Python
+""")
+    first, second = draft["experience"]
+    assert [b["text"] for b in first["bullets"]] == [
+        "Built a Flask REST API that served reporting data to 1,200 internal users",
+        "Moved the nightly reports from cron jobs to Airflow DAGs with retries",
+    ]
+    assert (second["organization"], second["title"], second["start"]) == ("Example Labs", "Research Assistant", "2025-01")

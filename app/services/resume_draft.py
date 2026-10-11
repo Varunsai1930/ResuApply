@@ -100,6 +100,7 @@ def _contact(lines: list[str]) -> dict:
 
 # ---------------------------------------------------------------- dates
 
+_MONTH = r"(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)"
 _MONTHS = {m: i for i, m in enumerate(("jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec"), 1)}
 _DATE = (r"(?:(?:jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec)[a-z]*\.?\s+\d{4}"
          r"|\d{1,2}/\d{4}|\d{4}-\d{2}|\d{4})")
@@ -155,14 +156,26 @@ class _Entry:
     bullets: list[str] = field(default_factory=list)
 
 
+def _starts_entry(line: str) -> bool:
+    """Whether a line reads as an entry's heading: it has separators or dates, which a sentence rarely has."""
+    return bool(_SEPARATORS.search(line) or _RANGE.search(line)
+                or re.search(rf"(?i)\b(?:{_MONTH}[a-z]*\.?\s+\d{{4}}|present)\b", line))
+
+
 def _entries(lines: list[str]) -> list[_Entry]:
+    """Entries of a section. A line after a bullet continues it (the bullet wrapped) unless it reads as
+    an entry's heading, or the line after it does (a two-line heading), or the bullet ended a sentence."""
     entries: list[_Entry] = []
-    for line in lines:
+    for i, line in enumerate(lines):
+        after = lines[i + 1] if i + 1 < len(lines) else ""
         if m := _BULLET.match(line):
             if not entries:
                 entries.append(_Entry())
             entries[-1].bullets.append(line[m.end():].strip())
-        elif entries and entries[-1].bullets and line[:1].islower():
+        elif entries and entries[-1].bullets and (
+                line[:1].islower()
+                or (not entries[-1].bullets[-1].endswith((".", "!", "?")) and not _starts_entry(line)
+                    and not (after and not _BULLET.match(after) and _starts_entry(after)))):
             entries[-1].bullets[-1] += " " + line  # a bullet that wrapped onto the next line
         elif not entries or entries[-1].bullets:
             entries.append(_Entry([line]))
