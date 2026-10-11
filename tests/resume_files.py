@@ -11,14 +11,14 @@ def pdf_bytes(lines: list[str]) -> bytes:
         return text.replace("\\", "\\\\").replace("(", "\\(").replace(")", "\\)")
 
     body = "BT /F1 11 Tf 14 TL 72 760 Td " + " ".join(f"({escape(line)}) Tj T*" for line in lines) + " ET"
-    stream = body.encode("latin-1")
+    stream = body.encode("cp1252")  # WinAnsi, as the font declares: bullets and dashes included
     objects = [
         b"<< /Type /Catalog /Pages 2 0 R >>",
         b"<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
         b"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 4 0 R "
         b"/Resources << /Font << /F1 5 0 R >> >> >>",
         b"<< /Length " + str(len(stream)).encode() + b" >>\nstream\n" + stream + b"\nendstream",
-        b"<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>",
+        b"<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>",
     ]
     out = io.BytesIO()
     out.write(b"%PDF-1.4\n")

@@ -9,7 +9,7 @@ from __future__ import annotations
 import json
 from enum import StrEnum
 
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile
 from fastapi.responses import HTMLResponse, RedirectResponse
 from sqlalchemy.orm import Session
 from starlette.concurrency import run_in_threadpool
@@ -18,6 +18,7 @@ from ..db import get_session
 from ..services import jobs as job_service
 from ..services import profile as profile_service
 from ..services import sample as sample_service
+from ..services import resume_draft, resume_import
 from ..services.citations import Usage, citations
 from ..services.profile_gaps import asks_for_facts, gaps
 from ..services.profile_form import is_form_shaped, parse_form
@@ -96,7 +97,7 @@ def _revision_of(raw: object) -> int | None:
 
 
 def _render_form(request: Request, data: dict, errors=(), warnings=(), status_code: int = 200, message: str = "",
-                 section: Section | None = None, opened_revision: int | None = None):
+                 section: Section | None = None, opened_revision: int | None = None, imported: dict | None = None):
     """The profile editor. With ``section``, only that section shows; the others stay in the form as
     hidden fields with their saved values, so the review and save steps are the same as for the
     whole profile. A problem outside the section shows the whole profile, so it can be fixed."""
@@ -117,6 +118,7 @@ def _render_form(request: Request, data: dict, errors=(), warnings=(), status_co
             "section": section,
             "sections": list(Section),
             "opened_revision": opened_revision,
+            "imported": imported,
             "active": "profile",
         },
         status_code=status_code,
@@ -225,3 +227,45 @@ def _save(request: Request, session: Session, data: dict, base_revision: int):
         return _render_form(request, data, status_code=409, message=str(exc))
     msg = "profile_saved" if result.saved else "profile_unchanged"
     return RedirectResponse(f"/profile?msg={msg}", status_code=303)
+
+
+# ---------------------------------------------------------------- importing from a resume file
+
+def _render_import(request: Request, candidate, error: str = "", message: str = "", status_code: int = 200):
+    return templates.TemplateResponse(request, "profile_import.html", {
+        "candidate": candidate, "error": error, "message": message, "active": "profile",
+        "max_mb": resume_import.MAX_BYTES // (1024 * 1024),
+    }, status_code=status_code)
+
+
+@router.get("/import", response_class=HTMLResponse)
+def import_form(request: Request, session: Session = Depends(get_session)):
+    return _render_import(request, profile_service.get_candidate(session))
+
+
+@router.post("/import", response_class=HTMLResponse)
+async def import_resume(request: Request, file: UploadFile | None = File(None), session: Session = Depends(get_session)):
+    """Read a resume file into the profile form. Nothing is saved: the form and its review step come next.
+
+    With no profile, the draft fills the form. With one, only what it lacks is added (``merge``),
+    so an import never changes a fact the user already saved.
+    """
+    candidate = profile_service.get_candidate(session)
+    if candidate is not None and candidate.sample:
+        return _render_import(request, candidate, status_code=409,
+                              error="Remove the sample data first, then import your own resume.")
+    data = await file.read(resume_import.MAX_BYTES + 1) if file is not None else b""
+    try:
+        text = await run_in_threadpool(resume_import.extract_text, data)
+    except resume_import.ResumeImportError as exc:
+        return _render_import(request, candidate, error=str(exc), status_code=422)
+    draft = resume_draft.draft_profile(text)
+    name = ((file.filename if file else "") or "your resume").rsplit("/", 1)[-1].rsplit("\\", 1)[-1][:200]
+    if candidate is None:
+        return _render_form(request, draft, imported={"filename": name, "added": None, "text": text})
+    merged = resume_draft.merge(candidate.profile.model_dump(), draft)
+    if not merged.added:
+        return _render_import(request, candidate, message=f"Nothing new was found in {name}: everything it was "
+                              "read to hold is already in your profile.")
+    return _render_form(request, merged.data, imported={"filename": name, "added": merged.added, "text": text},
+                        opened_revision=candidate.revision)

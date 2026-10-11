@@ -555,6 +555,9 @@ input.guessed { background: var(--accent-wash); border-color: var(--progress); }
 .sample-banner p { flex: 1 1 320px; margin: 0; }
 .greeting-actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
 
+.import-notice p { margin: 0 0 8px; }
+.import-notice .description { max-height: 40vh; margin-top: 8px; }
+
 /* Follow-up reminders: the Track step card and the board banner. */
 .follow-up.due, .follow-up-banner { background: var(--unknown-wash); border-color: var(--unknown); }
 .follow-up h2 { font-size: 1.05rem; }

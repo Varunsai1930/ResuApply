@@ -6,7 +6,10 @@
 <div class="empty card">
   <h1>Create your profile</h1>
   <p>Your profile holds the facts every application is built from: contact details, education, experience, projects, skills, work authorization and availability. You are the only one who changes it.</p>
-  <a class="btn-primary" href="/profile/edit">Create profile</a>
+  <div class="greeting-actions">
+    <a class="btn-primary" href="/profile/edit">Create profile</a>
+    <a class="btn-secondary" href="/profile/import">Import from a resume</a>
+  </div>
 </div>
 {% else %}
 {% set p = candidate.profile %}
@@ -16,7 +19,10 @@
     <h1>{{ p.contact.name }}{% if candidate.sample %} <span class="tag">Sample</span>{% endif %}</h1>
     <p class="meta">Revision {{ candidate.revision }} · last saved {{ candidate.updated_at | local_datetime }} · <a href="/profile/sharing">What the AI model may see</a></p>
   </div>
-  <a class="btn-primary" href="/profile/edit">Edit profile</a>
+  <div class="greeting-actions">
+    {% if not candidate.sample %}<a class="btn-secondary" href="/profile/import">Import from a resume</a>{% endif %}
+    <a class="btn-primary" href="/profile/edit">Edit profile</a>
+  </div>
 </div>
 
 <section class="card profile-gaps" aria-labelledby="gaps-title">

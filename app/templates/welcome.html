@@ -28,6 +28,13 @@
         </form>
       {% endif %}
     </article>
+    {% if not candidate %}
+    <article class="card start-option">
+      <h3>Import your resume</h3>
+      <p>Choose a PDF or Word file. ResuApply reads it on this computer into the profile form, and you check every fact before anything is saved.</p>
+      <a class="btn-secondary" href="/profile/import">Import a resume</a>
+    </article>
+    {% endif %}
     <article class="card start-option">
       <h3>{{ 'Start from scratch' if not candidate else 'Your profile' }}</h3>
       {% if candidate %}

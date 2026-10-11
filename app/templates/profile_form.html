@@ -17,6 +17,17 @@
 {% endif %}
 
 {% if message %}<p class="notice warn" role="alert">{{ message }}</p>{% endif %}
+{% if imported %}
+<section class="notice import-notice" role="status" tabindex="-1" data-focus aria-labelledby="import-title">
+  <p><strong id="import-title">Read from {{ imported.filename }}. Check every field before reviewing.</strong>
+    {% if imported.added is none %}The form was filled in from the resume's layout, which can put a fact in the wrong field or miss it; fix anything that's off, and add your work authorization yourself.
+    {% else %}Added to your profile: {{ imported.added | join(', ') }}. Nothing you had saved was changed.{% endif %}</p>
+  <details>
+    <summary>Text read from the resume</summary>
+    <div class="description" tabindex="0">{{ imported.text }}</div>
+  </details>
+</section>
+{% endif %}
 {{ m.error_summary(errors, 'The profile was not saved. Please fix these problems') }}
 {% if warnings %}
 <div class="notice"><ul>{% for w in warnings %}<li>{{ w }}</li>{% endfor %}</ul></div>

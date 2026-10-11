@@ -2,7 +2,7 @@
 
 A local job application copilot web app. It turns your verified profile and a pasted job description into an evidence checklist, a tailored resume, reviewed answers and an application record, **without inventing anything**.
 
-> **Status:** Milestones 1 (Foundation), 2 (Assessment), 3a (Tailoring) and 3b (Complete V1) are built: profile, jobs, tracker, requirements, evidence, source-backed resume proposals, A4 print export, questions and answers, the answer bank, package approval and submitted snapshots. AI features have passed mocked-provider and browser checks; live OpenRouter validation remains pending until a key is configured. V2 (PDF/DOCX import, Greenhouse) is not started; see [PLAN.md](PLAN.md). The same workflow is already available as an agent skill for Claude Code and Codex: [ResuSkill](https://github.com/Varunsai1930/ResuSkill).
+> **Status:** Milestones 1 (Foundation), 2 (Assessment), 3a (Tailoring) and 3b (Complete V1) are built: profile, jobs, tracker, requirements, evidence, source-backed resume proposals, A4 print export, questions and answers, the answer bank, package approval and submitted snapshots. AI features have passed mocked-provider and browser checks; live OpenRouter validation remains pending until a key is configured. From V2, PDF/DOCX profile import is built (read locally, by layout rules); Greenhouse import and autofill are not started; see [PLAN.md](PLAN.md). The same workflow is already available as an agent skill for Claude Code and Codex: [ResuSkill](https://github.com/Varunsai1930/ResuSkill).
 
 ```text
 Create profile → Add job → Review requirements
@@ -149,6 +149,7 @@ Labels you will see on a question: **From profile**, **AI draft**, **User answer
 ## What's included
 
 - **Profile:** a guided form for contact details, links, summary, education, experience, projects (with bullets and technologies), skills, skills you've confirmed you lack, certifications, preferences, availability and per-country work authorization (yes / no / unknown). Links must be web addresses, such as `github.com/you` or `https://example.com`; anything else (for example `javascript:` or `mailto:`) is refused. Every save goes through a **Review changes** step that lists each added, changed or removed fact. Entries, bullets and certifications get stable IDs (`exp-1`, `exp-1-b2`, `cert-1`) that survive edits, and deleted IDs are never reused. The revision increases only when something really changed. The validation and ID rules are ported from ResuSkill.
+- **Resume import:** choose a resume as a text-based PDF or Word (.docx) file, up to 10 MB, and it is read on this computer into the profile form, where you check every field before the usual review step. Nothing is sent to the AI model. With a saved profile, an import only adds what the profile lacks and never changes a saved fact. Scanned or image-only, password-protected, damaged and unsupported files are refused with a reason, and work authorization is never read from a resume.
 - **Jobs:** manual entry with title, company and pasted description (required), plus location and URL (optional). The description is stored exactly as pasted and is only ever shown as text. Changing the title, company, location or description increases the job revision.
 - **Tracker:** every job with its review state (Draft, Approved or Stale, recalculated whenever the list is opened) and tracking status (Saved, Applied, Assessment, Interview, Rejected, Offer, Withdrawn), a dated status history and notes. Status dates are entered as `YYYY-MM-DD`, from 1990 up to today. Only you change the status; approval never sets Applied.
 - **Job Workspace:** the job's details and description, tracking and notes, the requirements checklist and resume workflow, questions and answers, review and approval, and any submitted packages.
@@ -194,7 +195,7 @@ tests/            pytest: rules, mocked AI, HTTP integration and restart persist
 
 ## Stack
 
-Python 3.12 · FastAPI · Jinja2 · SQLAlchemy · SQLite · Pydantic · HTTPX → OpenRouter (model configurable). No application browser-automation dependency before V2.
+Python 3.12 · FastAPI · Jinja2 · SQLAlchemy · SQLite · Pydantic · HTTPX → OpenRouter (model configurable) · pypdf and python-docx for resume import. No application browser-automation dependency before V2.
 
 ## License
 
