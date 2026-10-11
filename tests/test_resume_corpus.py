@@ -515,3 +515,14 @@ def test_a_projects_tech_stack_is_read_as_its_technologies():
                           "- Created a chat bot\nBudget Tracker | Team Lead | 2024\n- Led a team of three\n")
     assert [(p["name"], p["role"], p["technologies"]) for p in draft["projects"]] == [
         ("TaskBot", "", ["Python", "SQLite", "Flask"]), ("Budget Tracker", "Team Lead", [])]
+
+
+def test_a_word_file_without_section_settings_is_read():
+    def build(document):
+        for line in ("Jordan Example", "jordan@example.com", "Skills", "Python, SQL"):
+            document.add_paragraph(line)
+        body = document.element.body
+        body.remove(body.sectPr)  # optional in a Word file, and some tools leave it out
+
+    draft = read(word(build))
+    assert draft["contact"]["email"] == "jordan@example.com" and [s["name"] for s in draft["skills"]] == ["Python", "SQL"]

@@ -165,7 +165,7 @@ def _docx_text(data: bytes) -> str:
     try:
         return _docx_lines(data)
     # Damaged XML, a garbled compressed part, or a compression method zipfile can't read.
-    except (PackageNotFoundError, XMLSyntaxError, zlib.error, NotImplementedError, KeyError, ValueError,
+    except (PackageNotFoundError, XMLSyntaxError, zlib.error, NotImplementedError, KeyError, IndexError, ValueError,
             zipfile.BadZipFile) as exc:
         raise ResumeImportError("This Word file couldn't be read. Try saving it again as .docx.") from exc
 
@@ -183,6 +183,8 @@ def _header_lines(document) -> list[str]:
     They come first, with the lines contact details are read from. The first page's own header is
     used when the document has one; only the first section's are read.
     """
+    if not len(document.sections):  # a document may leave its section settings out
+        return []
     section = document.sections[0]
     parts = ([section.first_page_header, section.first_page_footer] if section.different_first_page_header_footer
              else [section.header, section.footer])
