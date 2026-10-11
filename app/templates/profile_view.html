@@ -31,7 +31,7 @@
         <span class="hint">Asked by {{ g.jobs | length }} job{{ 's' if g.jobs | length != 1 }}:
           {% for j in g.jobs %}<a href="/jobs/{{ j.id }}?step=questions#questions">{{ j.title }} at {{ j.company }}</a>{{ ', ' if not loop.last }}{% endfor %}</span>
       </span>
-      <a class="btn-secondary" href="/profile/edit">Add it<span class="visually-hidden">: {{ g.label }}</span></a>
+      <a class="btn-secondary" href="/profile/edit?section={{ g.section }}">Add it<span class="visually-hidden">: {{ g.label }}</span></a>
     </li>
     {% endfor %}
   </ul>
@@ -44,7 +44,7 @@
 
 <div class="doc">
 <section class="doc-section">
-  <h2>Contact</h2>
+  <h2>Contact <a class="section-edit" href="/profile/edit?section=contact">Edit<span class="visually-hidden"> contact and summary</span></a></h2>
   <div class="doc-body">
   <dl class="facts">
     <dt>Email</dt><dd>{{ p.contact.email or '—' }}</dd>
@@ -68,7 +68,7 @@
 
 {% for section, title in [('education', 'Education'), ('experience', 'Experience'), ('projects', 'Projects')] %}
 <section class="doc-section">
-  <h2>{{ title }}</h2>
+  <h2>{{ title }} <a class="section-edit" href="/profile/edit?section={{ section }}">Edit<span class="visually-hidden"> {{ title | lower }}</span></a></h2>
   <div class="doc-body">
   {% for e in p[section] %}
     <article class="entry-view">
@@ -97,7 +97,7 @@
 {% endfor %}
 
 <section class="doc-section">
-  <h2>Skills</h2>
+  <h2>Skills <a class="section-edit" href="/profile/edit?section=skills">Edit<span class="visually-hidden"> skills and certifications</span></a></h2>
   <div class="doc-body">
   {% if p.skills %}
   <dl class="facts">
@@ -113,7 +113,7 @@
 </section>
 
 <section class="doc-section">
-  <h2>Certifications</h2>
+  <h2>Certifications <a class="section-edit" href="/profile/edit?section=skills">Edit<span class="visually-hidden"> skills and certifications</span></a></h2>
   <div class="doc-body">
   {% for c in p.certifications %}
     <p>{{ c.name }}{% if c.issuer %} · {{ c.issuer }}{% endif %}{% if c.date %} · {{ c.date }}{% endif %} <span class="id-badge">{{ c.id }}</span></p>
@@ -122,7 +122,7 @@
 </section>
 
 <section class="doc-section">
-  <h2>Work authorization</h2>
+  <h2>Work authorization <a class="section-edit" href="/profile/edit?section=authorization">Edit<span class="visually-hidden"> work authorization</span></a></h2>
   <div class="doc-body">
   {% if p.authorization %}
   <table class="simple">
@@ -138,7 +138,7 @@
 </section>
 
 <section class="doc-section">
-  <h2>Preferences and availability</h2>
+  <h2>Preferences and availability <a class="section-edit" href="/profile/edit?section=preferences">Edit<span class="visually-hidden"> preferences and availability</span></a></h2>
   <div class="doc-body">
   <dl class="facts">
     <dt>Roles</dt><dd>{{ p.preferences.roles | join(', ') or '—' }}</dd>

@@ -47,6 +47,7 @@
   {% endif %}
   <form method="post" action="/profile/edit">
     <input type="hidden" name="payload" value="{{ payload }}">
+    {% if section %}<input type="hidden" name="section" value="{{ section.value }}">{% endif %}
     <button type="submit" class="btn-secondary">Back to editing</button>
   </form>
   {% if not result.has_changes %}<a class="btn-link" href="/profile">Back to profile</a>{% endif %}

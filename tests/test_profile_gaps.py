@@ -69,6 +69,8 @@ def test_the_profile_lists_missing_facts_with_the_jobs_asking(client, sample_pro
     assert card.index("Portfolio") < card.index("Work authorization in Canada")  # most asked first
     assert "Asked by 2 jobs:" in card and "Asked by 1 job:" in card
     assert f'href="/jobs/{first}?step=questions#questions">Backend Intern at' in card
+    assert 'href="/profile/edit?section=contact">Add it<span class="visually-hidden">: Portfolio' in card
+    assert 'href="/profile/edit?section=authorization">Add it' in card
     assert "Email" not in card.replace("Email address", "")
 
 

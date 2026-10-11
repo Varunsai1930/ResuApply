@@ -7,6 +7,7 @@ and only the confirmation on that page posts to /profile/save.
 from __future__ import annotations
 
 import json
+from enum import StrEnum
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
@@ -37,17 +38,76 @@ BLANK_PROFILE = {
 }
 
 
-def _render_form(request: Request, data: dict, errors=(), warnings=(), status_code: int = 200, message: str = ""):
+class Section(StrEnum):
+    """A part of the profile that can be edited on its own."""
+
+    CONTACT = "contact"
+    EDUCATION = "education"
+    EXPERIENCE = "experience"
+    PROJECTS = "projects"
+    SKILLS = "skills"
+    AUTHORIZATION = "authorization"
+    PREFERENCES = "preferences"
+
+    @property
+    def title(self) -> str:
+        return SECTION_TITLES[self]
+
+    def owns(self, field: str) -> bool:
+        """Whether a form field belongs to this section."""
+        return any(field == p or field.startswith(p + "-") for p in SECTION_FIELDS[self])
+
+
+SECTION_TITLES = {
+    Section.CONTACT: "Contact and summary",
+    Section.EDUCATION: "Education",
+    Section.EXPERIENCE: "Experience",
+    Section.PROJECTS: "Projects",
+    Section.SKILLS: "Skills and certifications",
+    Section.AUTHORIZATION: "Work authorization",
+    Section.PREFERENCES: "Preferences and availability",
+}
+# The form field names, or their prefixes, of each section.
+SECTION_FIELDS = {
+    Section.CONTACT: ("contact", "summary"),
+    Section.EDUCATION: ("education",),
+    Section.EXPERIENCE: ("experience",),
+    Section.PROJECTS: ("projects",),
+    Section.SKILLS: ("skills", "skills_absent", "certifications"),
+    Section.AUTHORIZATION: ("authorization",),
+    Section.PREFERENCES: ("preferences", "availability"),
+}
+
+
+def _section_of(raw: object) -> Section | None:
+    """The section a posted form was editing; anything else means the whole profile."""
+    try:
+        return Section(raw) if isinstance(raw, str) and raw else None
+    except ValueError:
+        return None
+
+
+def _render_form(request: Request, data: dict, errors=(), warnings=(), status_code: int = 200, message: str = "",
+                 section: Section | None = None):
+    """The profile editor. With ``section``, only that section shows; the others stay in the form as
+    hidden fields with their saved values, so the review and save steps are the same as for the
+    whole profile. A problem outside the section shows the whole profile, so it can be fixed."""
     errors = list(errors)
+    error_fields = {e.field for e in errors if e.field}
+    if section and errors and not all(e.field and section.owns(e.field) for e in errors):
+        section = None
+        message = message or "There's a problem outside this section, so the whole profile is shown."
     return templates.TemplateResponse(
         request,
         "profile_form.html",
         {
             "data": data,
             "errors": errors,
-            "error_fields": {e.field for e in errors if e.field},
+            "error_fields": error_fields,
             "warnings": list(warnings),
             "message": message,
+            "section": section,
+            "sections": list(Section),
             "active": "profile",
         },
         status_code=status_code,
@@ -78,33 +138,36 @@ def view_profile(request: Request, msg: str = "", session: Session = Depends(get
 
 
 @router.get("/edit", response_class=HTMLResponse)
-def edit_profile(request: Request, session: Session = Depends(get_session)):
+def edit_profile(request: Request, section: Section | None = None, session: Session = Depends(get_session)):
+    """The profile editor, or one section of it. A new profile is always edited whole."""
     candidate = profile_service.get_candidate(session)
     data = candidate.profile.model_dump() if candidate else BLANK_PROFILE
-    return _render_form(request, data)
+    return _render_form(request, data, section=section if candidate else None)
 
 
 @router.post("/edit", response_class=HTMLResponse)
 async def back_to_edit(request: Request):
     """Return from the review page to the form without losing the proposed edits."""
     form = await read_form(request)
-    return _render_form(request, _load_payload(form.get("payload")))
+    return _render_form(request, _load_payload(form.get("payload")), section=_section_of(form.get("section")))
 
 
 @router.post("/review", response_class=HTMLResponse)
 async def review_profile(request: Request, session: Session = Depends(get_session)):
     form = await read_form(request)
-    data = parse_form((k, v) for k, v in form.multi_items() if isinstance(v, str))
+    section = _section_of(form.get("section"))
+    data = parse_form((k, v) for k, v in form.multi_items() if isinstance(v, str) and k != "section")
     try:
         result = profile_service.review(session, data)
     except profile_service.ProfileInvalid as exc:
-        return _render_form(request, data, exc.errors, exc.warnings, status_code=422)
+        return _render_form(request, data, exc.errors, exc.warnings, status_code=422, section=section)
     return templates.TemplateResponse(
         request,
         "profile_review.html",
         {
             "result": result,
             "payload": json.dumps(data),
+            "section": section,
             "active": "profile",
         },
     )
