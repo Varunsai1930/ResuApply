@@ -9,10 +9,11 @@ from __future__ import annotations
 import json
 from enum import StrEnum
 
-from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile
+from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from sqlalchemy.orm import Session
 from starlette.concurrency import run_in_threadpool
+from starlette.datastructures import UploadFile
 
 from ..db import get_session
 from ..services import jobs as job_service
@@ -260,18 +261,34 @@ def import_form(request: Request, session: Session = Depends(get_session)):
     return _render_import(request, profile_service.get_candidate(session))
 
 
+# Room for the multipart framing around the file: an upload whose Content-Length passes the file
+# limit by more than this is refused before its body is read.
+_UPLOAD_FRAMING = 64 * 1024
+
+
+def _too_large(request: Request) -> bool:
+    length = request.headers.get("content-length", "")
+    return length.isascii() and length.isdigit() and int(length) > resume_import.MAX_BYTES + _UPLOAD_FRAMING
+
+
 @router.post("/import", response_class=HTMLResponse)
-async def import_resume(request: Request, file: UploadFile | None = File(None), session: Session = Depends(get_session)):
+async def import_resume(request: Request, session: Session = Depends(get_session)):
     """Read a resume file into the profile form. Nothing is saved: the form and its review step come next.
 
     With no profile, the draft fills the form. With one, only what it lacks is added (``merge``),
-    so an import never changes a fact the user already saved.
+    so an import never changes a fact the user already saved. The form is read here rather than
+    as a parameter, so an upload too large by its Content-Length is refused before it is spooled.
     """
     candidate = profile_service.get_candidate(session)
     if candidate is not None and candidate.sample:
         return _render_import(request, candidate, status_code=409,
                               error="Remove the sample data first, then import your own resume.")
-    data = await file.read(resume_import.MAX_BYTES + 1) if file is not None else b""
+    if _too_large(request):
+        return _render_import(request, candidate, status_code=413, error=resume_import.TOO_LARGE)
+    async with request.form(max_files=1, max_fields=10) as form:
+        file = form.get("file")
+        file = file if isinstance(file, UploadFile) else None
+        data = await file.read(resume_import.MAX_BYTES + 1) if file is not None else b""
     try:
         text = await run_in_threadpool(resume_import.extract_text, data)
     except resume_import.ResumeImportError as exc:

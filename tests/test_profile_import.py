@@ -142,3 +142,20 @@ def test_the_draft_is_read_off_the_event_loop(client, monkeypatch):
     monkeypatch.setattr(resume_draft, "draft_profile", draft)
     assert upload(client, pdf_bytes(LINES)).status_code == 200
     assert on_loop == [False]
+
+
+def test_an_upload_over_the_limit_is_refused_before_it_is_read(client, monkeypatch):
+    from starlette.requests import Request
+
+    read = []
+    original = Request.form
+
+    def form(self, *args, **kwargs):
+        read.append(True)
+        return original(self, *args, **kwargs)
+
+    monkeypatch.setattr(Request, "form", form)
+    response = upload(client, b"%PDF-" + b"x" * (MAX_BYTES + 200_000))
+    assert response.status_code == 413 and "over 10 MB" in response.text
+    assert read == []  # refused from its Content-Length, before the body was spooled
+    assert candidates(client) == 0

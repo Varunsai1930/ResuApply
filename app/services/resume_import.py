@@ -21,6 +21,7 @@ MAX_CHARS = 100_000  # extracted text beyond this is cut
 MIN_CHARS = 40  # less text than this means a scanned or image-only file
 
 PDF, DOCX = "pdf", "docx"
+TOO_LARGE = f"The file is over {MAX_BYTES // (1024 * 1024)} MB. Choose a smaller PDF or Word file."
 
 
 class ResumeImportError(Exception):
@@ -101,7 +102,7 @@ def extract_text(data: bytes) -> str:
     if not data:
         raise ResumeImportError("The file is empty. Choose your resume as a PDF or Word (.docx) file.")
     if len(data) > MAX_BYTES:
-        raise ResumeImportError(f"The file is over {MAX_BYTES // (1024 * 1024)} MB. Choose a smaller PDF or Word file.")
+        raise ResumeImportError(TOO_LARGE)
     kind = file_kind(data)
     if kind is None:
         raise ResumeImportError("Choose a PDF or Word (.docx) file. Older .doc files, images and other formats "
