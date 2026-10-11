@@ -10,6 +10,7 @@ from __future__ import annotations
 from app.services.resume_draft import draft_profile
 from app.services.resume_import import extract_text
 from tests.resume_files import column, layout_pdf_bytes
+from tests.test_profile_sections import form_fields
 
 
 def read(data: bytes) -> dict:
@@ -447,3 +448,63 @@ def test_word_text_boxes_are_read_once():
     assert (draft["contact"]["name"], draft["contact"]["email"]) == ("Jordan Example", "jordan@example.com")
     assert [s["name"] for s in draft["skills"]] == ["Python", "SQL"]
     assert [e["organization"] for e in draft["experience"]] == ["Sample Analytics"]
+
+
+# ---------------------------------------------------------------- the import's rules, over the whole corpus
+
+def corpus() -> dict[str, bytes]:
+    """Every layout above as a file, for the rules every import must keep."""
+    def word_resume(document):
+        document.sections[0].header.paragraphs[0].text = "Jordan Example · jordan@example.com"
+        text_box(document, ["Skills", "Python, SQL"])
+        contact = document.add_table(rows=1, cols=2)
+        contact.cell(0, 0).text = "Work authorization: US citizen"
+        contact.cell(0, 1).text = "Austin, TX"
+        for line in ("Experience", "Sample Analytics | Software Engineering Intern | Jun 2024 – Aug 2024"):
+            document.add_paragraph(line)
+        document.add_paragraph("Built a Flask REST API", style="List Bullet")
+
+    return {
+        "latex.pdf": layout_pdf_bytes([LATEX]),
+        "two-columns.pdf": two_columns(SIDEBAR, MAIN, interleaved=False),
+        "two-columns-interleaved.pdf": two_columns(SIDEBAR, MAIN, interleaved=True),
+        "two-pages.pdf": layout_pdf_bytes([
+            [(50, 770, "Jordan Example · jordan@example.com"), *column(MAIN[:5], top=740), (280, 30, "Page 1 of 2")],
+            [(50, 770, "Jordan Example · jordan@example.com"), *column(MAIN[5:], top=740), (280, 30, "Page 2 of 2")]]),
+        "word.docx": word(word_resume),
+    }
+
+
+def test_every_corpus_resume_is_read_locally_and_saved_only_after_review(ai_app_client, fake_ai):
+    from app.models import Candidate
+
+    for name, data in corpus().items():
+        page = ai_app_client.post("/profile/import", files={"file": (name, data, "application/octet-stream")})
+        assert page.status_code == 200, name
+        assert f"Read from {name}. Check every field before reviewing." in page.text
+        authorization = {k: v for k, v in form_fields(page.text).items() if k.startswith("authorization-")}
+        assert not any(authorization.values()), name  # never read from a resume, even "US citizen"
+    assert fake_ai.requests == []  # nothing is sent to the AI model
+    with ai_app_client.app.state.session_factory() as session:
+        assert session.query(Candidate).count() == 0  # nothing is saved before the review step
+
+
+def test_with_a_saved_profile_no_corpus_resume_changes_a_saved_fact(client, sample_profile):
+    import copy
+
+    from tests.test_routes import client_profile, profile_form, review_and_save
+
+    review_and_save(client, profile_form(sample_profile))
+    saved = client_profile(client)
+    for name, data in corpus().items():
+        page = client.post("/profile/import", files={"file": (name, data, "application/octet-stream")})
+        assert page.status_code == 200, name
+        if "Nothing new was found" in page.text:
+            continue
+        fields = form_fields(page.text)
+        assert (fields["contact-name"], fields["contact-email"]) == (
+            saved["contact"]["name"], saved["contact"]["email"]), name
+        for index, entry in enumerate(saved["experience"]):
+            assert fields[f"experience-{index}-id"] == entry["id"], name
+            assert fields[f"experience-{index}-organization"] == entry["organization"], name
+        assert client_profile(client) == copy.deepcopy(saved)  # still unchanged until reviewed and saved
