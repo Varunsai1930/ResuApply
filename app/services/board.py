@@ -12,10 +12,10 @@ from datetime import date
 from ..models import Candidate, Job
 from ..schemas.tracking import ReviewState, TrackingStatus
 from . import tracking
+from .search import SEARCH_LIMIT, clean_query  # noqa: F401  (part of the board's interface)
+from .search import matches as _matches
 from .status import Meaning, Status
 from .workspace import Step, next_action
-
-SEARCH_LIMIT = 200  # characters of a search; anything longer is cut, never an error
 
 # (key, title, statuses, shown when empty). Assessment is a stage of an application still waiting
 # on the employer, so it sits with Applied; Rejected and Withdrawn are both closed.
@@ -69,14 +69,9 @@ class Board:
     follow_ups: list[FollowUp]  # applications due a follow-up, whatever the search
 
 
-def clean_query(raw: str | None) -> str:
-    return " ".join((raw or "").split())[:SEARCH_LIMIT]
-
-
 def matches(job: Job, query: str) -> bool:
     """Whether every word of the search appears in the job's title, company or location."""
-    text = " ".join((job.title, job.company, job.location or "")).casefold()
-    return all(word in text for word in query.casefold().split())
+    return _matches(" ".join((job.title, job.company, job.location or "")), query)
 
 
 def _since(job: Job) -> date | None:

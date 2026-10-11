@@ -12,6 +12,7 @@ from ..db import get_by_id, get_session
 from ..models import AnswerBankEntry, Job
 from ..services import answers as answer_service
 from ..services.questions import CATEGORY_LABELS
+from ..services.search import clean_query
 from ..templating import templates
 
 router = APIRouter(prefix="/answers")
@@ -21,7 +22,7 @@ router = APIRouter(prefix="/answers")
 def bank(request: Request, msg: str = "", q: str = "", sort: Literal["recent", "most_used", "saved"] = "recent",
          session: Session = Depends(get_session)):
     """The answer bank, searched (``q``: every word in the question or answer) and sorted."""
-    query = " ".join(q.split())[:answer_service.BANK_SEARCH_LIMIT]
+    query = clean_query(q)
     listing = answer_service.bank_listing(session, query, sort)
     entries = [
         {"entry": entry, "use": use, "job": session.get(Job, entry.source_job_id) if entry.source_job_id else None,

@@ -41,6 +41,7 @@ from . import profile as profile_service
 from . import questions as q_rules
 from . import transactions
 from .claims import claim_problems, detection_terms
+from .search import matches
 from .skills import canon
 from .text import content_hash, norm_text
 
@@ -613,7 +614,6 @@ class BankUse:
 
 
 BANK_SORTS = {"recent": "Most recently used", "most_used": "Most used", "saved": "Recently saved"}
-BANK_SEARCH_LIMIT = 200
 
 
 def bank_usage(session: Session) -> dict[int, BankUse]:
@@ -651,9 +651,8 @@ def bank_listing(session: Session, query: str = "", sort: str = "recent") -> Ban
     """
     usage = bank_usage(session)
     entries = bank_entries(session)
-    words = query.casefold().split()
     found = [(entry, usage.get(entry.id, BankUse())) for entry in entries
-             if all(w in f"{entry.question} {entry.answer}".casefold() for w in words)]
+             if matches(f"{entry.question} {entry.answer}", query)]
     keys = {
         "recent": lambda pair: (max(filter(None, (pair[1].last_used, pair[0].updated_at))), pair[0].id),
         "most_used": lambda pair: (pair[1].jobs, pair[0].updated_at, pair[0].id),
