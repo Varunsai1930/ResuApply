@@ -52,12 +52,39 @@ def _pdf_text(data: bytes) -> str:
             if not reader.decrypt(""):
                 raise ResumeImportError("This PDF is password-protected. Save a copy without a password, "
                                         "then import that.")
-        return "\n".join(page.extract_text() or "" for page in reader.pages[:MAX_PAGES])
+        return "\n".join(_page_text(page) for page in reader.pages[:MAX_PAGES])
     except ResumeImportError:
         raise
     # PyPdfError is pypdf's own base error; DependencyError (a missing optional package) is not one.
     except (PyPdfError, DependencyError, ValueError, KeyError, TypeError, AttributeError, RecursionError, NotImplementedError) as exc:
         raise ResumeImportError("This PDF couldn't be read. It may be damaged; try saving it again as a PDF.") from exc
+
+
+# Eight or more spaces in pypdf's layout text: the gap a layout tool leaves before text set flush
+# right (dates, places). Layout text shows an ordinary word space as two or three spaces, and the
+# widened spaces of a justified line as up to five.
+_GAP = re.compile(r" {8,}")
+
+
+def _page_text(page) -> str:
+    """A page's text in the PDF's reading order, with text set flush right on a line kept apart.
+
+    pypdf's plain text follows the order the PDF draws its text, which keeps columns that are
+    drawn one after the other in order, but joins "Sample Analytics" and a flush-right "Remote"
+    with one space. Its layout text keeps the gap, but orders everything by position. A plain
+    line that the layout text shows with a wide gap is taken with " | " in the gap.
+    """
+    plain = page.extract_text() or ""
+    try:
+        layout = page.extract_text(extraction_mode="layout") or ""
+    except Exception:  # only a refinement: the plain text stands on its own
+        return plain
+    gapped = {}
+    for line in layout.splitlines():
+        parts = [part.strip() for part in _GAP.split(line.strip()) if part.strip()]
+        if len(parts) > 1:
+            gapped.setdefault(" ".join(line.split()), " | ".join(parts))
+    return "\n".join(gapped.get(" ".join(line.split()), line) for line in plain.splitlines())
 
 
 def _docx_text(data: bytes) -> str:

@@ -92,3 +92,52 @@ Example Robotics | Remote
         ("Example Labs", "Research Assistant", "2025-01"),
         ("Example Robotics", "Software Engineering Intern", "2023-06"),  # a two-line heading stays one entry
     ]
+
+
+# A LaTeX resume in the widely used one-column template: dates and places are set flush right on
+# the entry's own lines.
+LATEX = [(200, 760, "Jordan Example"), (150, 745, "+1 555 0100 | jordan@example.com | linkedin.com/in/jordan-example"),
+         (50, 720, "EDUCATION"),
+         (50, 705, "Example State University"), (500, 705, "Austin, TX"),
+         (50, 692, "Bachelor of Science in Computer Science"), (470, 692, "Aug. 2023 – May 2027"),
+         (50, 670, "EXPERIENCE"),
+         (50, 655, "Software Engineering Intern"), (470, 655, "Jun 2024 – Aug 2024"),
+         (50, 642, "Sample Analytics"), (500, 642, "Remote"),
+         (60, 628, "• Built a Flask REST API that served reporting data to 1,200 internal users"),
+         (60, 615, "• Added PostgreSQL indexes that cut report time by 35%"),
+         (50, 595, "PROJECTS"),
+         (50, 580, "TaskBot | Python, SQLite"), (470, 580, "Nov 2023 – Feb 2024"),
+         (60, 566, "• Created a chat bot that tracks team tasks"),
+         (50, 545, "TECHNICAL SKILLS"),
+         (50, 530, "Languages: Python, SQL, JavaScript"),
+         (50, 517, "Developer Tools: Git, Docker")]
+
+
+def test_dates_and_places_set_flush_right_are_read_apart():
+    draft = read(layout_pdf_bytes([LATEX]))
+    (school,) = draft["education"]
+    assert (school["institution"], school["degree"], school["field"], school["start"], school["end"]) == (
+        "Example State University", "Bachelor of Science", "Computer Science", "2023-08", "2027-05")
+    (job,) = draft["experience"]
+    assert (job["organization"], job["title"], job["location"], job["start"], job["end"]) == (
+        "Sample Analytics", "Software Engineering Intern", "Remote", "2024-06", "2024-08")
+    (project,) = draft["projects"]
+    assert (project["name"], project["start"], project["end"]) == ("TaskBot", "2023-11", "2024-02")
+
+
+def justified(words: list[str], y: float, gap: float = 6.0) -> list[tuple[float, float, str]]:
+    """Words drawn one by one with widened spaces, as a justified line is (Helvetica 10 pt widths)."""
+    widths = {"S": 667, "t": 278, "u": 556, "d": 556, "e": 556, "n": 556, "w": 722, "h": 556, "o": 556, "b": 556,
+              "i": 222, "l": 222, "s": 500, "a": 556, "c": 500, "k": 500, "r": 333, "v": 500, ".": 278}
+    x, items = 50.0, []
+    for word in words:
+        items.append((x, y, word))
+        x += sum(widths[ch] for ch in word) / 100 + gap  # a normal space is 2.78 pt
+    return items
+
+
+def test_a_justified_paragraph_is_not_split():
+    lines = [(50, 750, "Jordan Example"), (50, 730, "SUMMARY"),
+             *justified("Student who builds backend services.".split(), 715),
+             (50, 700, "SKILLS"), (50, 685, "Python")]
+    assert read(layout_pdf_bytes([lines]))["summary"] == "Student who builds backend services."
