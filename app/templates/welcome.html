@@ -11,7 +11,7 @@
 {% if error %}<p class="notice warn" role="alert" tabindex="-1" data-focus>{{ error }}</p>{% endif %}
 {% include "_sample_banner.html" %}
 
-<section aria-labelledby="start-title">
+<section class="start" aria-labelledby="start-title">
   <h2 id="start-title">{{ 'How would you like to start?' if not candidate else 'Pick up where you left off' }}</h2>
   <div class="start-options">
     <article class="card start-option">

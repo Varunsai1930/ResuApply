@@ -948,3 +948,17 @@ details.card[open] summary::after { content: " −"; }
   .theme-toggle svg { transition-property: opacity, scale, filter; }
   .theme-toggle[aria-pressed="true"] .icon-moon, .theme-toggle[aria-pressed="false"] .icon-sun { scale: 0.25; filter: blur(4px); }
 }
+
+/* Entrances, run once on page load and only where they are rare: the welcome page arrives in
+   order (eyebrow, title, lead, then the ways to start), and a success message rises into place.
+   The hidden state lives only in the keyframe, so content stays visible if no animation runs.
+   Reduced motion keeps the fade and drops the rise and blur. */
+.welcome-hero > *, .welcome-hero ~ .start, .flash { animation: enter-fade 300ms ease-out both; }
+.welcome-hero > :nth-child(2) { animation-delay: 100ms; }
+.welcome-hero > :nth-child(3) { animation-delay: 200ms; }
+.welcome-hero ~ .start { animation-delay: 300ms; }
+@media (prefers-reduced-motion: no-preference) {
+  .welcome-hero > *, .welcome-hero ~ .start, .flash { animation-name: enter-rise; }
+}
+@keyframes enter-fade { from { opacity: 0; } }
+@keyframes enter-rise { from { opacity: 0; translate: 0 12px; filter: blur(4px); } }
