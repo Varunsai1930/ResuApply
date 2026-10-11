@@ -412,11 +412,15 @@ def _sentence(text: str) -> bool:
 _NEXT_CATEGORY = re.compile(r"\s*[;|]\s*(?=[A-Z][\w &/+.-]{0,30}:)")
 
 
-def _split_list(text: str) -> list[str]:
+NESTING = 2  # bracket groups opened inside a skills item at most this deep; deeper ones stay text
+
+
+def _split_list(text: str, nesting: int = 0) -> list[str]:
     """A list split at commas, semicolons, bars and dots, but not inside brackets: "Python (Pandas, NumPy)" stays whole.
 
-    A bracket group too long to be one skill's name is read as its head and its items, and a bracket
-    that never closes doesn't hold back the rest of the line.
+    A bracket group too long to be one skill's name is read as its head and its items, at most
+    ``NESTING`` groups deep (deeper ones stay text, too long to be a skill), and a bracket that never
+    closes doesn't hold back the rest of the line.
     """
     items, depth, current = [], 0, []
     for ch in text:
@@ -432,8 +436,8 @@ def _split_list(text: str) -> list[str]:
     out = []
     for item in (item.strip() for item in items):
         head, bracket, inner = item.partition("(")
-        if bracket and len(item) > 60:
-            out += [head.strip(), *_split_list(inner.rsplit(")", 1)[0])]
+        if bracket and len(item) > 60 and nesting < NESTING:
+            out += [head.strip(), *_split_list(inner.rsplit(")", 1)[0], nesting + 1)]
         else:
             out.append(item)
     return out

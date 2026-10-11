@@ -711,3 +711,11 @@ def test_a_word_style_based_on_itself_doesnt_hang_the_import():
     reader.join(timeout=5)
     assert not reader.is_alive(), "the import is stuck following the style chain"
     assert [s["name"] for s in result["draft"]["skills"]] == ["Python", "SQL"]
+
+
+def test_deeply_nested_brackets_in_skills_are_read_as_text():
+    text = "Jordan Example\n\nSKILLS\na" + "(" * 3000 + "x" * 70 + ")" * 3000 + ", Python\n"
+    assert [s["name"] for s in draft_profile(text)["skills"]] == ["a", "Python"]  # the rest is too deep: text
+    assert [s["name"] for s in draft_profile("Jordan Example\n\nSkills\nPython (Pandas (DataFrames, Series), NumPy, "
+                                             "SciPy, Matplotlib, Seaborn, scikit-learn), Go\n")["skills"]][:3] == [
+        "Python", "Pandas (DataFrames, Series)", "NumPy"]

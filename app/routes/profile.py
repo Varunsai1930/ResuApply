@@ -293,7 +293,12 @@ async def import_resume(request: Request, session: Session = Depends(get_session
         text = await run_in_threadpool(resume_import.extract_text, data)
     except resume_import.ResumeImportError as exc:
         return _render_import(request, candidate, error=str(exc), status_code=422)
-    draft = await run_in_threadpool(resume_draft.draft_profile, text)  # plain CPU work, kept off the event loop
+    try:
+        draft = await run_in_threadpool(resume_draft.draft_profile, text)  # plain CPU work, kept off the event loop
+    except RecursionError:  # text nested deeper than the layout rules follow
+        return _render_import(request, candidate, status_code=422,
+                              error="This resume's text couldn't be read into the profile form. Fill in the "
+                                    "profile form yourself, or save the resume again as a simpler PDF or Word file.")
     name = ((file.filename if file else "") or "your resume").rsplit("/", 1)[-1].rsplit("\\", 1)[-1][:200]
     if candidate is None:
         return _render_form(request, draft, imported={"filename": name, "added": None, "text": text})

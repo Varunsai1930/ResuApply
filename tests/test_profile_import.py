@@ -159,3 +159,15 @@ def test_an_upload_over_the_limit_is_refused_before_it_is_read(client, monkeypat
     assert response.status_code == 413 and "over 10 MB" in response.text
     assert read == []  # refused from its Content-Length, before the body was spooled
     assert candidates(client) == 0
+
+
+def test_a_resume_too_deeply_nested_to_draft_says_so(client, monkeypatch):
+    from app.services import resume_draft
+
+    def too_deep(text):
+        raise RecursionError("maximum recursion depth exceeded")
+
+    monkeypatch.setattr(resume_draft, "draft_profile", too_deep)
+    response = upload(client, pdf_bytes(LINES))
+    assert response.status_code == 422 and "couldn&#39;t be read into the profile form" in response.text
+    assert candidates(client) == 0
