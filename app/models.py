@@ -18,6 +18,7 @@ from .db import Base, PydanticJSON, UTCDateTime, utcnow
 from .schemas.package import (
     Answer, AnswerDraft, Approval, Question, SubmittedSnapshot, stored_approval, stored_snapshots,
 )
+from .schemas.posting_import import PostingImport
 from .schemas.profile import Profile
 from .schemas.requirements import EvidenceLink, Override, Requirement
 from .schemas.resume import ResumePackage, ResumeRecord
@@ -63,6 +64,9 @@ class Job(Base):
     questions: Mapped[list[Question]] = mapped_column(PydanticJSON(list[Question]), default=list)
     # Highest question number ever issued ("q4" -> 4), so removed question IDs are never reused.
     question_counter: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
+    # Where the job was imported from (a Greenhouse posting) and each imported question's form field.
+    # None for a job entered by hand. Its own column, so older versions read the database as before.
+    posting_import: Mapped[PostingImport | None] = mapped_column(PydanticJSON(PostingImport), nullable=True)
     # A job "Load sample data" added; removed with the sample data.
     sample: Mapped[bool] = mapped_column(Boolean, default=False, server_default="0")
     created_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utcnow)
