@@ -1,0 +1,312 @@
+"""A draft profile from a resume's text, read locally by layout rules. Nothing is sent anywhere.
+
+The draft only fills the profile form: the user checks every field and the usual review step
+shows each change before anything is saved. The rules are deliberately plain:
+
+- contact details come from the lines before the first section heading;
+- known headings (Summary, Education, Experience, Projects, Skills, Certifications) split the rest;
+- in Education, Experience and Projects, a line starting with a bullet mark is a bullet, and other
+  lines are an entry's heading, from which dates and the parts between separators are read;
+- skills are read as "Category: a, b" lines or plain lists.
+
+A heading the rules don't know ends the section before it, so its lines are left out rather
+than put in the wrong place; the extracted text stays on screen for the user to copy from.
+An existing profile is never overwritten: ``merge`` only fills empty fields and adds entries,
+skills and certifications it doesn't already have.
+"""
+
+from __future__ import annotations
+
+import copy
+import re
+from dataclasses import dataclass, field
+
+from .profile import LINK_KEYS
+from .skills import canon
+
+# ---------------------------------------------------------------- headings
+
+_HEADINGS = {
+    "summary": ("summary", "professional summary", "profile", "objective", "about me", "about"),
+    "education": ("education", "academic background", "education and training"),
+    "experience": ("experience", "work experience", "professional experience", "employment",
+                   "employment history", "work history", "internships", "relevant experience"),
+    "projects": ("projects", "personal projects", "selected projects", "academic projects", "technical projects"),
+    "skills": ("skills", "technical skills", "core skills", "skills and tools", "technologies",
+               "tools and technologies", "skills and technologies"),
+    "certifications": ("certifications", "certificates", "licenses and certifications", "certifications and licenses"),
+}
+_HEADING_OF = {name: section for section, names in _HEADINGS.items() for name in names}
+
+
+def _heading(line: str) -> str | None:
+    """The section a heading line starts ("other" for an unknown one), or None for any other line."""
+    key = re.sub(r"\s+", " ", line.strip().rstrip(":").replace("&", "and")).lower()
+    if key in _HEADING_OF:
+        return _HEADING_OF[key]
+    words = line.split()
+    if 0 < len(words) <= 4 and line.isupper() and not re.search(r"[@\d|•]", line):
+        return "other"  # a short ALL-CAPS line: a heading the rules don't know (AWARDS, VOLUNTEERING)
+    return None
+
+
+# ---------------------------------------------------------------- contact details
+
+_EMAIL = re.compile(r"[\w.+-]+@[\w-]+(?:\.[\w-]+)+")
+_PHONE = re.compile(r"\+?\(?\d[\d\s().-]{7,}\d")
+_LINK = re.compile(r"(?:https?://)?(?:www\.)?(linkedin\.com|github\.com)/[^\s|,•·]+", re.I)
+_URL = re.compile(r"(?:https?://|www\.)[^\s|,•·]+", re.I)
+# "Austin, TX", "Toronto, Canada", or a work mode. Only the work modes ignore case: "Python, SQL" is no place.
+_LOCATION = re.compile(r"[A-Z][A-Za-z .'-]+, (?:[A-Z]{2}|[A-Z][a-z]+(?: [A-Z][a-z]+)*)|(?i:remote|hybrid|on-?site)")
+_YEARS = re.compile(r"\d{4}\s*[-–—]\s*\d{4}")  # a date range, not a phone number
+_SEPARATORS = re.compile(r"\s*(?:\||•|·|–|—|\s-\s)\s*")
+
+
+def _contact(lines: list[str]) -> dict:
+    contact: dict = {"name": "", "email": "", "phone": "", "location": "", "links": {k: "" for k in LINK_KEYS}}
+    for line in lines:
+        rest = line
+        if not contact["email"] and (m := _EMAIL.search(rest)):
+            contact["email"], rest = m.group(0), rest.replace(m.group(0), " ")
+        for m in _LINK.finditer(rest):
+            key = "linkedin" if m.group(1).lower().startswith("linkedin") else "github"
+            contact["links"][key] = contact["links"][key] or re.sub(r"^(?:https?://)?(?:www\.)?", "", m.group(0))
+        rest = _LINK.sub(" ", rest)
+        if not contact["links"]["portfolio"] and (m := _URL.search(rest)):
+            contact["links"]["portfolio"], rest = m.group(0), rest.replace(m.group(0), " ")
+        if (not contact["phone"] and (m := _PHONE.search(rest)) and not _YEARS.fullmatch(m.group(0).strip())
+                and 8 <= len(re.sub(r"\D", "", m.group(0))) <= 15):
+            contact["phone"], rest = m.group(0).strip(), rest.replace(m.group(0), " ")
+        for part in _SEPARATORS.split(rest):
+            part = part.strip(" ,")
+            if not part:
+                continue
+            if not contact["location"] and _LOCATION.fullmatch(part):
+                contact["location"] = part
+            elif (not contact["name"] and re.fullmatch(r"[A-Za-zÀ-ÿ.'-]+(?: [A-Za-zÀ-ÿ.'-]+){1,3}", part)
+                  and part[0].isupper()):
+                contact["name"] = part
+    return contact
+
+
+# ---------------------------------------------------------------- dates
+
+_MONTHS = {m: i for i, m in enumerate(("jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec"), 1)}
+_DATE = (r"(?:(?:jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec)[a-z]*\.?\s+\d{4}"
+         r"|\d{1,2}/\d{4}|\d{4}-\d{2}|\d{4})")
+_RANGE = re.compile(rf"({_DATE})\s*(?:-|–|—|to)\s*({_DATE}|present|current|now)", re.I)
+_SINGLE = re.compile(rf"(?:expected\s+|anticipated\s+)?({_DATE})", re.I)
+
+
+def _date(text: str) -> str:
+    """A date as the profile stores it: YYYY-MM or YYYY, or "present"."""
+    text = text.strip().lower()
+    if text in ("present", "current", "now"):
+        return "present"
+    if m := re.fullmatch(r"([a-z]+)\.?\s+(\d{4})", text):
+        month = _MONTHS.get(m.group(1)[:3])
+        return f"{m.group(2)}-{month:02d}" if month else m.group(2)
+    if m := re.fullmatch(r"(\d{1,2})/(\d{4})", text):
+        return f"{m.group(2)}-{int(m.group(1)):02d}" if 1 <= int(m.group(1)) <= 12 else m.group(2)
+    return text
+
+
+def _dates(text: str, single_is_end: bool) -> tuple[str, str, str]:
+    """(start, end, text without the dates)."""
+    if m := _RANGE.search(text):
+        return _date(m.group(1)), _date(m.group(2)), text[:m.start()] + " " + text[m.end():]
+    if m := _SINGLE.search(text):
+        value = _date(m.group(1))
+        rest = text[:m.start()] + " " + text[m.end():]
+        return ("", value, rest) if single_is_end else (value, "", rest)
+    return "", "", text
+
+
+def _parts(text: str) -> list[str]:
+    text = re.sub(r"\(\s*\)", " ", text)
+    return [p.strip(" ,()") for p in _SEPARATORS.split(text) if p.strip(" ,()")]
+
+
+# ---------------------------------------------------------------- entries
+
+_BULLET = re.compile(r"^[•\-*–▪●◦‣·]\s+")
+_ROLE = re.compile(r"\b(intern|engineer|developer|analyst|assistant|manager|researcher|scientist|designer|"
+                   r"consultant|lead|associate|fellow|coordinator|specialist|tutor|teaching|technician|founder)\b", re.I)
+_SCHOOL = re.compile(r"\b(university|college|institute|school|academy|polytechnic)\b", re.I)
+# Long forms first, and an abbreviation must end the word: "Bachelor" is not "B.A." followed by "chelor".
+_DEGREE = re.compile(r"\b(Bachelor(?:'s)?(?: of [A-Z][a-z]+)?|Master(?:'s)?(?: of [A-Z][a-z]+)?|Associate(?:'s)?|"
+                     r"Ph\.?D\.?|MBA|B\.?Sc\.?|B\.?Eng\.?|M\.?Sc\.?|M\.?Eng\.?|B\.?S\.?|B\.?A\.?|M\.?S\.?|M\.?A\.?)"
+                     r"(?![A-Za-z])", re.I)
+_GPA = re.compile(r"\bGPA:?\s*(\d\.\d{1,2})(?:\s*/\s*\d\.\d{1,2})?", re.I)
+
+
+@dataclass
+class _Entry:
+    heading: list[str] = field(default_factory=list)
+    bullets: list[str] = field(default_factory=list)
+
+
+def _entries(lines: list[str]) -> list[_Entry]:
+    entries: list[_Entry] = []
+    for line in lines:
+        if m := _BULLET.match(line):
+            if not entries:
+                entries.append(_Entry())
+            entries[-1].bullets.append(line[m.end():].strip())
+        elif entries and entries[-1].bullets and line[:1].islower():
+            entries[-1].bullets[-1] += " " + line  # a bullet that wrapped onto the next line
+        elif not entries or entries[-1].bullets:
+            entries.append(_Entry([line]))
+        else:
+            entries[-1].heading.append(line)
+    return entries
+
+
+def _bullets(entry: _Entry) -> list[dict]:
+    return [{"id": "", "text": text} for text in entry.bullets if text]
+
+
+def _experience(entry: _Entry) -> dict:
+    start, end, rest = _dates(" | ".join(entry.heading), single_is_end=False)
+    parts = _parts(rest)
+    location = next((p for p in parts if _LOCATION.fullmatch(p)), "")
+    parts = [p for p in parts if p != location]
+    title = next((p for p in parts if _ROLE.search(p)), "")
+    others = [p for p in parts if p != title]
+    if not title and len(others) > 1:
+        title = others.pop(1)
+    return {"id": "", "organization": others[0] if others else title, "title": title if others else "",
+            "location": location, "start": start, "end": end, "technologies": [], "bullets": _bullets(entry)}
+
+
+def _education(entry: _Entry) -> dict:
+    heading = " | ".join(entry.heading)
+    gpa = m.group(1) if (m := _GPA.search(heading)) else ""
+    heading = _GPA.sub(" ", heading)
+    start, end, rest = _dates(heading, single_is_end=True)
+    parts = _parts(rest)
+    institution = next((p for p in parts if _SCHOOL.search(p)), parts[0] if parts else "")
+    degree, field_ = "", ""
+    for part in parts:
+        if part != institution and (m := _DEGREE.search(part)):
+            degree = m.group(0)
+            field_ = re.sub(r"^\s*(?:in|of)\s+|^[,\s]+", "", part[m.end():]).strip(" ,")
+            break
+    return {"id": "", "institution": institution, "degree": degree, "field": field_, "start": start, "end": end,
+            "gpa": gpa, "bullets": _bullets(entry)}
+
+
+def _project(entry: _Entry) -> dict:
+    start, end, rest = _dates(" | ".join(entry.heading), single_is_end=False)
+    link = m.group(0) if (m := _URL.search(rest) or _LINK.search(rest)) else ""
+    parts = [p for p in _parts(rest.replace(link, " ")) if p]
+    return {"id": "", "name": parts[0] if parts else "", "role": parts[1] if len(parts) > 1 else "",
+            "link": re.sub(r"^(?:https?://)?(?:www\.)?", "", link), "start": start, "end": end,
+            "technologies": [], "bullets": _bullets(entry)}
+
+
+def _skills(lines: list[str]) -> list[dict]:
+    skills, seen = [], set()
+    for line in lines:
+        line = _BULLET.sub("", line)
+        category, sep, names = line.partition(":")
+        if not sep:
+            category, names = "Skills", line
+        for name in re.split(r"\s*[,;|•·]\s*", names):
+            name = name.strip(" .")
+            if name and len(name) <= 60 and canon(name) not in seen:
+                seen.add(canon(name))
+                skills.append({"name": name, "category": category.strip() or "Skills"})
+    return skills
+
+
+# ---------------------------------------------------------------- the draft
+
+def sections(text: str) -> dict[str, list[str]]:
+    """The non-empty lines of each section; "header" holds the lines before the first heading."""
+    found: dict[str, list[str]] = {"header": []}
+    current = "header"
+    for line in text.splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        if (section := _heading(line)) is not None:
+            current = section
+            found.setdefault(section, [])
+        else:
+            found.setdefault(current, []).append(line)
+    found.pop("other", None)
+    return found
+
+
+def draft_profile(text: str) -> dict:
+    """A profile in the shape the profile form shows, read from a resume's text."""
+    parts = sections(text)
+    certifications = [{"id": "", "name": _BULLET.sub("", line), "issuer": "", "date": ""}
+                      for line in parts.get("certifications", [])]
+    return {
+        "contact": _contact(parts.get("header", [])[:6]),
+        "summary": " ".join(parts.get("summary", [])),
+        "education": [_education(e) for e in _entries(parts.get("education", []))],
+        "experience": [_experience(e) for e in _entries(parts.get("experience", []))],
+        "projects": [_project(e) for e in _entries(parts.get("projects", []))],
+        "skills": _skills(parts.get("skills", [])),
+        "skills_absent": [],
+        "certifications": certifications,
+        "authorization": [],  # never read from a resume: always the user's own answer
+        "preferences": {},
+        "availability": {},
+    }
+
+
+# ---------------------------------------------------------------- with an existing profile
+
+@dataclass(frozen=True)
+class Merged:
+    data: dict
+    added: list[str]  # what the import adds, for the notice: "2 experience entries", "Phone"
+
+
+_ENTRY_KEY = {"education": "institution", "experience": "organization", "projects": "name"}
+
+
+def _key(value: str) -> str:
+    return re.sub(r"\W+", " ", (value or "").casefold()).strip()
+
+
+def merge(current: dict, draft: dict) -> Merged:
+    """The current profile with the draft's new facts added; nothing it already holds is changed."""
+    data = copy.deepcopy(current)
+    added = []
+    contact = data.setdefault("contact", {})
+    for name, label in (("name", "Name"), ("email", "Email"), ("phone", "Phone"), ("location", "Location")):
+        if not contact.get(name) and draft["contact"].get(name):
+            contact[name] = draft["contact"][name]
+            added.append(label)
+    links = contact.setdefault("links", {})
+    for name in LINK_KEYS:
+        if not links.get(name) and draft["contact"]["links"].get(name):
+            links[name] = draft["contact"]["links"][name]
+            added.append({"linkedin": "LinkedIn", "github": "GitHub", "portfolio": "Portfolio"}[name])
+    if not data.get("summary") and draft["summary"]:
+        data["summary"] = draft["summary"]
+        added.append("Summary")
+    for section, key in _ENTRY_KEY.items():
+        have = {_key(e.get(key, "")) for e in data.get(section) or []}
+        new = [e for e in draft[section] if _key(e.get(key, "")) and _key(e[key]) not in have]
+        data[section] = [*(data.get(section) or []), *new]
+        if new:
+            noun = {"education": "education", "experience": "experience", "projects": "project"}[section]
+            added.append(f"{len(new)} {noun} entr{'ies' if len(new) != 1 else 'y'}"
+                         if section != "projects" else f"{len(new)} project{'s' if len(new) != 1 else ''}")
+    have_skills = {canon(s["name"]) for s in data.get("skills") or []}
+    new_skills = [s for s in draft["skills"] if canon(s["name"]) not in have_skills]
+    data["skills"] = [*(data.get("skills") or []), *new_skills]
+    if new_skills:
+        added.append(f"{len(new_skills)} skill{'s' if len(new_skills) != 1 else ''}")
+    have_certs = {_key(c.get("name", "")) for c in data.get("certifications") or []}
+    new_certs = [c for c in draft["certifications"] if _key(c["name"]) and _key(c["name"]) not in have_certs]
+    data["certifications"] = [*(data.get("certifications") or []), *new_certs]
+    if new_certs:
+        added.append(f"{len(new_certs)} certification{'s' if len(new_certs) != 1 else ''}")
+    return Merged(data, added)
