@@ -533,7 +533,7 @@ class ResolvedAnswer:
 
 
 def resolve_answer(question: Question, answer: Answer | None, draft: AnswerDraft | None,
-                   profile: Profile) -> ResolvedAnswer:
+                   profile: Profile | dict) -> ResolvedAnswer:
     """The current text and label for a question, and whether it is resolved."""
     category = question.category
 
@@ -568,7 +568,7 @@ def resolve_answer(question: Question, answer: Answer | None, draft: AnswerDraft
     return result("", LABELS["missing"], False)
 
 
-def resolve_all(job: Job, application: Application, profile: Profile) -> list[ResolvedAnswer]:
+def resolve_all(job: Job, application: Application, profile: Profile | dict) -> list[ResolvedAnswer]:
     """Every question of the job, resolved against the current profile, in order."""
     answers = {a.question_id: a for a in application.answers}
     drafts = {d.question_id: d for d in application.answer_drafts}

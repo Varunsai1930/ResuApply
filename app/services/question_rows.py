@@ -41,10 +41,15 @@ def _cited(profile_sources: dict, ids: list[str]) -> list[tuple[str, str]]:
 
 
 def rows(session: Session, job: Job, application: Application, candidate: Candidate) -> list[QuestionRow]:
-    """One row per question, in order, resolved against the current profile."""
-    profile_sources = profile_service.sources(candidate.profile)
+    """One row per question, in order, resolved against the current profile.
+
+    The profile is read into a plain dict once: every rule below accepts one, and reading it again
+    for each question and each rule made a long imported form slow to show.
+    """
+    profile = candidate.profile.model_dump()
+    profile_sources = profile_service.sources(profile)
     result = []
-    for item in answer_service.resolve_all(job, application, candidate.profile):
+    for item in answer_service.resolve_all(job, application, profile):
         question, answer, draft = item.question, item.answer, item.draft
         accepted = answer is not None and not answer.skipped
         suggestions = []
@@ -64,10 +69,10 @@ def rows(session: Session, job: Job, application: Application, candidate: Candid
             confirmation_outdated=bool(
                 answer and answer.confirmed and item.value is not None and answer.text != item.value
             ),
-            unsupported=answer_service.answer_problems(job, question, answer, candidate.profile),
+            unsupported=answer_service.answer_problems(job, question, answer, profile),
             replacement=draft is not None and accepted,
             manual_name_part=q_rules.name_part(question.factual_key or "", question.text) is not None,
-            value_note=q_rules.graduation_note(question.factual_key or "", question.text, candidate.profile),
+            value_note=q_rules.graduation_note(question.factual_key or "", question.text, profile),
             confirmation_token=answer_service.confirmation_token(job, question, item.value, candidate),
             draft_token=answer_service.draft_token(job, question, draft) if draft is not None else "",
         ))

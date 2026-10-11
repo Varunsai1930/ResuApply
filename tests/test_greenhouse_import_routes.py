@@ -285,3 +285,26 @@ def test_a_posting_without_questions_offers_none_and_saves_a_plain_job(client, g
     assert saved.headers["location"].endswith("?msg=job_created")  # not "saved with the questions"
     (job,) = jobs(client)
     assert job.questions == [] and job.posting_import is None
+
+
+def test_the_questions_step_reads_the_profile_once_however_many_questions(client, greenhouse, sample_profile,
+                                                                          monkeypatch):
+    from app.schemas.profile import Profile
+    from app.services import question_rows
+    from app.services.profile import get_candidate
+
+    review_and_save(client, profile_form(sample_profile))
+    _import_and_save(client, greenhouse)
+    dumps = []
+    original = Profile.model_dump
+
+    def counted(self, *args, **kwargs):
+        dumps.append(1)
+        return original(self, *args, **kwargs)
+
+    with client.app.state.session_factory() as session:
+        (job,) = session.query(Job).all()
+        candidate = get_candidate(session)
+        monkeypatch.setattr(Profile, "model_dump", counted)
+        rows = question_rows.rows(session, job, job.application, candidate)
+    assert len(rows) == 14 and len(dumps) == 1
