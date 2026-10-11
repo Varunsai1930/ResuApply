@@ -141,3 +141,21 @@ def test_a_justified_paragraph_is_not_split():
              *justified("Student who builds backend services.".split(), 715),
              (50, 700, "SKILLS"), (50, 685, "Python")]
     assert read(layout_pdf_bytes([lines]))["summary"] == "Student who builds backend services."
+
+
+def test_bullet_glyphs_from_word_and_design_tools_are_bullets():
+    bullets = ["▪ Built an API", "● Wrote tests", "➢ Added indexes", " Reviewed code", "✓ Shipped a feature",
+               "■ Planned sprints", "► Led stand-ups", "o Mentored a student", "> Fixed bugs", "– Wrote docs"]
+    draft = draft_profile("Jordan Example\n\nExperience\nSample Analytics | Intern | 2024\n" + "\n".join(bullets))
+    (job,) = draft["experience"]
+    assert [b["text"] for b in job["bullets"]] == [line.split(" ", 1)[1] for line in bullets]
+    pdf = read(layout_pdf_bytes([[(50, 750, "Jordan Example"), (50, 730, "EXPERIENCE"),
+                                  (50, 715, "Sample Analytics | Intern | 2024"),
+                                  (60, 700, " Reviewed code"), (60, 686, "➢ Added indexes")]]))
+    assert [b["text"] for b in pdf["experience"][0]["bullets"]] == ["Reviewed code", "Added indexes"]
+
+
+def test_a_word_that_starts_like_a_bullet_is_not_one():
+    draft = draft_profile("Jordan Example\n\nExperience\nSample Analytics | Intern | 2024\n• Built an API\n"
+                          "Oracle Labs | Analyst | 2025\n• Wrote reports\n")
+    assert [e["organization"] for e in draft["experience"]] == ["Sample Analytics", "Oracle Labs"]

@@ -145,7 +145,10 @@ def _parts(text: str) -> list[str]:
 
 # ---------------------------------------------------------------- entries
 
-_BULLET = re.compile(r"^[•\-*–▪●◦‣·]\s+")
+# Bullet marks as resumes' text gives them: dots, dashes, squares, arrows and ticks, Word's Symbol and
+# Wingdings bullets (private-use characters such as U+F0B7 when a PDF has no Unicode for them), and the
+# "o" and ">" of a second-level list. Each must be followed by a space; an "o" only before a capital.
+_BULLET = re.compile(r"^(?:[•\-*–—▪●◦‣·■□◆◇○►▶▸➢➤→✓✔❖\uf0a7\uf0b7\uf076\uf0d8\uf0fc\uf0a8>]|o(?= +[A-Z]))\s+")
 _ROLE = re.compile(r"\b(intern|engineer|developer|analyst|assistant|manager|researcher|scientist|designer|"
                    r"consultant|lead|associate|fellow|coordinator|specialist|tutor|teaching|technician|founder)\b", re.I)
 _SCHOOL = re.compile(r"\b(university|college|institute|school|academy|polytechnic)\b", re.I)
