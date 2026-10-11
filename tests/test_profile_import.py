@@ -100,3 +100,24 @@ def test_the_file_name_and_text_are_escaped(client):
 def test_only_the_files_own_name_is_shown(client):
     page = upload(client, pdf_bytes(LINES), name="C:\\Users\\someone\\Documents\\cv.pdf").text
     assert "Read from cv.pdf." in page and "someone" not in page  # an old browser's full path is cut
+
+
+def test_the_text_read_from_the_resume_stays_through_review_and_back(client):
+    fields = form_fields(upload(client, pdf_bytes(LINES)).text)
+    refused = client.post("/profile/review", data=fields | {"experience-0-end": "2024-01"})  # ends before it starts
+    assert refused.status_code == 422
+    assert "Read from resume.pdf" in refused.text and "Dean&#39;s List 2024" in refused.text
+    review = client.post("/profile/review", data=form_fields(refused.text) | {"experience-0-end": "2024-08"})
+    assert review.status_code == 200, review.text
+    back = client.post("/profile/edit", data={"payload": hidden(review.text, "payload"),
+                                              "imported": hidden(review.text, "imported")})
+    assert back.status_code == 200
+    assert "Read from resume.pdf" in back.text and "Dean&#39;s List 2024" in back.text
+    assert "add your work authorization yourself" in back.text
+
+
+def test_a_damaged_carried_import_note_is_left_out(client):
+    fields = form_fields(upload(client, pdf_bytes(LINES)).text)
+    for damaged in ("not json", '{"filename": 1}', '["text"]', '{"filename": "a", "text": "b", "added": [1]}'):
+        page = client.post("/profile/review", data=fields | {"imported": damaged, "experience-0-end": "2024-01"})
+        assert page.status_code == 422 and "Read from" not in page.text

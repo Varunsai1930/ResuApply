@@ -49,6 +49,7 @@
     <input type="hidden" name="payload" value="{{ payload }}">
     {% if section %}<input type="hidden" name="section" value="{{ section.value }}">
     <input type="hidden" name="opened_revision" value="{{ opened_revision if opened_revision is not none else '' }}">{% endif %}
+    {% if imported %}<input type="hidden" name="imported" value="{{ imported }}">{% endif %}
     <button type="submit" class="btn-secondary">Back to editing</button>
   </form>
   {% if not result.has_changes %}<a class="btn-link" href="/profile">Back to profile</a>{% endif %}

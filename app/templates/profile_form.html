@@ -36,6 +36,7 @@
 <form method="post" action="/profile/review" class="profile-form" data-guard novalidate>
   {% if section %}<input type="hidden" name="section" value="{{ section.value }}">
   <input type="hidden" name="opened_revision" value="{{ opened_revision if opened_revision is not none else '' }}">{% endif %}
+  {% if imported %}<input type="hidden" name="imported" value="{{ imported | tojson | forceescape }}">{% endif %}
   <section class="card"{{ shown('contact') }}>
     <h2>Contact</h2>
     <div class="grid">

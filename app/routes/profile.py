@@ -125,6 +125,20 @@ def _render_form(request: Request, data: dict, errors=(), warnings=(), status_co
     )
 
 
+def _imported_of(raw: object) -> dict | None:
+    """The import note carried through review as a hidden field, or None when missing or damaged."""
+    try:
+        note = json.loads(raw) if isinstance(raw, str) and raw else None
+    except (json.JSONDecodeError, RecursionError):
+        return None
+    if not (isinstance(note, dict) and isinstance(note.get("filename"), str) and isinstance(note.get("text"), str)):
+        return None
+    added = note.get("added")
+    if added is not None and not (isinstance(added, list) and all(isinstance(a, str) for a in added)):
+        return None
+    return {"filename": note["filename"][:200], "added": added, "text": note["text"][:resume_import.MAX_CHARS]}
+
+
 def _load_payload(payload: object) -> dict:
     try:
         data = json.loads(payload) if isinstance(payload, str) else None
@@ -163,7 +177,8 @@ async def back_to_edit(request: Request):
     """Return from the review page to the form without losing the proposed edits."""
     form = await read_form(request)
     return _render_form(request, _load_payload(form.get("payload")), section=_section_of(form.get("section")),
-                        opened_revision=_revision_of(form.get("opened_revision")))
+                        opened_revision=_revision_of(form.get("opened_revision")),
+                        imported=_imported_of(form.get("imported")))
 
 
 @router.post("/review", response_class=HTMLResponse)
@@ -171,8 +186,9 @@ async def review_profile(request: Request, session: Session = Depends(get_sessio
     form = await read_form(request)
     section = _section_of(form.get("section"))
     opened = _revision_of(form.get("opened_revision"))
+    imported = _imported_of(form.get("imported"))
     data = parse_form((k, v) for k, v in form.multi_items()
-                      if isinstance(v, str) and k not in ("section", "opened_revision"))
+                      if isinstance(v, str) and k not in ("section", "opened_revision", "imported"))
     candidate = profile_service.get_candidate(session)
     if section and candidate and opened != candidate.revision:
         # The other sections were posted as they were when the editor opened. The profile has
@@ -188,7 +204,7 @@ async def review_profile(request: Request, session: Session = Depends(get_sessio
         result = profile_service.review(session, data)
     except profile_service.ProfileInvalid as exc:
         return _render_form(request, data, exc.errors, exc.warnings, status_code=422, section=section,
-                            opened_revision=opened)
+                            opened_revision=opened, imported=imported)
     return templates.TemplateResponse(
         request,
         "profile_review.html",
@@ -197,6 +213,7 @@ async def review_profile(request: Request, session: Session = Depends(get_sessio
             "payload": json.dumps(data),
             "section": section,
             "opened_revision": opened,
+            "imported": json.dumps(imported) if imported else "",
             "active": "profile",
         },
     )
