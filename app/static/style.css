@@ -57,8 +57,10 @@
   --warn-border: var(--unknown);
 }
 
+/* Dark colours: the system setting, unless the header toggle chose one (data-theme on <html>).
+   The two blocks must stay identical; tests/test_theme.py checks that. */
 @media (prefers-color-scheme: dark) {
-  :root {
+  :root:not([data-theme="light"]) {
     --paper: #121315;
     --surface: #1a1b1e;
     --well: #16171a;
@@ -83,6 +85,32 @@
     --progress: #7fa7d6;
     color-scheme: dark;
   }
+}
+
+:root[data-theme="dark"] {
+  --paper: #121315;
+  --surface: #1a1b1e;
+  --well: #16171a;
+  --ink: #e9e7e2;
+  --ink-2: #b6b3ad;
+  --ink-3: #8d8a85;
+  --rule: #2b2d31;
+  --rule-strong: #3d4045;
+
+  --accent: #a9bfdc;
+  --accent-hover: #c3d3e8;
+  --accent-ink: #10151d;
+  --accent-wash: #1d2531;
+
+  --met: #8fc79a;
+  --met-wash: #1a271d;
+  --unmet: #ec9a87;
+  --unmet-wash: #2d1c18;
+  --unknown: #d9b768;
+  --unknown-wash: #2a2416;
+  --neutral-dot: #6d7077;
+  --progress: #7fa7d6;
+  color-scheme: dark;
 }
 
 /* ------------------------------------------------------------------ base */
@@ -149,6 +177,13 @@ nav a[aria-current="page"] { color: var(--ink); border-bottom-color: var(--ink);
   margin-left: auto; display: flex; align-items: center; gap: 7px;
   color: var(--ink-3); font-size: 0.8rem; white-space: nowrap;
 }
+.theme-toggle {
+  display: flex; align-items: center; justify-content: center; align-self: center;
+  width: 40px; height: 40px; margin-left: -20px; padding: 0;
+  border: 1px solid transparent; border-radius: var(--radius-sm); background: none; color: var(--ink-3);
+}
+.theme-toggle:hover { color: var(--ink); border-color: var(--rule); }
+.theme-toggle[aria-pressed="true"] .icon-moon, .theme-toggle[aria-pressed="false"] .icon-sun { display: none; }
 .local-badge::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: var(--met); }
 
 /* main also has .wrap, whose padding shorthand would otherwise zero these out. */
