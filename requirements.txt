@@ -1,4 +1,6 @@
 # Runtime dependencies for ResuApply (Python 3.12). Pinned, including transitive packages.
+# cryptography lets pypdf read PDFs encrypted with AES (often with an empty password, only to restrict copying).
+cryptography==50.0.2
 fastapi==0.142.2
 httpx==0.28.1
 jinja2==3.1.6
@@ -15,6 +17,7 @@ annotated-doc==0.0.5
 annotated-types==0.8.0
 anyio==4.15.1
 certifi==2026.7.22
+cffi==2.1.1
 click==8.5.0
 h11==0.16.0
 httpcore==1.0.9
@@ -22,6 +25,7 @@ idna==3.20
 lxml==6.1.3
 markupsafe==3.0.4
 opentelemetry-api==1.45.1
+pycparser==3.11
 pydantic-core==2.46.5
 python-dotenv==1.2.4
 starlette==1.7.0

@@ -75,3 +75,35 @@ def test_control_characters_and_extra_spaces_are_removed():
 
     text = _tidy("Jordan\x00 Example\x0b  Austin,\tTX\r\n\n\n\n Skills:\u00a0Python ")
     assert text == "Jordan Example\nAustin, TX\n\nSkills: Python"
+
+
+def aes_pdf_bytes(lines: list[str], password: str = "") -> bytes:
+    from pypdf import PdfReader, PdfWriter
+
+    writer = PdfWriter()
+    writer.append(PdfReader(io.BytesIO(pdf_bytes(lines))))
+    writer.encrypt(password, owner_password="owner", algorithm="AES-256")
+    out = io.BytesIO()
+    writer.write(out)
+    return out.getvalue()
+
+
+def test_an_aes_pdf_with_an_empty_password_is_read():
+    assert [line for line in extract_text(aes_pdf_bytes(LINES)).splitlines() if line] == LINES
+
+
+def test_an_aes_pdf_with_a_password_asks_for_a_copy_without_one():
+    with pytest.raises(ResumeImportError, match="password-protected"):
+        extract_text(aes_pdf_bytes(LINES, password="secret"))
+
+
+def test_any_other_pdf_reader_error_is_reported_as_unreadable(monkeypatch):
+    import pypdf
+    from pypdf.errors import DependencyError
+
+    def fail(*args, **kwargs):
+        raise DependencyError("some optional dependency is missing")
+
+    monkeypatch.setattr(pypdf, "PdfReader", fail)
+    with pytest.raises(ResumeImportError, match="couldn't be read"):
+        extract_text(pdf_bytes(LINES))

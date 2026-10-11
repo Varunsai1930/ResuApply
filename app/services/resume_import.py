@@ -41,7 +41,7 @@ def file_kind(data: bytes) -> str | None:
 
 def _pdf_text(data: bytes) -> str:
     from pypdf import PdfReader
-    from pypdf.errors import PdfReadError
+    from pypdf.errors import DependencyError, PyPdfError
 
     try:
         reader = PdfReader(io.BytesIO(data))
@@ -53,7 +53,8 @@ def _pdf_text(data: bytes) -> str:
         return "\n".join(page.extract_text() or "" for page in reader.pages[:MAX_PAGES])
     except ResumeImportError:
         raise
-    except (PdfReadError, ValueError, KeyError, TypeError, AttributeError, RecursionError, NotImplementedError) as exc:
+    # PyPdfError is pypdf's own base error; DependencyError (a missing optional package) is not one.
+    except (PyPdfError, DependencyError, ValueError, KeyError, TypeError, AttributeError, RecursionError, NotImplementedError) as exc:
         raise ResumeImportError("This PDF couldn't be read. It may be damaged; try saving it again as a PDF.") from exc
 
 
