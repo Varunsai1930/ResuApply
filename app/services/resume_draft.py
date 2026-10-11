@@ -602,5 +602,10 @@ def merge(current: dict, draft: dict) -> Merged:
     have_skills |= {canon(name) for name in data.get("skills_absent") or []}
     add("skills", [s for s in draft["skills"] if canon(s["name"]) not in have_skills])
     have_certs = {_key(c.get("name", "")) for c in data.get("certifications") or []}
-    add("certifications", [c for c in draft["certifications"] if _key(c["name"]) and _key(c["name"]) not in have_certs])
+    new_certs = []
+    for cert in draft["certifications"]:
+        if (key := _key(cert["name"])) and key not in have_certs:
+            have_certs.add(key)  # a certification the resume lists twice is added once
+            new_certs.append(cert)
+    add("certifications", new_certs)
     return Merged(data, added)

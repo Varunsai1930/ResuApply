@@ -262,3 +262,12 @@ def test_merge_never_adds_a_skill_the_profile_says_you_dont_have():
     assert "Docker" not in [s["name"] for s in merged.data["skills"]]
     assert "1 skill" in merged.added  # JavaScript only
     profile_service.normalize(merged.data)  # the review accepts it: no skill is both had and not had
+
+
+def test_merge_adds_a_certification_listed_twice_once():
+    current = profile_service.normalize(copy.deepcopy(SAMPLE_PROFILE)).profile.model_dump()
+    current["certifications"] = []
+    draft = draft_profile("Jordan Example\n\nCertifications\nExample Cloud Practitioner\n• Example cloud practitioner\n")
+    merged = merge(current, draft)
+    assert [c["name"] for c in merged.data["certifications"]] == ["Example Cloud Practitioner"]
+    assert "1 certification" in merged.added
