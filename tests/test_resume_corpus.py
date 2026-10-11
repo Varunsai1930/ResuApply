@@ -382,3 +382,31 @@ Associate of Science, 2023
         "Relevant Coursework: Data Structures, Algorithms, Databases"]
     assert (second["institution"], second["degree"], second["end"], second["bullets"]) == (
         "Example Community College", "Associate", "2023", [])
+
+
+def two_columns(left: list[str], right: list[str], interleaved: bool) -> bytes:
+    """A two-column page: a sidebar at the left, the main column at the right, drawn column after column or
+    line by line across both columns, as different resume builders do."""
+    items = column(left, x=40) + column(right, x=260)
+    if interleaved:
+        items.sort(key=lambda item: (-item[1], item[0]))
+    return layout_pdf_bytes([items])
+
+
+SIDEBAR = ["Jordan Example", "jordan@example.com", "Austin, TX", "SKILLS", "Python, SQL", "Docker",
+           "EDUCATION", "Example State University", "B.S. in Computer Science", "May 2027"]
+MAIN = ["EXPERIENCE", "Sample Analytics | Software Engineering Intern", "Jun 2024 – Aug 2024",
+        "• Built a Flask REST API", "• Added PostgreSQL indexes", "PROJECTS", "TaskBot | Creator",
+        "• Created a chat bot"]
+
+
+def test_a_two_column_pdf_is_read_column_by_column_however_it_is_drawn():
+    for interleaved in (False, True):
+        draft = read(two_columns(SIDEBAR, MAIN, interleaved))
+        assert (draft["contact"]["name"], draft["contact"]["email"], draft["contact"]["location"]) == (
+            "Jordan Example", "jordan@example.com", "Austin, TX"), interleaved
+        assert [s["name"] for s in draft["skills"]] == ["Python", "SQL", "Docker"]
+        assert [(e["institution"], e["end"]) for e in draft["education"]] == [("Example State University", "2027-05")]
+        assert [(e["organization"], e["start"], len(e["bullets"])) for e in draft["experience"]] == [
+            ("Sample Analytics", "2024-06", 2)]
+        assert [p["name"] for p in draft["projects"]] == ["TaskBot"]

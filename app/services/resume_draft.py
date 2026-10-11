@@ -68,6 +68,11 @@ def _named(key: str) -> str | None:
     return None
 
 
+def heading(line: str) -> str | None:
+    """The section a heading line starts, or None: for the import, which finds a page's columns by their headings."""
+    return _heading(line)
+
+
 def _heading(line: str) -> str | None:
     """The section a heading line starts ("other" for one the profile doesn't hold), or None for any other line.
 

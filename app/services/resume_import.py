@@ -11,7 +11,9 @@ import io
 import re
 import zipfile
 import zlib
+from collections import Counter
 
+from .resume_draft import heading
 from .text import clean_text
 
 MAX_BYTES = 10 * 1024 * 1024  # an upload larger than this is refused unread
@@ -66,6 +68,29 @@ def _pdf_text(data: bytes) -> str:
 _GAP = re.compile(r" {8,}")
 
 
+def _columns(layout: str) -> str | None:
+    """A two-column page's text, the left column then the right, or None for a page that isn't one.
+
+    pypdf's layout text puts a column that starts at one position at one character position, with
+    a gutter of spaces before it. A position after a wide gap on several lines, with a gutter on
+    nearly every line that reaches it and a section heading on both sides of it, is a column: a
+    column of dates or places set flush right never holds a heading.
+    """
+    lines = [line.rstrip() for line in layout.splitlines() if line.strip()]
+    starts = Counter(m.start(1) for line in lines for m in re.finditer(r" {4,}(\S)", line))
+    for start, count in starts.most_common(3):
+        if count < 3:
+            break
+        reaching = [line for line in lines if len(line) > start]
+        if sum(line[start - 2:start] == "  " for line in reaching) < 0.9 * len(reaching):
+            continue
+        left = [line[:start].strip() for line in lines]
+        right = [line[start:].strip() for line in lines]
+        if any(heading(part) for part in left if part) and any(heading(part) for part in right if part):
+            return "\n".join([part for part in left if part] + [part for part in right if part])
+    return None
+
+
 def _page_text(page) -> str:
     """A page's text in the PDF's reading order, with text set flush right on a line kept apart.
 
@@ -79,6 +104,8 @@ def _page_text(page) -> str:
         layout = page.extract_text(extraction_mode="layout") or ""
     except Exception:  # only a refinement: the plain text stands on its own
         return plain
+    if (columns := _columns(layout)) is not None:
+        return columns
     gapped = {}
     for line in layout.splitlines():
         parts = [part.strip() for part in _GAP.split(line.strip()) if part.strip()]
