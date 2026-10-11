@@ -145,3 +145,16 @@ Food bank driver
     (job,) = draft["experience"]
     assert (job["organization"], job["title"]) == ("SAMPLE ANALYTICS", "Software Engineering Intern")
     assert "Food bank" not in str(draft)  # a known heading outside the profile still ends the section
+
+
+def test_a_long_line_without_an_email_address_is_read_quickly():
+    import time
+
+    started = time.perf_counter()
+    draft_profile("a" * 100_000 + "\n" + "b." * 50_000 + "@\n\nSkills\nPython")
+    assert time.perf_counter() - started < 1
+
+
+def test_an_email_address_is_still_found_next_to_long_words():
+    assert draft_profile("x" * 300 + " jordan.example+cv@mail.example.co.uk")["contact"]["email"] == (
+        "jordan.example+cv@mail.example.co.uk")

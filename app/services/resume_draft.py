@@ -59,7 +59,9 @@ def _heading(line: str) -> str | None:
 
 # ---------------------------------------------------------------- contact details
 
-_EMAIL = re.compile(r"[\w.+-]+@[\w-]+(?:\.[\w-]+)+")
+# Bounded as addresses are (64 characters before the @, 63 per domain label): unbounded, a long line
+# without an @ took quadratic time, about 17 seconds for 100,000 characters.
+_EMAIL = re.compile(r"(?<![\w.+-])[\w.+-]{1,64}@[\w-]{1,63}(?:\.[\w-]{1,63}){1,8}")
 _PHONE = re.compile(r"\+?\(?\d[\d\s().-]{7,}\d")
 _LINK = re.compile(r"(?:https?://)?(?:www\.)?(linkedin\.com|github\.com)/[^\s|,•·]+", re.I)
 _URL = re.compile(r"(?:https?://|www\.)[^\s|,•·]+", re.I)

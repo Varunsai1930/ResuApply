@@ -121,3 +121,24 @@ def test_a_damaged_carried_import_note_is_left_out(client):
     for damaged in ("not json", '{"filename": 1}', '["text"]', '{"filename": "a", "text": "b", "added": [1]}'):
         page = client.post("/profile/review", data=fields | {"imported": damaged, "experience-0-end": "2024-01"})
         assert page.status_code == 422 and "Read from" not in page.text
+
+
+def test_the_draft_is_read_off_the_event_loop(client, monkeypatch):
+    import asyncio
+
+    from app.services import resume_draft
+
+    on_loop = []
+    original = resume_draft.draft_profile
+
+    def draft(text):
+        try:
+            asyncio.get_running_loop()
+            on_loop.append(True)
+        except RuntimeError:  # a thread-pool worker has no running loop
+            on_loop.append(False)
+        return original(text)
+
+    monkeypatch.setattr(resume_draft, "draft_profile", draft)
+    assert upload(client, pdf_bytes(LINES)).status_code == 200
+    assert on_loop == [False]

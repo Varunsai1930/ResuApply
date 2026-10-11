@@ -276,7 +276,7 @@ async def import_resume(request: Request, file: UploadFile | None = File(None), 
         text = await run_in_threadpool(resume_import.extract_text, data)
     except resume_import.ResumeImportError as exc:
         return _render_import(request, candidate, error=str(exc), status_code=422)
-    draft = resume_draft.draft_profile(text)
+    draft = await run_in_threadpool(resume_draft.draft_profile, text)  # plain CPU work, kept off the event loop
     name = ((file.filename if file else "") or "your resume").rsplit("/", 1)[-1].rsplit("\\", 1)[-1][:200]
     if candidate is None:
         return _render_form(request, draft, imported={"filename": name, "added": None, "text": text})
