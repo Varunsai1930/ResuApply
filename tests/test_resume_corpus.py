@@ -560,3 +560,16 @@ def test_a_skills_line_that_wraps_inside_brackets_keeps_every_skill():
     assert [(s["name"], s["category"]) for s in stray["skills"]] == [
         ("Rust", "Skills"), ("unclosed", "Skills"), ("Kotlin Docker", "Skills"), ("Java", "Languages"),
         ("Go", "Languages")]  # one line is joined at most: the categories after it are still read
+
+
+def test_a_year_and_month_is_not_a_short_year_range():
+    def dates(heading: str) -> tuple[str, str]:
+        (school,) = draft_profile(f"Jordan Example\n\nEducation\n{heading}\n")["education"]
+        return school["start"], school["end"]
+
+    assert dates("Example State University | B.S. Computer Science, 2024-05") == ("", "2024-05")
+    assert dates("Example State University | B.S. Computer Science, Expected 2026-12") == ("", "2026-12")
+    assert dates("Example State University | B.S. Computer Science | 2021–22") == ("2021", "2022")
+    assert dates("Example State University | B.S. Computer Science | 1999–00") == ("1999", "2000")
+    assert dates("Example State University | B.S. Computer Science | 2019 - 20") == ("2019", "2020")
+    assert dates("Example State University | B.S. Computer Science | 2024–05") == ("", "2024")  # no range ends earlier

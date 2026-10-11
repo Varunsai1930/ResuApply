@@ -152,7 +152,7 @@ _SEASON = r"(?:spring|summer|fall|autumn|winter)"
 _DATE = (r"(?:(?:jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec)[a-z]*\.?\s+(?:\d{4}|['’]\d{2}\b)"
          rf"|{_SEASON}\s+\d{{4}}|\d{{1,2}}/\d{{4}}|\d{{4}}-\d{{2}}|\d{{4}})")
 _RANGE = re.compile(rf"({_DATE})\s*(?:-|–|—|to)\s*({_DATE}|present|current|now|ongoing)", re.I)
-_SHORT_RANGE = re.compile(r"\b((?:19|20)\d{2})\s*[-–—]\s*(\d{2})\b(?![/-])")  # "2021–22"
+_SHORT_RANGE = re.compile(r"\b((?:19|20)\d{2})(\s*[-–—]\s*)(\d{2})\b(?![/-])")  # "2021–22"
 _SINGLE = re.compile(rf"(?:expected\s+|anticipated\s+)?({_DATE})", re.I)
 
 
@@ -171,12 +171,26 @@ def _date(text: str) -> str:
     return text
 
 
+def _short_end(start: int, dash: str, short: int) -> int | None:
+    """The year a short range "2021–22" ends in, or None when it isn't one.
+
+    "2024-05", written with a plain hyphen and a month number, is a year and month. Otherwise the
+    range ends in the first year with those last two digits after the start, within ten years:
+    "1999–00" ends in 2000, and "2024–05" ends in no year at all.
+    """
+    if dash == "-" and 1 <= short <= 12:
+        return None
+    century = start // 100 * 100
+    return next((end for end in (century + short, century + 100 + short) if start < end <= start + 10), None)
+
+
 def _dates(text: str, single_is_end: bool) -> tuple[str, str, str]:
     """(start, end, text without the dates)."""
     if m := _RANGE.search(text):
         return _date(m.group(1)), _date(m.group(2)), text[:m.start()] + " " + text[m.end():]
-    if m := _SHORT_RANGE.search(text):
-        return m.group(1), m.group(1)[:2] + m.group(2), text[:m.start()] + " " + text[m.end():]
+    for m in _SHORT_RANGE.finditer(text):
+        if (end := _short_end(int(m.group(1)), m.group(2), int(m.group(3)))) is not None:
+            return m.group(1), str(end), text[:m.start()] + " " + text[m.end():]
     if m := _SINGLE.search(text):
         value = _date(m.group(1))
         rest = text[:m.start()] + " " + text[m.end():]
