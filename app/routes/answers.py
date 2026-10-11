@@ -22,14 +22,14 @@ def bank(request: Request, msg: str = "", q: str = "", sort: Literal["recent", "
          session: Session = Depends(get_session)):
     """The answer bank, searched (``q``: every word in the question or answer) and sorted."""
     query = " ".join(q.split())[:answer_service.BANK_SEARCH_LIMIT]
+    listing = answer_service.bank_listing(session, query, sort)
     entries = [
         {"entry": entry, "use": use, "job": session.get(Job, entry.source_job_id) if entry.source_job_id else None,
          "category": CATEGORY_LABELS.get(entry.category, entry.category)}
-        for entry, use in answer_service.bank_listing(session, query, sort)
+        for entry, use in listing.items
     ]
-    total = len(answer_service.bank_entries(session))
     return templates.TemplateResponse(request, "answers.html", {
-        "entries": entries, "total": total, "query": query, "sort": sort, "sorts": answer_service.BANK_SORTS,
+        "entries": entries, "total": listing.total, "query": query, "sort": sort, "sorts": answer_service.BANK_SORTS,
         "msg": msg, "active": "answers",
     })
 

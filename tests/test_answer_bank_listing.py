@@ -27,7 +27,7 @@ def reuse(client, entry_id, question, text):
 
 def listing(client, query="", sort="recent"):
     with client.app.state.session_factory() as session:
-        return [(e.question, use.jobs) for e, use in answer_service.bank_listing(session, query, sort)]
+        return [(e.question, use.jobs) for e, use in answer_service.bank_listing(session, query, sort).items]
 
 
 def bank_with_three(client, sample_profile):
@@ -104,3 +104,20 @@ def test_new_databases_never_reuse_an_entry_id(client, sample_profile):
         from app.models import AnswerBankEntry
 
         assert [e.id for e in session.query(AnswerBankEntry)] == [2]
+
+
+def test_the_answer_bank_reads_only_what_it_needs(client, sample_profile):
+    from sqlalchemy import event
+
+    bank_with_three(client, sample_profile)
+    engine = client.app.state.session_factory.kw["bind"]
+    statements = []
+    listener = lambda conn, cursor, statement, *args: statements.append(statement)  # noqa: E731
+    event.listen(engine, "before_cursor_execute", listener)
+    try:
+        assert client.get("/answers").status_code == 200
+    finally:
+        event.remove(engine, "before_cursor_execute", listener)
+    app_reads = [s for s in statements if "FROM applications" in s]
+    assert app_reads and not any("submitted_snapshots" in s for s in app_reads)  # no whole applications
+    assert sum("FROM answer_bank" in s and "answer_bank.answer" in s for s in statements) == 1  # entries read once
