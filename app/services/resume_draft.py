@@ -188,12 +188,22 @@ def _experience(entry: _Entry) -> dict:
             "location": location, "start": start, "end": end, "technologies": [], "bullets": _bullets(entry)}
 
 
+def _school_apart(part: str) -> list[str]:
+    """A comma-separated "University, B.S. in Computer Science" as the school and the degree with its field."""
+    pieces = [p.strip() for p in part.split(",") if p.strip()]
+    if len(pieces) < 2 or not _DEGREE.search(part):
+        return [part]
+    schools = [p for p in pieces if _SCHOOL.search(p) and not _DEGREE.search(p)]
+    rest = ", ".join(p for p in pieces if p not in schools)
+    return [*schools, rest] if schools and rest else [part]
+
+
 def _education(entry: _Entry) -> dict:
     heading = " | ".join(entry.heading)
     gpa = m.group(1) if (m := _GPA.search(heading)) else ""
     heading = _GPA.sub(" ", heading)
     start, end, rest = _dates(heading, single_is_end=True)
-    parts = _parts(rest)
+    parts = [piece for part in _parts(rest) for piece in _school_apart(part)]
     institution = next((p for p in parts if _SCHOOL.search(p)), parts[0] if parts else "")
     degree, field_ = "", ""
     for part in parts:

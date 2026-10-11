@@ -158,3 +158,14 @@ def test_a_long_line_without_an_email_address_is_read_quickly():
 def test_an_email_address_is_still_found_next_to_long_words():
     assert draft_profile("x" * 300 + " jordan.example+cv@mail.example.co.uk")["contact"]["email"] == (
         "jordan.example+cv@mail.example.co.uk")
+
+
+def test_a_comma_separated_education_line_is_split_into_its_parts():
+    def school(line):
+        (entry,) = draft_profile(f"Jordan Example\n\nEducation\n{line}\n")["education"]
+        return entry["institution"], entry["degree"], entry["field"], entry["end"]
+
+    assert school("Example State University, B.S. in Computer Science, May 2027") == (
+        "Example State University", "B.S.", "Computer Science", "2027-05")
+    assert school("Bachelor of Science, Computer Science, Example State University, 2027") == (
+        "Example State University", "Bachelor of Science", "Computer Science", "2027")
