@@ -311,3 +311,28 @@ def test_a_first_page_header_is_read():
             document.add_paragraph(line)
 
     assert read(word(build))["contact"]["email"] == "jordan@example.com"
+
+
+def test_only_a_long_bullet_wraps_and_a_blank_line_ends_it():
+    draft = draft_profile("""Jordan Example
+
+Projects
+TaskBot | Creator
+- Made a chat bot
+Budget Tracker
+- Tracked monthly spending for a student club in SQLite and
+Python with charts
+- Wrote the README for new members of the club so they could
+
+Example Game
+- Built a small browser game
+
+Hidden Heading Nobody Knows
+""")
+    assert [(p["name"], [b["text"] for b in p["bullets"]]) for p in draft["projects"]] == [
+        ("TaskBot", ["Made a chat bot"]),
+        ("Budget Tracker", ["Tracked monthly spending for a student club in SQLite and Python with charts",
+                            "Wrote the README for new members of the club so they could"]),
+        ("Example Game", ["Built a small browser game"]),
+        ("Hidden Heading Nobody Knows", []),
+    ]

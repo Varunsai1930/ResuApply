@@ -206,25 +206,40 @@ def _starts_entry(line: str) -> bool:
                 or re.search(rf"(?i)\b(?:{_MONTH}[a-z]*\.?\s+\d{{4}}|present)\b", line))
 
 
+WRAP = 40  # a bullet line shorter than this ended there: it didn't wrap onto the next line
+
+
 def _entries(lines: list[str], section: str = "") -> list[_Entry]:
-    """Entries of a section. A line after a bullet continues it (the bullet wrapped) unless it reads as
-    an entry's heading, or the line after it does (a two-line heading), or the bullet ended a sentence."""
+    """Entries of a section, from its lines with "" where the text had a blank line.
+
+    A line after a bullet continues it (the bullet wrapped) when it starts in lower case, or when
+    the bullet's last line was long enough to wrap, didn't end a sentence, and neither this line
+    nor the next reads as an entry's heading (a two-line heading). A blank line ends a bullet and
+    an entry.
+    """
     entries: list[_Entry] = []
+    blank, last = False, 0  # a blank line came before this one; the length of the bullet's last line
     for i, line in enumerate(lines):
+        if not line:
+            blank = True
+            continue
         after = lines[i + 1] if i + 1 < len(lines) else ""
         if m := _BULLET.match(line):
-            if not entries:
+            if not entries or blank:
                 entries.append(_Entry())
             entries[-1].bullets.append(line[m.end():].strip())
-        elif entries and entries[-1].bullets and (
+            last = len(entries[-1].bullets[-1])
+        elif entries and entries[-1].bullets and not blank and (
                 line[:1].islower()
-                or (not entries[-1].bullets[-1].endswith((".", "!", "?")) and not _starts_entry(line)
-                    and not (after and not _BULLET.match(after) and _starts_entry(after)))):
+                or (last >= WRAP and not entries[-1].bullets[-1].endswith((".", "!", "?"))
+                    and not _starts_entry(line) and not (after and not _BULLET.match(after) and _starts_entry(after)))):
             entries[-1].bullets[-1] += " " + line  # a bullet that wrapped onto the next line
-        elif not entries or entries[-1].bullets or _another_entry(entries[-1].heading, line, section):
+            last = len(line)
+        elif not entries or entries[-1].bullets or blank or _another_entry(entries[-1].heading, line, section):
             entries.append(_Entry([line]))
         else:
             entries[-1].heading.append(line)
+        blank = False
     return entries
 
 
@@ -352,13 +367,18 @@ def _skills(lines: list[str]) -> list[dict]:
 
 # ---------------------------------------------------------------- the draft
 
-def sections(text: str) -> dict[str, list[str]]:
-    """The non-empty lines of each section; "header" holds the lines before the first heading."""
+def sections(text: str, blanks: bool = False) -> dict[str, list[str]]:
+    """The non-empty lines of each section; "header" holds the lines before the first heading.
+
+    With ``blanks``, a blank line between two lines of a section is kept as "", where it ends an entry.
+    """
     found: dict[str, list[str]] = {"header": []}
     current = "header"
     for line in text.splitlines():
         line = line.strip()
         if not line:
+            if blanks and found.get(current) and found[current][-1]:
+                found[current].append("")
             continue
         if (section := _heading(line)) is not None:
             current = section
@@ -366,20 +386,21 @@ def sections(text: str) -> dict[str, list[str]]:
         else:
             found.setdefault(current, []).append(line)
     found.pop("other", None)
-    return found
+    return {name: lines[:-1] if lines and not lines[-1] else lines for name, lines in found.items()}
 
 
 def draft_profile(text: str) -> dict:
     """A profile in the shape the profile form shows, read from a resume's text."""
-    parts = sections(text)
+    with_blanks = sections(text, blanks=True)
+    parts = {name: [line for line in lines if line] for name, lines in with_blanks.items()}
     certifications = [{"id": "", "name": _BULLET.sub("", line), "issuer": "", "date": ""}
                       for line in parts.get("certifications", [])]
     return {
         "contact": _contact(parts.get("header", [])[:HEADER_LINES]),
         "summary": " ".join(parts.get("summary", [])),
-        "education": [_education(e) for e in _entries(parts.get("education", []), "education")],
-        "experience": [_experience(e) for e in _entries(parts.get("experience", []), "experience")],
-        "projects": [_project(e) for e in _entries(parts.get("projects", []), "projects")],
+        "education": [_education(e) for e in _entries(with_blanks.get("education", []), "education")],
+        "experience": [_experience(e) for e in _entries(with_blanks.get("experience", []), "experience")],
+        "projects": [_project(e) for e in _entries(with_blanks.get("projects", []), "projects")],
         "skills": _skills(parts.get("skills", [])),
         "skills_absent": [],
         "certifications": certifications,
