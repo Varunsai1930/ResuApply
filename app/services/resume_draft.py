@@ -299,11 +299,18 @@ class Merged:
     added: list[str]  # what the import adds, for the notice: "2 experience entries", "Phone"
 
 
-_ENTRY_KEY = {"education": "institution", "experience": "organization", "projects": "name"}
+# What tells two entries apart: a second role at the same organization is a new entry, and so is
+# one whose name the draft couldn't read.
+_ENTRY_KEY = {"education": ("institution", "degree"), "experience": ("organization", "title"),
+              "projects": ("name", "role")}
 
 
 def _key(value: str) -> str:
     return re.sub(r"\W+", " ", (value or "").casefold()).strip()
+
+
+def _entry_key(entry: dict, fields: tuple[str, ...]) -> tuple[str, ...]:
+    return tuple(_key(entry.get(name, "")) for name in fields)
 
 
 def merge(current: dict, draft: dict) -> Merged:
@@ -323,9 +330,14 @@ def merge(current: dict, draft: dict) -> Merged:
     if not data.get("summary") and draft["summary"]:
         data["summary"] = draft["summary"]
         added.append("Summary")
-    for section, key in _ENTRY_KEY.items():
-        have = {_key(e.get(key, "")) for e in data.get(section) or []}
-        new = [e for e in draft[section] if _key(e.get(key, "")) and _key(e[key]) not in have]
+    for section, fields in _ENTRY_KEY.items():
+        have = {_entry_key(e, fields) for e in data.get(section) or []}
+        new = []
+        for entry in draft[section]:
+            key = _entry_key(entry, fields)
+            if (any(key) or entry.get("bullets")) and key not in have:
+                have.add(key)
+                new.append(entry)
         data[section] = [*(data.get(section) or []), *new]
         if new:
             noun = {"education": "education", "experience": "experience", "projects": "project"}[section]

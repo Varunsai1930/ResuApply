@@ -190,3 +190,21 @@ Research Assistant, Jan 2025 - Present
         "Moved the nightly reports from cron jobs to Airflow DAGs with retries",
     ]
     assert (second["organization"], second["title"], second["start"]) == ("Example Labs", "Research Assistant", "2025-01")
+
+
+def test_merge_adds_a_second_role_at_the_same_organization_and_unnamed_entries():
+    current = profile_service.normalize(copy.deepcopy(SAMPLE_PROFILE)).profile.model_dump()
+    draft = draft_profile(RESUME)
+    draft["experience"] = [
+        current["experience"][0] | {"id": ""},  # already held
+        {"id": "", "organization": "Sample Analytics", "title": "Data Analyst", "location": "", "start": "2025-01",
+         "end": "", "technologies": [], "bullets": [{"id": "", "text": "Built dashboards"}]},
+        {"id": "", "organization": "", "title": "Teaching Assistant", "location": "", "start": "2023-09",
+         "end": "", "technologies": [], "bullets": []},
+    ]
+    merged = merge(current, draft)
+    assert [(e["organization"], e["title"]) for e in merged.data["experience"]] == [
+        (current["experience"][0]["organization"], current["experience"][0]["title"]),
+        ("Sample Analytics", "Data Analyst"), ("", "Teaching Assistant")]
+    assert "2 experience entries" in merged.added
+    assert merge(merged.data, draft).added == []  # importing the same resume again adds nothing
