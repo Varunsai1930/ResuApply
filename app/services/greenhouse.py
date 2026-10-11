@@ -22,6 +22,7 @@ from dataclasses import dataclass
 from html.parser import HTMLParser
 from urllib.parse import parse_qs, urlsplit
 
+import httpcore
 import httpx
 from pydantic import TypeAdapter, ValidationError
 from sqlalchemy.orm import Session
@@ -98,10 +99,75 @@ def posting_ref(url: str) -> PostingRef | None:
 
 # ---------------------------------------------------------------- fetching
 
-def fetch(ref: PostingRef, transport: httpx.BaseTransport | None = None) -> dict:
+class _Deadline(httpcore.NetworkBackend):
+    """A network whose every connect, TLS handshake, write and read waits at most until the deadline.
+
+    httpx's timeouts apply to each of these on its own, so a server that answers slowly at every
+    step, or trickles its headers a byte at a time, would never trip them. Each step here gets the
+    smaller of its own timeout and the time left, and none starts once the deadline has passed.
+    """
+
+    def __init__(self, network: httpcore.NetworkBackend, deadline: float):
+        self.network, self.deadline = network, deadline
+
+    def left(self, timeout: float | None) -> float:
+        remaining = self.deadline - _clock()
+        if remaining <= 0:
+            raise httpcore.ReadTimeout("the import's deadline passed")
+        return remaining if timeout is None else min(timeout, remaining)
+
+    def connect_tcp(self, host, port, timeout=None, local_address=None, socket_options=None):
+        return _DeadlineStream(self.network.connect_tcp(host, port, self.left(timeout), local_address,
+                                                        socket_options), self)
+
+    def connect_unix_socket(self, path, timeout=None, socket_options=None):
+        return _DeadlineStream(self.network.connect_unix_socket(path, self.left(timeout), socket_options), self)
+
+    def sleep(self, seconds):
+        self.network.sleep(min(seconds, self.left(None)))
+
+
+class _DeadlineStream(httpcore.NetworkStream):
+    def __init__(self, stream: httpcore.NetworkStream, deadline: _Deadline):
+        self.stream, self.deadline = stream, deadline
+
+    def read(self, max_bytes, timeout=None):
+        return self.stream.read(max_bytes, self.deadline.left(timeout))
+
+    def write(self, buffer, timeout=None):
+        self.stream.write(buffer, self.deadline.left(timeout))
+
+    def close(self):
+        self.stream.close()
+
+    def start_tls(self, ssl_context, server_hostname=None, timeout=None):
+        return _DeadlineStream(self.stream.start_tls(ssl_context, server_hostname, self.deadline.left(timeout)),
+                               self.deadline)
+
+    def get_extra_info(self, info):
+        return self.stream.get_extra_info(info)
+
+
+def _client(transport: httpx.BaseTransport | None, network: httpcore.NetworkBackend | None,
+            deadline: float) -> httpx.Client:
+    """The client for one fetch. Its own transports (the direct one and any proxy the environment sets)
+    reach the network through ``_Deadline``; a test transport or network replaces the network."""
+    timeout = httpx.Timeout(PHASE_SECONDS)
+    if transport is not None:
+        return httpx.Client(transport=transport, timeout=timeout, follow_redirects=False)
+    client = httpx.Client(timeout=timeout, follow_redirects=False, trust_env=network is None)
+    for mounted in [client._transport, *client._mounts.values()]:
+        pool = getattr(mounted, "_pool", None)  # httpx.HTTPTransport's connection pool (httpx 0.28)
+        if pool is not None:
+            pool._network_backend = _Deadline(network or pool._network_backend, deadline)
+    return client
+
+
+def fetch(ref: PostingRef, transport: httpx.BaseTransport | None = None,
+          network: httpcore.NetworkBackend | None = None) -> dict:
     """The posting's JSON, read within TIMEOUT_SECONDS in all and up to MAX_BYTES.
 
-    ``transport`` replaces the network in tests.
+    ``transport`` (an httpx transport) or ``network`` (an httpcore network) replace the network in tests.
     """
     deadline = _clock() + TIMEOUT_SECONDS
     body = bytearray()
@@ -111,7 +177,7 @@ def fetch(ref: PostingRef, transport: httpx.BaseTransport | None = None) -> dict
             raise httpx.ReadTimeout("deadline passed")
 
     try:
-        with httpx.Client(transport=transport, timeout=httpx.Timeout(PHASE_SECONDS), follow_redirects=False) as client:
+        with _client(transport, network, deadline) as client:
             with client.stream("GET", ref.api_url, headers={"Accept": "application/json"}) as response:
                 if response.status_code == 404:
                     raise GreenhouseError("Greenhouse has no such job. The posting may have closed; check the link.")

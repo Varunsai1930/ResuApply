@@ -253,3 +253,40 @@ def test_the_deadline_reads_only_the_imports_own_clock(monkeypatch):
         return httpx.Response(200, json=posting())
 
     assert fetch(ref(), httpx.MockTransport(handle))["title"] == "Software Engineering Intern"
+
+
+# ---------------------------------------------------------------- the deadline over the real network stack
+
+from tests.greenhouse_fake import SlowNetwork, TickingClock  # noqa: E402
+
+
+def test_a_server_that_trickles_its_headers_is_cut_off_at_the_deadline(monkeypatch):
+    clock = TickingClock()
+    monkeypatch.setattr(greenhouse, "_clock", clock)
+    network = SlowNetwork(clock, [(2.5, b"H")] * 1000)  # one byte every 2.5 s: no single read times out
+    with pytest.raises(GreenhouseError, match="longer than 10 seconds"):
+        fetch(ref(), network=network)
+    assert clock.now <= greenhouse.TIMEOUT_SECONDS
+    assert all(timeout is not None and timeout <= greenhouse.TIMEOUT_SECONDS for _, timeout in network.timeouts)
+
+
+def test_slow_connect_handshake_and_first_byte_together_stay_within_the_deadline(monkeypatch):
+    clock = TickingClock()
+    monkeypatch.setattr(greenhouse, "_clock", clock)
+
+    class SlowConnect(SlowNetwork):
+        def connect_tcp(self, *args, **kwargs):
+            self.clock.now += 2.9
+            return super().connect_tcp(*args, **kwargs)
+
+    network = SlowConnect(clock, [(2.9, b"H")] * 10)
+    with pytest.raises(GreenhouseError, match="longer than 10 seconds"):
+        fetch(ref(), network=network)
+    assert clock.now <= greenhouse.TIMEOUT_SECONDS
+
+
+def test_the_real_client_gets_the_deadline_on_every_transport():
+    client = greenhouse._client(None, None, greenhouse._clock() + greenhouse.TIMEOUT_SECONDS)
+    with client:
+        transports = [client._transport, *(t for t in client._mounts.values() if t is not None)]
+        assert transports and all(isinstance(t._pool._network_backend, greenhouse._Deadline) for t in transports)
