@@ -24,6 +24,8 @@ from urllib.parse import parse_qs, urlsplit
 
 import httpx
 
+from . import questions as q_rules
+from .answers import QUESTION_LIMIT
 from .text import clean_text
 
 HOSTS = ("boards.greenhouse.io", "job-boards.greenhouse.io")
@@ -197,3 +199,131 @@ def read_posting(data: dict) -> Posting:
     if not posting.title or not posting.description:
         raise _malformed()
     return posting
+
+
+# ---------------------------------------------------------------- the application questions
+
+MAX_QUESTIONS = 100  # more than this is not one application form
+OPTION_LIMIT = 100  # choices kept per question, each up to 200 characters
+
+# Greenhouse field types ResuApply can prepare an answer for, and how the Questions step names them.
+FIELD_TYPES = {
+    "input_text": "short_text",
+    "textarea": "long_text",
+    "multi_value_single_select": "single_select",
+    "multi_value_multi_select": "multi_select",
+}
+FIELD_LABELS = {
+    "short_text": "Short text",
+    "long_text": "Long text",
+    "single_select": "Choose one",
+    "multi_select": "Choose any",
+    "unsupported": "A field ResuApply doesn't know",
+}
+_RESUME_FIELDS = ("resume", "resume_text")
+
+
+@dataclass(frozen=True)
+class ImportedQuestion:
+    """One question of the posting's application form, as it will be added to the job."""
+
+    label: str
+    required: bool
+    field_type: str  # a value of FIELD_TYPES, or "unsupported"
+    options: tuple[str, ...] = ()
+    # From the voluntary self-identification (EEOC) or demographic sections: always the user's own
+    # answer, whatever the wording, so it is added as Sensitive.
+    sensitive: bool = False
+    greenhouse_type: str = ""  # Greenhouse's own name for the field, shown for an unsupported one
+
+
+@dataclass(frozen=True)
+class LeftOut:
+    """A form field that isn't added as a question, and what the user does instead."""
+
+    label: str
+    reason: str
+
+
+def _options(values: object) -> tuple[str, ...]:
+    if not isinstance(values, list):
+        return ()
+    labels = (_text(v.get("label"), 200) for v in values[:OPTION_LIMIT] if isinstance(v, dict))
+    return tuple(label for label in labels if label)
+
+
+def _form_question(item: dict, sensitive: bool) -> ImportedQuestion | LeftOut | None:
+    """A question from the ``questions``, ``location_questions`` or compliance lists; None for a hidden field."""
+    label = _text(item.get("label"), QUESTION_LIMIT + 1)
+    fields = item.get("fields") if isinstance(item.get("fields"), list) else []
+    fields = [f for f in fields if isinstance(f, dict)]
+    types = [f.get("type") if isinstance(f.get("type"), str) else "" for f in fields]
+    if fields and all(t == "input_hidden" for t in types):
+        return None  # filled in by the form itself, not asked of the applicant
+    if not label:
+        return LeftOut("A question without a label", "Check the employer's form for it.")
+    if any(f.get("name") in _RESUME_FIELDS for f in fields):
+        return LeftOut(label, "Attach the resume from your approved package on the employer's form.")
+    if len(label) > QUESTION_LIMIT:
+        return LeftOut(label[:200] + "…", "Too long to add as a question; answer it on the employer's form.")
+    supported = next((f for f, t in zip(fields, types) if t in FIELD_TYPES), None)
+    if supported is not None:
+        return ImportedQuestion(label, item.get("required") is True, FIELD_TYPES[supported["type"]],
+                                _options(supported.get("values")), sensitive)
+    if "input_file" in types:
+        return LeftOut(label, "A file upload: attach it on the employer's form.")
+    unknown = next((t for t in types if t and t != "input_hidden"), "")
+    return ImportedQuestion(label, item.get("required") is True, "unsupported", (), sensitive, unknown[:100])
+
+
+def _demographic_question(item: dict) -> ImportedQuestion | LeftOut | None:
+    label = _text(item.get("label"), QUESTION_LIMIT + 1)
+    if not label:
+        return None
+    kind = item.get("type") if isinstance(item.get("type"), str) else ""
+    field_type = FIELD_TYPES.get(kind, "unsupported")
+    return ImportedQuestion(label[:QUESTION_LIMIT], item.get("required") is True, field_type,
+                            _options(item.get("answer_options")), True, "" if kind in FIELD_TYPES else kind[:100])
+
+
+def read_questions(data: dict) -> tuple[list[ImportedQuestion], list[LeftOut]]:
+    """The posting's application questions in form order, and the fields that aren't added as questions.
+
+    Text and choice fields become questions with their required flag and field type. Questions
+    from the self-identification and demographic sections are always Sensitive. A field of a
+    type ResuApply doesn't know is still added, for the user to confirm its category; file
+    uploads (the resume among them) and hidden fields are not questions to answer here.
+    """
+    found: list[ImportedQuestion | LeftOut | None] = []
+    sections = [(data.get(key), False) for key in ("questions", "location_questions")]
+    compliance = data.get("compliance") if isinstance(data.get("compliance"), list) else []
+    sections += [(section.get("questions"), True) for section in compliance if isinstance(section, dict)]
+    for items, sensitive in sections:
+        if isinstance(items, list):
+            found.extend(_form_question(item, sensitive) for item in items if isinstance(item, dict))
+    demographic = data.get("demographic_questions")
+    items = demographic.get("questions") if isinstance(demographic, dict) else None
+    if isinstance(items, list):
+        found.extend(_demographic_question(item) for item in items if isinstance(item, dict))
+    questions = [q for q in found if isinstance(q, ImportedQuestion)]
+    left_out = [q for q in found if isinstance(q, LeftOut)]
+    if len(questions) > MAX_QUESTIONS:
+        left_out.append(LeftOut(f"{len(questions) - MAX_QUESTIONS} more questions",
+                                f"Only the first {MAX_QUESTIONS} are added; answer the rest on the employer's form."))
+        questions = questions[:MAX_QUESTIONS]
+    return questions, left_out
+
+
+def category(question: ImportedQuestion) -> str | None:
+    """The category to add an imported question with, or None to use the one the rules detect.
+
+    Self-identification and demographic questions are Sensitive whatever their wording. A field
+    ResuApply doesn't know is Unrecognized, so the user confirms it, unless the rules already
+    read it as sensitive (which nothing may override).
+    """
+    detected, _ = q_rules.classify(question.label)
+    if question.sensitive:
+        return None if detected in q_rules.SENSITIVE_CATEGORIES else q_rules.SENSITIVE
+    if question.field_type == "unsupported" and detected not in q_rules.SENSITIVE_CATEGORIES:
+        return q_rules.UNKNOWN
+    return None

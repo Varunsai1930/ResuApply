@@ -119,3 +119,90 @@ def test_missing_details_are_left_empty():
     data["location"] = "Austin"  # not the documented shape
     read = read_posting(data)
     assert read.company == "" and read.location == "" and read.title == "Software Engineering Intern"
+
+
+# ---------------------------------------------------------------- application questions
+
+from app.services import questions as q_rules  # noqa: E402
+from app.services.greenhouse import ImportedQuestion, LeftOut, category, read_questions  # noqa: E402
+
+
+def test_questions_keep_their_order_required_flags_and_field_types():
+    questions, _ = read_questions(posting())
+    assert [(q.label, q.required, q.field_type) for q in questions] == [
+        ("First Name", True, "short_text"),
+        ("Last Name", True, "short_text"),
+        ("Email", True, "short_text"),
+        ("Phone", False, "short_text"),
+        ("Cover Letter", False, "long_text"),  # a file or text: the text is answered here
+        ("LinkedIn Profile", False, "short_text"),
+        ("Why do you want to work at Example Robotics?", True, "long_text"),
+        ("Will you now or in the future require visa sponsorship to work in the United States?", True,
+         "single_select"),
+        ("Which of these tools have you used?", False, "multi_select"),
+        ("Preferred interview date", False, "unsupported"),
+        ("Location (City)", True, "short_text"),
+        ("Gender", False, "single_select"),
+        ("Please identify your self-reported status", False, "single_select"),
+        ("How would you describe yourself?", False, "multi_select"),
+    ]
+    by_label = {q.label: q for q in questions}
+    assert by_label["Which of these tools have you used?"].options == ("Git", "Docker")
+    assert by_label["Preferred interview date"].greenhouse_type == "date_picker"
+    assert by_label["How would you describe yourself?"].options == ("Option A", "Prefer not to say")
+
+
+def test_uploads_and_hidden_fields_are_left_for_the_employers_form():
+    _, left_out = read_questions(posting())
+    assert left_out == [
+        LeftOut("Resume/CV", "Attach the resume from your approved package on the employer's form."),
+        LeftOut("Portfolio sample", "A file upload: attach it on the employer's form."),
+    ]  # "Referral source" is a hidden field: not a question at all
+
+
+def test_self_identification_and_demographic_questions_are_always_sensitive():
+    questions, _ = read_questions(posting())
+    chosen = {q.label: category(q) for q in questions}
+    assert chosen["Gender"] is None  # the rules already read it as sensitive
+    # Neither wording is caught by the keyword rules ("open", "unknown"), but both are sensitive.
+    assert q_rules.classify("How would you describe yourself?")[0] == q_rules.OPEN
+    assert chosen["How would you describe yourself?"] == q_rules.SENSITIVE
+    assert chosen["Please identify your self-reported status"] == q_rules.SENSITIVE
+
+
+def test_an_unsupported_field_is_unrecognized_unless_it_is_sensitive():
+    questions, _ = read_questions(posting())
+    chosen = {q.label: category(q) for q in questions}
+    assert chosen["Preferred interview date"] == q_rules.UNKNOWN  # the user confirms what it is
+    assert chosen["Email"] is None and chosen["Will you now or in the future require visa sponsorship to work in "
+                                                 "the United States?"] is None
+    salary = ImportedQuestion("Desired salary", True, "unsupported", greenhouse_type="currency")
+    assert category(salary) is None  # sensitive by its wording: never made Unrecognized
+
+
+@pytest.mark.parametrize("data", [
+    {},
+    {"questions": "not a list"},
+    {"questions": [None, 3, {"fields": "x"}], "compliance": [None, {"questions": 5}], "demographic_questions": []},
+])
+def test_damaged_question_lists_are_skipped(data):
+    questions, left_out = read_questions(data)
+    assert questions == [] and all(isinstance(item, LeftOut) for item in left_out)
+
+
+def test_question_text_is_cleaned_and_bounded():
+    data = {"questions": [
+        {"required": "yes", "label": "  What&#39;s your\n\tpreferred   name? ", "fields": [{"type": "input_text"}]},
+        {"required": True, "label": "x" * 2001, "fields": [{"type": "textarea"}]},
+        {"required": True, "label": "", "fields": [{"type": "textarea"}]},
+    ]}
+    questions, left_out = read_questions(data)
+    assert questions == [ImportedQuestion("What's your preferred name?", False, "short_text")]  # only True is required
+    assert [item.reason for item in left_out] == [
+        "Too long to add as a question; answer it on the employer's form.", "Check the employer's form for it."]
+
+
+def test_at_most_100_questions_are_added():
+    data = {"questions": [{"label": f"Question {n}", "fields": [{"type": "input_text"}]} for n in range(105)]}
+    questions, left_out = read_questions(data)
+    assert len(questions) == 100 and left_out[-1].label == "5 more questions"
