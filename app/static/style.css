@@ -463,6 +463,9 @@ table.simple { border: 1px solid var(--rule); border-radius: var(--radius-sm); }
 .diff-values { grid-column: 2; overflow-wrap: anywhere; }
 ins { text-decoration: none; background: var(--met-wash); color: var(--ink); padding: 1px 3px; border-radius: 2px; }
 del { color: var(--unmet); text-decoration-thickness: 1px; }
+ins { color: var(--met); background: var(--met-wash); text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 2px; }
+mark { color: var(--accent); background: var(--accent-wash); padding: 0 2px; border-radius: 2px; }
+.wording-legend { font-size: 0.86rem; color: var(--ink-2); }
 
 /* ------------------------------------------------------------------ job workspace */
 

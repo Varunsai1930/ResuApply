@@ -10,6 +10,7 @@ from fastapi.templating import Jinja2Templates
 from .schemas.tracking import ReviewState, TrackingStatus
 from .services.profile_form import skills_text
 from .services.status import Meaning, Status, for_answer
+from .services.wording import compare as compare_wording
 
 TEMPLATE_DIR = Path(__file__).parent / "templates"
 STATIC_DIR = Path(__file__).parent / "static"
@@ -110,4 +111,5 @@ templates.env.globals.update(
     Status=Status,
     Meaning=Meaning,
     answer_meaning=for_answer,
+    compare_wording=compare_wording,
 )

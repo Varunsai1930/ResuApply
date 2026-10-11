@@ -1,18 +1,26 @@
 {% extends "base.html" %}
 {% block title %}Review resume{% endblock %}
 {% block extra_head %}<link rel="stylesheet" href="{{ asset('resume.css') }}">{% endblock %}
+{% macro segments(parts, tag) -%}
+  {%- for part in parts %}{% if part.marked %}<{{ tag }}>{{ part.text }}</{{ tag }}>{% else %}{{ part.text }}{% endif %}{% endfor -%}
+{%- endmacro %}
 {% macro claim_review(claim, label) %}
+{% set c = compare_wording(claim.text, claim.originals) %}
 <article class="resume-comparison">
   <div class="resume-originals">
     <h4>Original profile {{ label }}</h4>
-    {% for original in claim.originals %}
-      <p><span class="id-badge">{{ original.id }}</span> {{ original.text }}</p>
+    {% for source in c.sources %}
+      <p{% if source.base %} class="base-source"{% endif %}><span class="id-badge">{{ source.id }}</span> {{ segments(source.segments, 'del' if source.base else 'mark') }}</p>
     {% else %}<p class="muted">No source text.</p>{% endfor %}
   </div>
   <div class="resume-proposed">
     <h4>Proposed {{ label }}</h4>
-    <p>{{ claim.text }}</p>
-    <p class="hint">Sources: {{ claim.sources | join(', ') }}</p>
+    <p>{{ segments(c.proposed, 'ins') }}</p>
+    <p class="hint">
+      {% if c.unchanged %}Unchanged from your profile.
+      {% elif claim.originals %}{{ c.added }} word{{ 's' if c.added != 1 }} added, {{ c.removed }} removed.{% endif %}
+      Sources: {{ claim.sources | join(', ') }}
+    </p>
   </div>
 </article>
 {% endmacro %}
@@ -37,6 +45,7 @@
     <p>Employer names, titles, dates, degrees, certifications and contact details below come from your saved profile.</p>
     {% if record.warnings %}<ul class="resume-warnings">{% for warning in record.warnings %}<li>{{ warning }}</li>{% endfor %}</ul>{% endif %}
     <p class="hint">{{ 'Prepared with AI. Its wording needs your review.' if record.model else 'Prepared from your profile without AI rewriting.' }}</p>
+    <p class="wording-legend">In each comparison, <ins>underlined words</ins> were added and <del>struck words</del> were removed from the closest profile line; <mark>highlighted words</mark> in the other cited lines are where added words come from. Automated checks can't prove a paraphrase is accurate: the meaning is yours to confirm.</p>
   </section>
 
   <section class="card">
