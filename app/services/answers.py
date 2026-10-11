@@ -326,11 +326,31 @@ def upgrade_factual_question(question: Question) -> Question:
     })
 
 
+def upgrade_question(question: Question) -> Question:
+    """The question as the current rules would store it.
+
+    A factual question follows ``upgrade_factual_question``. A question the rules themselves left
+    Open-ended or Unrecognized (its category is still the detected one) becomes factual when the
+    current rules read it as a request for a profile field, as they now do for "What is your
+    graduation year?". A category the user chose is never changed.
+    """
+    if question.category == q_rules.FACTUAL:
+        return upgrade_factual_question(question)
+    if question.category in (q_rules.OPEN, q_rules.UNKNOWN) and question.category == question.detected_category:
+        detected, key = q_rules.classify(question.text)
+        if detected == q_rules.FACTUAL:
+            return question.model_copy(update={"category": detected, "detected_category": detected,
+                                               "factual_key": key})
+    return question
+
+
 def upgrade_stored_questions(session: Session) -> int:
     """Store every saved question as the current rules read it. Returns how many changed.
 
     Runs once at startup, so reading an answer can trust the stored category and key. A job
-    whose questions change goes back to Draft: its approval covered the old definitions.
+    whose questions change goes back to Draft: its approval covered the old definitions. Each
+    question is read by ``upgrade_question``: factual rules that got stricter, and new factual
+    rules (graduation year questions) for questions the rules had left Open-ended or Unrecognized.
 
     A question whose category changes loses what was made for the old category: a profile
     value (which must never become the answer to a sensitive question) and any AI draft. What
@@ -341,7 +361,7 @@ def upgrade_stored_questions(session: Session) -> int:
     """
     changed = 0
     for job in session.scalars(select(Job)):
-        upgraded = [upgrade_factual_question(q) for q in job.questions]
+        upgraded = [upgrade_question(q) for q in job.questions]
         count = sum(new != old for new, old in zip(upgraded, job.questions))
         if count:
             for new, old in zip(upgraded, job.questions):

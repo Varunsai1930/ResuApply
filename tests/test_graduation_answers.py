@@ -135,3 +135,85 @@ def test_degrees_that_give_the_same_answer_are_not_ambiguous():
     double = profile("2027-05", "2027-12", degrees=("B.S.", "B.A."))
     assert factual_value("graduation_year", "Graduation year", double) == "2027"
     assert factual_value("graduation_date", "Graduation date", double) is None  # May or December?
+
+
+# ---------------------------------------------------------------- questions saved under the older rules
+
+from app.db import utcnow  # noqa: E402
+from app.schemas.package import Answer, AnswerDraft, Question  # noqa: E402
+from app.services import answers, jobs  # noqa: E402
+from app.services import profile as profile_service  # noqa: E402
+from tests.conftest import SAMPLE_JOB  # noqa: E402
+
+
+def saved_job(session, sample_profile, *questions: Question, answers_=(), drafts=()):
+    candidate = profile_service.save(session, sample_profile).candidate
+    job = jobs.create(session, jobs.clean_input(**SAMPLE_JOB))
+    job.questions = list(questions)
+    job.question_counter = len(questions)
+    job.application.answers = list(answers_)
+    job.application.answer_drafts = list(drafts)
+    session.commit()
+    return candidate, job
+
+
+def legacy(qid: str, text: str, category: str, detected: str | None = None) -> Question:
+    """A question as the older rules stored it."""
+    return Question(id=qid, text=text, category=category, detected_category=detected or category, added_at=utcnow())
+
+
+def test_startup_reads_saved_graduation_questions_with_the_current_rules(session, sample_profile):
+    candidate, job = saved_job(
+        session, sample_profile,
+        legacy("q1", "What is your graduation year?", "open"),
+        legacy("q2", "Graduation year", "unknown"),
+        legacy("q3", "When did you graduate?", "unknown"),
+        legacy("q4", "Why do you want this role?", "open"),
+        drafts=[AnswerDraft(question_id="q1", text="I graduate in 2099.", sources=["edu-1"], model="test/model",
+                            prompt_revision="1", profile_revision=1, job_revision=1, created_at=utcnow())],
+    )
+    assert answers.upgrade_stored_questions(session) == 3
+    stored = {q.id: (q.category, q.detected_category, q.factual_key) for q in job.questions}
+    assert stored == {"q1": ("factual", "factual", "graduation_year"), "q2": ("factual", "factual", "graduation_year"),
+                      "q3": ("factual", "factual", "graduation_date"), "q4": ("open", "open", None)}
+    assert job.application.answer_drafts == []  # an AI draft was made for the old category
+    resolved = {r.question.id: (r.text, r.label) for r in answers.resolve_all(job, job.application, candidate.profile)}
+    assert resolved["q1"] == ("2099", "From profile") and resolved["q3"] == ("2099-05", "From profile")
+    assert answers.upgrade_stored_questions(session) == 0  # once upgraded, nothing changes again
+
+
+def test_the_upgrade_keeps_what_the_user_wrote_chose_or_skipped(session, sample_profile):
+    candidate, job = saved_job(
+        session, sample_profile,
+        legacy("q1", "What is your graduation year?", "open"),
+        legacy("q2", "Graduation year", "open", detected="unknown"),  # the user chose Open-ended
+        legacy("q3", "Expected graduation year", "unknown"),
+        answers_=[Answer(question_id="q1", text="Class of 2099, December", origin="user", at=utcnow()),
+                  Answer(question_id="q2", text="2099", origin="user", at=utcnow()),
+                  Answer(question_id="q3", text="", origin="user", skipped=True, at=utcnow())],
+    )
+    job.questions = [q.model_copy(update={"required": q.id != "q3"}) for q in job.questions]
+    session.commit()
+    assert answers.upgrade_stored_questions(session) == 2  # q2 keeps the category the user chose
+    stored = {q.id: q.category for q in job.questions}
+    assert stored == {"q1": "factual", "q2": "open", "q3": "factual"}
+    kept = {a.question_id: (a.text, a.skipped) for a in job.application.answers}
+    assert kept == {"q1": ("Class of 2099, December", False), "q2": ("2099", False), "q3": ("", True)}
+    resolved = {r.question.id: r.text for r in answers.resolve_all(job, job.application, candidate.profile)}
+    assert resolved["q1"] == "Class of 2099, December"  # never overwritten by the profile value
+
+
+def test_saved_graduation_questions_are_upgraded_when_the_app_starts(settings, sample_profile):
+    from fastapi.testclient import TestClient
+
+    from app.main import create_app
+    from tests.conftest import BASE_URL
+
+    with TestClient(create_app(settings), base_url=BASE_URL) as first:
+        with first.app.state.session_factory() as session:
+            _, job = saved_job(session, sample_profile, legacy("q1", "What is your graduation year?", "open"))
+            job_id = job.id
+    with TestClient(create_app(settings), base_url=BASE_URL) as restarted:
+        with restarted.app.state.session_factory() as session:
+            (stored,) = jobs.get(session, job_id).questions
+            assert (stored.category, stored.factual_key) == ("factual", "graduation_year")
