@@ -86,3 +86,11 @@ def test_guessed_text_is_escaped(client):
     response = client.post("/jobs", data={"title": "", "company": "", "description": '<b>Intern</b>\n"Evil" Corp'})
     assert "<b>Intern" not in response.text and 'value="&lt;b&gt;Intern&lt;/b&gt;"' in response.text
     assert 'value="&#34;Evil&#34; Corp"' in response.text
+
+
+def test_other_problems_show_together_with_the_filled_in_details(client):
+    response = client.post("/jobs", data={"title": "", "company": "", "description": POSTING,
+                                          "url": "ftp://jobs.example.com/1"})
+    assert response.status_code == 422 and jobs_saved(client) == 0
+    assert "Check these before saving:" in response.text and 'value="Example Corp"' in response.text
+    assert "http:// or https://" in response.text

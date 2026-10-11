@@ -205,7 +205,14 @@ def create_job(
         # Missing details are filled in from the posting for the user to check; nothing is saved yet.
         filled = {k: v for k, v in job_service.guess_details(description).items() if not values[k].strip()}
         if filled:
-            return _render_job_form(request, values | filled, guessed=set(filled))
+            # Any other problem (a bad link, an over-long field) is shown now, beside the filled-in details.
+            try:
+                job_service.clean_input(**(values | filled))
+                errors = {}
+            except job_service.JobInvalid as exc:
+                errors = exc.errors
+            return _render_job_form(request, values | filled, errors, status_code=422 if errors else 200,
+                                    guessed=set(filled))
     try:
         data = job_service.clean_input(**values)
     except job_service.JobInvalid as exc:
