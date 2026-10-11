@@ -221,3 +221,15 @@ def test_contact_details_are_read_from_the_whole_header():
 def test_the_header_read_for_contact_details_is_bounded():
     lines = ["Jordan Example", *["A line of text without any section heading"] * 200, "late@example.com"]
     assert draft_profile("\n".join(lines))["contact"]["email"] == ""
+
+
+def test_sentences_in_the_skills_section_are_not_taken_for_skills():
+    draft = draft_profile("""Jordan Example
+
+Skills
+Comfortable building backend services and data pipelines for small analytics teams
+I pick up new tools quickly.
+Languages: Python, SQL
+Amazon Web Services (AWS), Machine Learning
+""")
+    assert [s["name"] for s in draft["skills"]] == ["Python", "SQL", "Amazon Web Services (AWS)", "Machine Learning"]

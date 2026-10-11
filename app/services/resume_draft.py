@@ -238,6 +238,12 @@ def _project(entry: _Entry) -> dict:
             "technologies": [], "bullets": _bullets(entry)}
 
 
+def _sentence(text: str) -> bool:
+    """Whether a skills item reads as a sentence ("I pick up new tools quickly.") rather than a skill's name."""
+    words = text.split()
+    return len(words) > 5 or (len(words) >= 3 and text.rstrip().endswith((".", "!", "?")))
+
+
 def _skills(lines: list[str]) -> list[dict]:
     skills, seen = [], set()
     for line in lines:
@@ -246,6 +252,8 @@ def _skills(lines: list[str]) -> list[dict]:
         if not sep:
             category, names = "Skills", line
         for name in re.split(r"\s*[,;|•·]\s*", names):
+            if _sentence(name):
+                continue
             name = name.strip(" .")
             if name and len(name) <= 60 and canon(name) not in seen:
                 seen.add(canon(name))
