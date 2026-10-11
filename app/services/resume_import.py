@@ -141,9 +141,16 @@ def _paragraph_text(paragraph) -> str:
     return f"• {text}" if text.strip() and _numbered(paragraph) else text
 
 
+# Typographic ligatures (from LaTeX and other typesetting) as the letters they join, and soft hyphens
+# (invisible unless a line breaks there) removed: "Certiﬁcations" must read as "Certifications".
+_LIGATURES = str.maketrans({"\ufb00": "ff", "\ufb01": "fi", "\ufb02": "fl", "\ufb03": "ffi", "\ufb04": "ffl",
+                            "\ufb05": "st", "\ufb06": "st", "\u00ad": None})
+
+
 def _tidy(text: str) -> str:
-    """Control characters removed, spaces in each line made single, blank runs made one line."""
-    lines = [re.sub(r"[ \t ]+", " ", line).strip() for line in clean_text(text).replace("\r", "\n").split("\n")]
+    """Control characters removed, ligatures spelled out, spaces in each line made single, blank runs made one line."""
+    text = clean_text(text).translate(_LIGATURES)
+    lines = [re.sub(r"[ \t\u00a0]+", " ", line).strip() for line in text.replace("\r", "\n").split("\n")]
     tidy = re.sub(r"\n{3,}", "\n\n", "\n".join(lines)).strip()
     return tidy[:MAX_CHARS]
 

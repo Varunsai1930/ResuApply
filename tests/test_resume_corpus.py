@@ -159,3 +159,16 @@ def test_a_word_that_starts_like_a_bullet_is_not_one():
     draft = draft_profile("Jordan Example\n\nExperience\nSample Analytics | Intern | 2024\n• Built an API\n"
                           "Oracle Labs | Analyst | 2025\n• Wrote reports\n")
     assert [e["organization"] for e in draft["experience"]] == ["Sample Analytics", "Oracle Labs"]
+
+
+def test_ligatures_read_as_letters():
+    draft = read(layout_pdf_bytes([[(50, 750, "Jordan Example"), (50, 730, "Certiﬁcations"),
+                                    (50, 715, "Example Cloud Practitioner"), (50, 695, "Experience"),
+                                    (50, 680, "Sample Analytics | Intern | 2024"),
+                                    (60, 665, "• Proﬁled slow queries and streamlined ﬂaky tests"),
+                                    (60, 651, "• Wrote eﬃcient Python"), (50, 630, "Skills"),
+                                    (50, 615, "Conﬂuence, Python")]]))
+    assert [c["name"] for c in draft["certifications"]] == ["Example Cloud Practitioner"]
+    assert [b["text"] for b in draft["experience"][0]["bullets"]] == [
+        "Profiled slow queries and streamlined flaky tests", "Wrote efficient Python"]
+    assert [s["name"] for s in draft["skills"]] == ["Confluence", "Python"]
