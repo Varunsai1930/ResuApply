@@ -27,6 +27,7 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass
+from datetime import datetime
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -601,6 +602,50 @@ def bank_entries(session: Session) -> list[AnswerBankEntry]:
     return list(session.scalars(
         select(AnswerBankEntry).order_by(AnswerBankEntry.updated_at.desc(), AnswerBankEntry.id.desc())
     ))
+
+
+@dataclass(frozen=True)
+class BankUse:
+    """How a saved answer has been reused: by how many jobs, and when last."""
+
+    jobs: int = 0
+    last_used: datetime | None = None
+
+
+BANK_SORTS = {"recent": "Most recently used", "most_used": "Most used", "saved": "Recently saved"}
+BANK_SEARCH_LIMIT = 200
+
+
+def bank_usage(session: Session) -> dict[int, BankUse]:
+    """Entry ID -> the jobs whose answers were taken from it, and the latest such answer."""
+    jobs: dict[int, set[int]] = {}
+    last: dict[int, datetime] = {}
+    for application in session.scalars(select(Application)):
+        for answer in application.answers:
+            if answer.bank_id is None or answer.skipped:
+                continue
+            jobs.setdefault(answer.bank_id, set()).add(application.job_id)
+            if answer.bank_id not in last or answer.at > last[answer.bank_id]:
+                last[answer.bank_id] = answer.at
+    return {entry_id: BankUse(len(ids), last.get(entry_id)) for entry_id, ids in jobs.items()}
+
+
+def bank_listing(session: Session, query: str = "", sort: str = "recent") -> list[tuple[AnswerBankEntry, BankUse]]:
+    """Saved answers whose question or answer contains every word of ``query``, in the chosen order.
+
+    "recent" orders by the latest reuse or save, "most_used" by how many jobs reused it,
+    "saved" by when it was first saved; ties go to the newest entry.
+    """
+    usage = bank_usage(session)
+    words = query.casefold().split()
+    found = [(entry, usage.get(entry.id, BankUse())) for entry in bank_entries(session)
+             if all(w in f"{entry.question} {entry.answer}".casefold() for w in words)]
+    keys = {
+        "recent": lambda pair: (max(filter(None, (pair[1].last_used, pair[0].updated_at))), pair[0].id),
+        "most_used": lambda pair: (pair[1].jobs, pair[0].updated_at, pair[0].id),
+        "saved": lambda pair: (pair[0].created_at, pair[0].id),
+    }
+    return sorted(found, key=keys[sort], reverse=True)
 
 
 def delete_bank_entry(session: Session, entry_id: int) -> None:

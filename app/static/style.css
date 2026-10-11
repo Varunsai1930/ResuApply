@@ -499,6 +499,9 @@ mark { color: var(--accent); background: var(--accent-wash); padding: 0 2px; bor
 .section-nav a[aria-current="page"] { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); font-weight: 500; }
 .section-edit { margin-left: 8px; font-family: var(--font-ui); font-size: 0.82rem; font-weight: 500; }
 
+.bank-controls select { min-height: 38px; }
+.bank-use { margin-left: auto; font-size: 0.82rem; color: var(--ink-3); white-space: nowrap; }
+
 /* Follow-up reminders: the Track step card and the board banner. */
 .follow-up.due, .follow-up-banner { background: var(--unknown-wash); border-color: var(--unknown); }
 .follow-up h2 { font-size: 1.05rem; }
