@@ -210,6 +210,7 @@ def read_posting(data: dict) -> Posting:
 # ---------------------------------------------------------------- the application questions
 
 MAX_QUESTIONS = 100  # more than this is not one application form
+MAX_LEFT_OUT = 50  # fields listed as left for the employer's form; the rest are counted
 OPTION_LIMIT = 100  # choices kept per question, each up to 200 characters
 
 # Greenhouse field types ResuApply can prepare an answer for, and how the Questions step names them.
@@ -291,6 +292,9 @@ def read_questions(data: dict) -> tuple[list[ImportedQuestion], list[LeftOut]]:
         found.extend(_demographic_question(item) for item in items if isinstance(item, dict))
     questions = [q for q in found if isinstance(q, ImportedQuestion)]
     left_out = [q for q in found if isinstance(q, LeftOut)]
+    if len(left_out) > MAX_LEFT_OUT:
+        rest = len(left_out) - MAX_LEFT_OUT
+        left_out = [*left_out[:MAX_LEFT_OUT], LeftOut(f"{rest} more fields", "Not listed here; check the employer's form.")]
     if len(questions) > MAX_QUESTIONS:
         left_out.append(LeftOut(f"{len(questions) - MAX_QUESTIONS} more questions",
                                 f"Only the first {MAX_QUESTIONS} are added; answer the rest on the employer's form."))
@@ -327,8 +331,11 @@ def import_posting(url: str, transport: httpx.BaseTransport | None = None) -> tu
                               "saved as a reference; paste the posting instead.")
     data = fetch(ref, transport)
     posting = read_posting(data)
-    questions, left_out = read_questions(data)
-    return posting, ImportPreview(ref.board, ref.job_id, utcnow(), tuple(questions), tuple(left_out))
+    try:
+        questions, left_out = read_questions(data)
+        return posting, ImportPreview(ref.board, ref.job_id, utcnow(), tuple(questions), tuple(left_out))
+    except ValidationError:  # anything the posting holds beyond what a preview keeps is refused, not a crash
+        raise _malformed() from None
 
 
 def preview_json(preview: ImportPreview) -> str:

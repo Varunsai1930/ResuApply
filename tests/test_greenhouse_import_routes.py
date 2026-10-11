@@ -224,3 +224,14 @@ def test_a_job_entered_by_hand_shows_no_import_details(client, sample_profile):
 def test_without_a_profile_the_imported_questions_are_counted(client, greenhouse):
     page = client.get(_import_and_save(client, greenhouse)).text
     assert "before answering the 14 questions saved with this job" in page
+
+
+def test_a_posting_with_hundreds_of_upload_fields_is_imported_with_them_summed_up(client, greenhouse):
+    data = posting()
+    data["questions"] += [{"label": f"Attachment {n}", "required": False, "fields": [{"name": f"file_{n}",
+                                                                                     "type": "input_file"}]}
+                          for n in range(350)]
+    greenhouse.queue.append(data)
+    response = client.post("/jobs/import", data={"url": POSTING_URL})
+    assert response.status_code == 200
+    assert "Attachment 0: A file upload" in response.text and "302 more fields" in response.text
