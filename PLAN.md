@@ -193,6 +193,14 @@ Snapshot review covers every frozen job field, including the posting URL. A URL-
 - Save the description as the job's original text and pre-fill the question list (required flags and field types). The user reviews both.
 - Other URLs remain saved references.
 
+Built (`services/greenhouse.py`, the **Import from Greenhouse** form on Add a job):
+
+- This is the app's only outbound request besides the AI provider, and it is made only when the user chooses **Import**. Saving a job never fetches anything, and saving an import uses what the user reviewed rather than fetching again.
+- Only `https` links on exactly those two hosts are accepted (no other host, port or user name), and only the board name and job number are read from them; the request always goes to `boards-api.greenhouse.io`. Redirects are refused, the whole exchange has a 10-second deadline and the response is read up to 2 MB. Timeouts, connection errors, 404s, other errors and oversized or malformed responses give a plain message and change nothing.
+- The posting's HTML is turned into plain text and stored like a pasted description: untrusted data, shown escaped and never followed as instructions. Question labels are cleaned and bounded like typed questions.
+- Questions are added through `answers.add_question`, so the usual keyword rules set their categories, a detected sensitive question can't become anything else, and they are stored in the same shape as typed questions. Self-identification (EEOC) and demographic questions are always Sensitive; a field type the app doesn't know is added as Unrecognized (unless its wording is sensitive), for the user to confirm; file uploads, the resume among them, and hidden fields are listed as left for the employer's form. At most 100 questions are added.
+- Each imported question's field type and choices, and the fields left out, are kept in a nullable `jobs.posting_import` column, so older versions read the database as before. The Questions step shows them.
+
 ### Greenhouse autofill
 
 Supports standard Greenhouse-hosted application forms only. Embedded employer implementations and other platforms are unsupported. Because Greenhouse allows custom questions, support is defined by verified fields, not a promise to handle every form.
@@ -237,7 +245,8 @@ Required scenarios:
 - Submitted snapshots stay unchanged after later edits.
 - Print output is readable for both short and long profiles.
 - PDF/DOCX imports require confirmation; failed imports leave the profile intact.
-- Greenhouse fixtures cover existing answers, custom questions, unsupported controls, upload verification and field readback.
+- Greenhouse import fixtures (fictional, recorded API responses; tests never use the network) cover custom questions, required flags, unsupported field types, bad links, timeouts, redirects, oversized and malformed responses.
+- Greenhouse autofill fixtures cover existing answers, custom questions, unsupported controls, upload verification and field readback.
 - Autofill tests capture submission events and assert that automation causes none. A manual smoke check confirms behavior on a supported hosted form without submitting.
 
 ## 6. Documentation and defaults
