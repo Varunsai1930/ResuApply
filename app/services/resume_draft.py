@@ -267,20 +267,51 @@ def _sentence(text: str) -> bool:
     return len(words) > 5 or (len(words) >= 3 and text.rstrip().endswith((".", "!", "?")))
 
 
+# A category label starting a part of a skills line: "Tools: Git" in "Frameworks: React; Tools: Git".
+_NEXT_CATEGORY = re.compile(r"\s*[;|]\s*(?=[A-Z][\w &/+.-]{0,30}:)")
+
+
+def _split_list(text: str) -> list[str]:
+    """A list split at commas, semicolons, bars and dots, but not inside brackets: "Python (Pandas, NumPy)" stays whole."""
+    items, depth, current = [], 0, []
+    for ch in text:
+        depth += {"(": 1, "[": 1, ")": -1, "]": -1}.get(ch, 0)
+        if depth <= 0 and ch in ",;|•·":
+            items.append("".join(current))
+            current, depth = [], 0
+        else:
+            current.append(ch)
+    items.append("".join(current))
+    return [item.strip() for item in items]
+
+
+def _categorized(line: str) -> list[tuple[str, str]]:
+    """(category, list) parts of a skills line: "Category: a, b", a table row "Category | a, b", or a plain list."""
+    parts = []
+    for part in _NEXT_CATEGORY.split(line):
+        category, sep, names = part.partition(":")
+        if sep and len(category.split()) <= 4:
+            parts.append((category.strip(), names))
+            continue
+        first, bar, rest = part.partition("|")
+        if bar and "," not in first and len(first.split()) <= 3 and "," in rest:
+            parts.append((first.strip(), rest))  # a table row: the first cell names the category
+        else:
+            parts.append(("Skills", part))
+    return parts
+
+
 def _skills(lines: list[str]) -> list[dict]:
     skills, seen = [], set()
     for line in lines:
-        line = _BULLET.sub("", line)
-        category, sep, names = line.partition(":")
-        if not sep:
-            category, names = "Skills", line
-        for name in re.split(r"\s*[,;|•·]\s*", names):
-            if _sentence(name):
-                continue
-            name = name.strip(" .")
-            if name and len(name) <= 60 and canon(name) not in seen:
-                seen.add(canon(name))
-                skills.append({"name": name, "category": category.strip() or "Skills"})
+        for category, names in _categorized(_BULLET.sub("", line)):
+            for name in _split_list(names):
+                if _sentence(name):
+                    continue
+                name = name.strip(" .")
+                if name and len(name) <= 60 and canon(name) not in seen:
+                    seen.add(canon(name))
+                    skills.append({"name": name, "category": category or "Skills"})
     return skills
 
 

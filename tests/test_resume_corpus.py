@@ -195,3 +195,13 @@ def test_page_numbers_and_running_headers_are_left_out():
 def test_a_one_page_resume_keeps_every_line():
     lines = column(["Jordan Example", "jordan@example.com", "SKILLS", "Python", "3"])
     assert extract_text(layout_pdf_bytes([lines])).splitlines()[-1] == "3"
+
+
+def test_skills_lists_keep_brackets_table_categories_and_several_categories_per_line():
+    draft = draft_profile("Jordan Example\n\nSkills\nPython (Pandas, NumPy), SQL, JavaScript\n• Docker\n"
+                          "Languages | Java, Go\nFrameworks: React, Flask; Tools: Git, Jira\nRust | Kotlin\n")
+    assert [(s["name"], s["category"]) for s in draft["skills"]] == [
+        ("Python (Pandas, NumPy)", "Skills"), ("SQL", "Skills"), ("JavaScript", "Skills"), ("Docker", "Skills"),
+        ("Java", "Languages"), ("Go", "Languages"), ("React", "Frameworks"), ("Flask", "Frameworks"),
+        ("Git", "Tools"), ("Jira", "Tools"), ("Rust", "Skills"), ("Kotlin", "Skills"),
+    ]
