@@ -545,7 +545,8 @@ class Merged:
 
 
 # What tells two entries apart: a second role at the same organization is a new entry, and so is
-# one whose name the draft couldn't read.
+# one whose name the draft couldn't read. Entries without a name are told apart by their link and
+# bullets instead, so two unnamed projects aren't taken for one.
 _ENTRY_KEY = {"education": ("institution", "degree"), "experience": ("organization", "title"),
               "projects": ("name", "role")}
 
@@ -555,7 +556,11 @@ def _key(value: str) -> str:
 
 
 def _entry_key(entry: dict, fields: tuple[str, ...]) -> tuple[str, ...]:
-    return tuple(_key(entry.get(name, "")) for name in fields)
+    key = tuple(_key(entry.get(name, "")) for name in fields)
+    if any(key):
+        return key
+    bullets = (b.get("text", "") if isinstance(b, dict) else "" for b in entry.get("bullets") or [])
+    return (*key, _key(entry.get("link", "")), *(_key(text) for text in bullets))
 
 
 def _count(n: int, one: str, many: str) -> str:

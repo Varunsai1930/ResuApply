@@ -210,6 +210,18 @@ def test_merge_adds_a_second_role_at_the_same_organization_and_unnamed_entries()
     assert merge(merged.data, draft).added == []  # importing the same resume again adds nothing
 
 
+def test_merge_keeps_every_unnamed_entry_apart_by_its_link_and_bullets():
+    current = {"contact": {"name": "Jordan Example", "links": {}}, "projects": [], "skills": [], "certifications": []}
+    draft = draft_profile("Jordan Example\njordan@example.com\n\nPROJECTS\ngithub.com/jordan/one\n"
+                          "• Built a parser for invoices in Python\n\ngithub.com/jordan/two\n"
+                          "• Wrote a scheduler for cron jobs in Go\n")
+    assert [p["name"] for p in draft["projects"]] == ["", ""]
+    merged = merge(current, draft)
+    assert [p["link"] for p in merged.data["projects"]] == ["github.com/jordan/one", "github.com/jordan/two"]
+    assert "2 projects" in merged.added
+    assert merge(merged.data, draft).added == []  # importing the same resume again adds nothing
+
+
 def test_contact_details_are_read_from_the_whole_header():
     header = ["Jordan Example", "Backend developer", "Open to internships", "Python and SQL", "Available June 2025",
               "Willing to relocate", "Austin, TX", "jordan@example.com", "+1 555 0100", "github.com/jordan-example"]
