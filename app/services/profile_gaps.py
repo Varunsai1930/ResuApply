@@ -26,6 +26,7 @@ FACTS = {
     "github": ("GitHub", "contact"),
     "portfolio": ("Portfolio", "contact"),
     "graduation_date": ("Graduation date", "education"),
+    "graduation_year": ("Graduation date", "education"),
     "school": ("School", "education"),
     "degree": ("Degree", "education"),
     "major": ("Field of study", "education"),

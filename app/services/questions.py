@@ -72,6 +72,7 @@ _FIELD_LABELS = [
     ("github", r"github(?: profile)?(?: url| link)?"),
     ("portfolio", rf"(?:portfolio website|{_SITE}(?:{_OR}{_SITE})?)(?: url| link)?"),
     ("graduation_date", r"(?:(?:expected|anticipated) )?graduation(?: date)?"),
+    ("graduation_year", r"(?:(?:expected|anticipated) )?(?:graduation year|year of graduation)"),
     ("start_date", r"(?:start|(?:earliest |available )?start date|availability(?: date)?)"),
     ("gpa", r"(?:(?:current|cumulative) )?(?:gpa|grade point(?: average)?)"),
     ("major", rf"(?:major|field of study|area of study)(?:{_OR}{_STUDY})?"),
@@ -88,7 +89,7 @@ _LOCATION_PART = r"(?:city|state|province|country|region|zip(?: code)?|postal co
 _TRAILING_HINT = re.compile(
     r"\s*\((?:optional|required|if (?:any|applicable)|url|link|full url|"
     r"(?:e\.g\.?|i\.e\.?|eg|ie|example|format)[:,]? [^()]*|"
-    r"[mdy]{1,4}(?: ?[/.-] ?[mdy]{1,4}){1,2}|"
+    r"[mdy]{1,4}(?: ?[/.-] ?[mdy]{1,4}){1,2}|y{4}|y{2}|"
     r"(?:with|including|include) (?:the |your )?(?:country|area) code|"
     r"(?:out of|on a) [\d.]+(?: scale)?|"
     rf"{_LOCATION_PART}(?: ?(?:,|/|and|&) ?{_LOCATION_PART})+)\)$"
@@ -98,6 +99,7 @@ _FACTUAL.extend([
     ("graduation_date", re.compile(
         r"when (?:(?:do|will) you (?:expect to )?graduate|(?:is|was) your (?:expected )?graduation(?: date)?)"
     )),
+    ("graduation_year", re.compile(r"(?:what|which) year (?:will|do|did) you (?:expect to )?graduate")),
     ("start_date", re.compile(
         r"(?:when (?:can|could|are) you (?:available to )?start|what is the earliest (?:date )?you can start)"
     )),
@@ -257,6 +259,8 @@ def factual_value(key: str, question: str, profile: Profile | dict) -> str | Non
         return links.get(key) or None
     if key == "graduation_date":
         return profile_service.graduation_date(prof)
+    if key == "graduation_year":  # the profile's date, YYYY or longer, gives the year whatever its precision
+        return (profile_service.graduation_date(prof) or "")[:4] or None
     if key == "start_date":
         return (prof.get("availability") or {}).get("start_date") or None
     if key == "school":
