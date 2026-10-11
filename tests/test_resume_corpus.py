@@ -336,3 +336,27 @@ Hidden Heading Nobody Knows
         ("Example Game", ["Built a small browser game"]),
         ("Hidden Heading Nobody Knows", []),
     ]
+
+
+def test_short_years_seasons_and_apostrophe_years_are_dates():
+    draft = draft_profile("""Jordan Example
+
+Experience
+Sample Analytics | Intern | Summer 2024
+- Built an API
+Example Labs | Research Assistant | 2021–22
+- Cleaned data
+Example Corp | Tutor | Fall 2022 – Spring 2023
+- Tutored
+Example Inc | Engineer | May '24 – Aug ’24
+- Engineered
+Example Org | Analyst | Jan. 2023 – Ongoing
+- Analysed
+""")
+    assert [(e["organization"], e["title"], e["start"], e["end"]) for e in draft["experience"]] == [
+        ("Sample Analytics", "Intern", "2024", ""),  # a season is no month: only the year is kept
+        ("Example Labs", "Research Assistant", "2021", "2022"),
+        ("Example Corp", "Tutor", "2022", "2023"),
+        ("Example Inc", "Engineer", "2024-05", "2024-08"),
+        ("Example Org", "Analyst", "2023-01", "present"),
+    ]

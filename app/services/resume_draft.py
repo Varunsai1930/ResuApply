@@ -143,19 +143,23 @@ def _contact(lines: list[str]) -> dict:
 
 _MONTH = r"(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)"
 _MONTHS = {m: i for i, m in enumerate(("jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec"), 1)}
-_DATE = (r"(?:(?:jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec)[a-z]*\.?\s+\d{4}"
-         r"|\d{1,2}/\d{4}|\d{4}-\d{2}|\d{4})")
-_RANGE = re.compile(rf"({_DATE})\s*(?:-|–|—|to)\s*({_DATE}|present|current|now)", re.I)
+_SEASON = r"(?:spring|summer|fall|autumn|winter)"
+_DATE = (r"(?:(?:jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec)[a-z]*\.?\s+(?:\d{4}|['’]\d{2}\b)"
+         rf"|{_SEASON}\s+\d{{4}}|\d{{1,2}}/\d{{4}}|\d{{4}}-\d{{2}}|\d{{4}})")
+_RANGE = re.compile(rf"({_DATE})\s*(?:-|–|—|to)\s*({_DATE}|present|current|now|ongoing)", re.I)
+_SHORT_RANGE = re.compile(r"\b((?:19|20)\d{2})\s*[-–—]\s*(\d{2})\b(?![/-])")  # "2021–22"
 _SINGLE = re.compile(rf"(?:expected\s+|anticipated\s+)?({_DATE})", re.I)
 
 
 def _date(text: str) -> str:
     """A date as the profile stores it: YYYY-MM or YYYY, or "present"."""
     text = text.strip().lower()
-    if text in ("present", "current", "now"):
+    if text in ("present", "current", "now", "ongoing"):
         return "present"
+    if m := re.fullmatch(r"([a-z]+)\.?\s+['’](\d{2})", text):  # "May '24": this century's
+        text = f"{m.group(1)} 20{m.group(2)}"
     if m := re.fullmatch(r"([a-z]+)\.?\s+(\d{4})", text):
-        month = _MONTHS.get(m.group(1)[:3])
+        month = _MONTHS.get(m.group(1)[:3])  # a season names no month: only its year is kept
         return f"{m.group(2)}-{month:02d}" if month else m.group(2)
     if m := re.fullmatch(r"(\d{1,2})/(\d{4})", text):
         return f"{m.group(2)}-{int(m.group(1)):02d}" if 1 <= int(m.group(1)) <= 12 else m.group(2)
@@ -166,6 +170,8 @@ def _dates(text: str, single_is_end: bool) -> tuple[str, str, str]:
     """(start, end, text without the dates)."""
     if m := _RANGE.search(text):
         return _date(m.group(1)), _date(m.group(2)), text[:m.start()] + " " + text[m.end():]
+    if m := _SHORT_RANGE.search(text):
+        return m.group(1), m.group(1)[:2] + m.group(2), text[:m.start()] + " " + text[m.end():]
     if m := _SINGLE.search(text):
         value = _date(m.group(1))
         rest = text[:m.start()] + " " + text[m.end():]
@@ -244,7 +250,8 @@ def _entries(lines: list[str], section: str = "") -> list[_Entry]:
 
 
 # A year or a month and year in a heading line: a date, not a count ("1,200 users").
-_DATED = re.compile(rf"(?i)\b(?:{_MONTH}[a-z]*\.?\s+)?(?:19|20)\d{{2}}\b|\bpresent\b")
+_DATED = re.compile(rf"(?i)\b(?:(?:{_MONTH}[a-z]*|{_SEASON})\.?\s+)?(?:19|20)\d{{2}}\b|\bpresent\b"
+                    rf"|\b{_MONTH}[a-z]*\.?\s+['’]\d{{2}}\b")
 
 
 def _another_entry(heading: list[str], line: str, section: str) -> bool:
