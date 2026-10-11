@@ -9,8 +9,10 @@ shows each change before anything is saved. The rules are deliberately plain:
   lines are an entry's heading, from which dates and the parts between separators are read;
 - skills are read as "Category: a, b" lines or plain lists.
 
-A heading the rules don't know ends the section before it, so its lines are left out rather
-than put in the wrong place; the extracted text stays on screen for the user to copy from.
+A heading for a section the profile doesn't hold (Awards, Volunteering) ends the section before
+it, so its lines are left out rather than put in the wrong place; the extracted text stays on
+screen for the user to copy from. Only listed headings count: an ALL-CAPS name or company is
+not taken for one.
 An existing profile is never overwritten: ``merge`` only fills empty fields and adds entries,
 skills and certifications it doesn't already have.
 """
@@ -36,18 +38,23 @@ _HEADINGS = {
                "tools and technologies", "skills and technologies"),
     "certifications": ("certifications", "certificates", "licenses and certifications", "certifications and licenses"),
 }
+# Sections the profile doesn't hold: their lines are left out.
+_OTHER_HEADINGS = (
+    "awards", "honors", "honors and awards", "awards and honors", "achievements", "activities",
+    "extracurricular activities", "leadership", "leadership and activities", "volunteering",
+    "volunteer experience", "volunteer work", "community service", "publications", "presentations",
+    "research", "languages", "interests", "hobbies", "hobbies and interests", "references",
+    "affiliations", "memberships", "professional memberships", "additional information", "coursework",
+    "relevant coursework",
+)
 _HEADING_OF = {name: section for section, names in _HEADINGS.items() for name in names}
+_HEADING_OF.update({name: "other" for name in _OTHER_HEADINGS})
 
 
 def _heading(line: str) -> str | None:
-    """The section a heading line starts ("other" for an unknown one), or None for any other line."""
+    """The section a heading line starts ("other" for one the profile doesn't hold), or None for any other line."""
     key = re.sub(r"\s+", " ", line.strip().rstrip(":").replace("&", "and")).lower()
-    if key in _HEADING_OF:
-        return _HEADING_OF[key]
-    words = line.split()
-    if 0 < len(words) <= 4 and line.isupper() and not re.search(r"[@\d|•]", line):
-        return "other"  # a short ALL-CAPS line: a heading the rules don't know (AWARDS, VOLUNTEERING)
-    return None
+    return _HEADING_OF.get(key)
 
 
 # ---------------------------------------------------------------- contact details

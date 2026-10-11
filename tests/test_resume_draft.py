@@ -127,3 +127,21 @@ def test_merge_with_nothing_new_adds_nothing():
     current = profile_service.normalize(copy.deepcopy(SAMPLE_PROFILE)).profile.model_dump()
     merged = merge(current, draft_profile("Jordan Example\njordan@example.com\n\nSkills\nPython, SQL"))
     assert merged.added == [] and merged.data == current
+
+
+def test_all_caps_names_and_companies_are_not_taken_for_headings():
+    draft = draft_profile("""JORDAN EXAMPLE
+jordan@example.com | Austin, TX
+
+EXPERIENCE
+SAMPLE ANALYTICS
+Software Engineering Intern | Jun 2024 - Aug 2024
+- Built a Flask REST API in Python
+
+VOLUNTEERING
+Food bank driver
+""")
+    assert draft["contact"]["name"] == "JORDAN EXAMPLE" and draft["contact"]["email"] == "jordan@example.com"
+    (job,) = draft["experience"]
+    assert (job["organization"], job["title"]) == ("SAMPLE ANALYTICS", "Software Engineering Intern")
+    assert "Food bank" not in str(draft)  # a known heading outside the profile still ends the section
