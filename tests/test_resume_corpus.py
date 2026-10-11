@@ -725,3 +725,20 @@ def test_skills_three_brackets_deep_are_all_kept():
     line = "Languages (Python (Web frameworks (Django, Flask, FastAPI, Celery, SQLAlchemy, Pydantic)), Go, Rust)"
     names = [s["name"] for s in draft_profile(f"Jordan Example\n\nSkills\n{line}\n")["skills"]]
     assert {"Django", "Flask", "FastAPI", "Celery", "SQLAlchemy", "Pydantic", "Python", "Go", "Rust"} <= set(names)
+
+
+def test_a_style_that_switches_list_numbering_off_is_not_a_bullet():
+    from docx.enum.style import WD_STYLE_TYPE
+
+    def build(document):
+        compact = document.styles.add_style("Body Compact", WD_STYLE_TYPE.PARAGRAPH)
+        compact.base_style = document.styles["List Bullet"]
+        compact.element.get_or_add_pPr().get_or_add_numPr().get_or_add_numId().val = 0  # Word's "no numbering"
+        for line in ("Jordan Example", "Experience", "Acme Corp | Engineer | 2020 - 2022"):
+            document.add_paragraph(line)
+        document.add_paragraph("Built a Flask REST API", style="List Bullet")
+        document.add_paragraph("Example Labs | Analyst | 2023 - 2024", style="Body Compact")
+        document.add_paragraph("Cleaned survey data", style="List Bullet")
+
+    draft = read(word(build))
+    assert [(e["organization"], len(e["bullets"])) for e in draft["experience"]] == [("Acme Corp", 1), ("Example Labs", 1)]

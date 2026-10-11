@@ -298,8 +298,8 @@ def _numbered(paragraph) -> bool:
     while style is not None and style.style_id not in seen:
         seen.add(style.style_id)
         properties = style.element.pPr
-        if properties is not None and properties.numPr is not None:
-            return True
+        if properties is not None and properties.numPr is not None and properties.numPr.numId is not None:
+            return properties.numPr.numId.val != 0  # 0: the style switches its base's numbering off
         style = style.base_style
     return False
 
