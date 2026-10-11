@@ -39,3 +39,16 @@ class FakeGreenhouse:
         if isinstance(item, httpx.Response):
             return item
         return httpx.Response(200, json=item)
+
+
+class Clock:
+    """A stand-in for the import's clock (greenhouse._clock): reads the times given, then stays at the last.
+
+    Only the import's own reads of the time come here; anything else that reads time.monotonic is unaffected.
+    """
+
+    def __init__(self, *times: float):
+        self.times = list(times) or [0.0]
+
+    def __call__(self) -> float:
+        return self.times.pop(0) if len(self.times) > 1 else self.times[0]

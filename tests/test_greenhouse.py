@@ -7,7 +7,7 @@ import pytest
 
 from app.services import greenhouse
 from app.services.greenhouse import GreenhouseError, PostingRef, fetch, posting_ref, read_posting
-from tests.greenhouse_fake import API_URL, POSTING_URL, FakeGreenhouse, posting
+from tests.greenhouse_fake import API_URL, POSTING_URL, Clock, FakeGreenhouse, posting
 
 
 @pytest.mark.parametrize("url, ref", [
@@ -87,8 +87,7 @@ def test_failures_are_plain_messages(answer, message):
 
 
 def test_a_response_that_trickles_past_the_deadline_is_cut_off(monkeypatch):
-    clock = iter([0.0, 5.0, 11.0, 12.0])
-    monkeypatch.setattr(greenhouse.time, "monotonic", lambda: next(clock))
+    monkeypatch.setattr(greenhouse, "_clock", Clock(0.0, 5.0, 11.0, 12.0))
 
     def chunks():
         yield b'{"title": "'
@@ -229,8 +228,7 @@ def test_every_phase_together_stays_within_the_deadline(monkeypatch):
 
 
 def test_no_read_starts_without_the_time_for_it(monkeypatch):
-    clock = iter([0.0, 7.5, 7.5, 7.5])  # the headers took 7.5 of the 10 seconds
-    monkeypatch.setattr(greenhouse.time, "monotonic", lambda: next(clock))
+    monkeypatch.setattr(greenhouse, "_clock", Clock(0.0, 7.5))  # the headers took 7.5 of the 10 seconds
     pulled = []
 
     def chunks():
@@ -242,3 +240,16 @@ def test_no_read_starts_without_the_time_for_it(monkeypatch):
     with pytest.raises(GreenhouseError, match="longer than 10 seconds"):
         fetch(ref(), FakeGreenhouse(httpx.Response(200, content=chunks())).transport)
     assert pulled == []  # a read that may wait its full timeout would end after the deadline
+
+
+def test_the_deadline_reads_only_the_imports_own_clock(monkeypatch):
+    import time
+
+    monkeypatch.setattr(greenhouse, "_clock", Clock(0.0))
+
+    def handle(request):
+        for _ in range(50):  # a transport (or a logger) reading the time doesn't move the import's deadline
+            time.monotonic()
+        return httpx.Response(200, json=posting())
+
+    assert fetch(ref(), httpx.MockTransport(handle))["title"] == "Software Engineering Intern"

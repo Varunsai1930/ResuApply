@@ -40,6 +40,7 @@ TIMEOUT_SECONDS = 10.0  # for the whole exchange, not per read
 # httpx limits each phase on its own, so each gets a share: connecting, sending the request and waiting for
 # the headers take at most 9 seconds together, and a read of the body starts only while one fits.
 PHASE_SECONDS = 3.0
+_clock = time.monotonic  # the import's clock, on its own so tests can set it without touching anything else
 MAX_BYTES = 2 * 1024 * 1024  # a posting with its questions is tens of kilobytes
 
 _BOARD = re.compile(r"[A-Za-z0-9_-]{1,100}")
@@ -102,11 +103,11 @@ def fetch(ref: PostingRef, transport: httpx.BaseTransport | None = None) -> dict
 
     ``transport`` replaces the network in tests.
     """
-    deadline = time.monotonic() + TIMEOUT_SECONDS
+    deadline = _clock() + TIMEOUT_SECONDS
     body = bytearray()
 
     def time_for_a_read() -> None:
-        if time.monotonic() > deadline - PHASE_SECONDS:  # the read may wait PHASE_SECONDS for its data
+        if _clock() > deadline - PHASE_SECONDS:  # the read may wait PHASE_SECONDS for its data
             raise httpx.ReadTimeout("deadline passed")
 
     try:
