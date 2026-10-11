@@ -34,9 +34,9 @@ class Source:
 class Comparison:
     proposed: list[Segment]
     sources: list[Source]
-    added: int  # words
+    added: int  # words (punctuation is marked but not counted)
     removed: int
-    unchanged: bool
+    unchanged: bool  # nothing marked: the same words, capitals and punctuation as the closest line
 
 
 def _tokens(text: str) -> list[str]:
@@ -67,13 +67,26 @@ def _words(tokens: list[str]) -> list[int]:
     return [i for i, t in enumerate(tokens) if not t.isspace()]
 
 
+def _is_word(token: str) -> bool:
+    return token[0].isalnum() or token[0] == "_"
+
+
 def _diff(old: list[str], new: list[str]) -> tuple[set[int], set[int]]:
-    """Token positions removed from ``old`` and added in ``new``, comparing words regardless of case."""
+    """Token positions removed from ``old`` and added in ``new``.
+
+    Words are lined up regardless of case, so "Built" and "built" match up; a word whose
+    capitals changed is then still marked on both sides, so "unchanged" means the same text.
+    """
     old_words, new_words = _words(old), _words(new)
     matcher = SequenceMatcher(None, [_key(old[i]) for i in old_words], [_key(new[i]) for i in new_words],
                               autojunk=False)
     removed, added = set(), set()
     for op, a1, a2, b1, b2 in matcher.get_opcodes():
+        if op == "equal":
+            for a, b in zip(old_words[a1:a2], new_words[b1:b2]):
+                if old[a] != new[b]:
+                    removed.add(a)
+                    added.add(b)
         if op in ("replace", "delete"):
             removed.update(old_words[a1:a2])
         if op in ("replace", "insert"):
@@ -106,6 +119,7 @@ def compare(proposed: str, originals: list[dict]) -> Comparison:
             sources.append(Source(original["id"], _segments(old, removed), True))
             continue
         tokens = _tokens(original["text"])
-        support = {i for i in _words(tokens) if _key(tokens[i]) in added_keys and tokens[i][0].isalnum()}
+        support = {i for i in _words(tokens) if _key(tokens[i]) in added_keys and _is_word(tokens[i])}
         sources.append(Source(original["id"], _segments(tokens, support), False))
-    return Comparison(_segments(new, added), sources, len(added), len(removed), not added and not removed)
+    return Comparison(_segments(new, added), sources, sum(_is_word(new[i]) for i in added),
+                      sum(_is_word(old[i]) for i in removed), not added and not removed)

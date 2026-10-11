@@ -19,9 +19,9 @@ def test_added_and_removed_words_are_marked_against_the_closest_line():
                 [{"id": "exp-1", "text": ENTRY}, {"id": "exp-1-b1", "text": BULLET}])
     base = next(s for s in c.sources if s.base)
     assert base.id == "exp-1-b1"  # the bullet is closer than the entry, whatever the order cited
-    assert marked(c.proposed) == ["Designed and", "serving"]
-    assert marked(base.segments) == ["that served reporting data to"]
-    assert (c.added, c.removed, c.unchanged) == (3, 5, False)
+    assert marked(c.proposed) == ["Designed and built", "serving"]  # "Built" lost its capital
+    assert marked(base.segments) == ["Built", "that served reporting data to"]
+    assert (c.added, c.removed, c.unchanged) == (4, 6, False)
     # Every character is kept, in order, on both sides.
     assert "".join(s.text for s in c.proposed) == "Designed and built a Flask REST API in Python serving 1,200 internal users"
     assert "".join(s.text for s in base.segments) == BULLET
@@ -39,11 +39,19 @@ def test_an_unchanged_sentence_says_so():
     assert c.unchanged and marked(c.proposed) == [] and marked(c.sources[0].segments) == []
 
 
-def test_case_alone_is_not_a_change_but_numbers_and_punctuation_are():
+def test_a_change_of_capitals_is_a_change_and_never_unchanged():
     c = compare("built a flask REST API", [{"id": "b", "text": "Built a Flask REST API"}])
-    assert c.unchanged
+    assert not c.unchanged
+    assert marked(c.proposed) == ["built", "flask"] and marked(c.sources[0].segments) == ["Built", "Flask"]
+    assert (c.added, c.removed) == (2, 2)
+
+
+def test_numbers_and_punctuation_are_marked_but_only_words_are_counted():
     c = compare("Served 1,500 users.", [{"id": "b", "text": "Served 1,200 users"}])
     assert marked(c.proposed) == ["500", "."] and marked(c.sources[0].segments) == ["200"]
+    assert (c.added, c.removed) == (1, 1)
+    c = compare("Served 1,200 users.", [{"id": "b", "text": "Served 1,200 users"}])
+    assert not c.unchanged and (c.added, c.removed) == (0, 0)  # the review says "Only punctuation changed."
 
 
 def test_words_with_inner_marks_stay_whole():
@@ -69,8 +77,8 @@ def test_the_review_page_shows_the_reworded_words(ai_app_client, fake_ai, sample
     response = client.post(f"/jobs/{job_id}/resume/generate", follow_redirects=False)
     assert response.headers["location"].endswith("/resume/review"), response.text
     page = client.get(response.headers["location"]).text
-    assert "<ins>Designed and</ins> built a Flask REST API" in page
-    assert "2 words added, 0 removed." in page
+    assert "<ins>Designed and built</ins> a Flask REST API" in page and "<del>Built</del> a Flask" in page
+    assert "3 words added, 1 removed." in page
     assert "Unchanged from your profile." in page  # the other bullets kept their wording
     assert "<ins>underlined words</ins> were added" in page
 

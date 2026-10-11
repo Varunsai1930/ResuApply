@@ -18,6 +18,7 @@
     <p>{{ segments(c.proposed, 'ins') }}</p>
     <p class="hint">
       {% if c.unchanged %}Unchanged from your profile.
+      {% elif claim.originals and not c.added and not c.removed %}Only punctuation changed.
       {% elif claim.originals %}{{ c.added }} word{{ 's' if c.added != 1 }} added, {{ c.removed }} removed.{% endif %}
       Sources: {{ claim.sources | join(', ') }}
     </p>
