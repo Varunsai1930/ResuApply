@@ -147,7 +147,23 @@ def _docx_lines(data: bytes) -> str:
     from docx import Document
 
     document = Document(io.BytesIO(data))
-    return "\n".join(_block_lines(document.element.body, document))
+    return "\n".join(_header_lines(document) + _block_lines(document.element.body, document))
+
+
+def _header_lines(document) -> list[str]:
+    """The first page's header and footer, where Word templates often put the name and contact details.
+
+    They come first, with the lines contact details are read from. The first page's own header is
+    used when the document has one; only the first section's are read.
+    """
+    section = document.sections[0]
+    parts = ([section.first_page_header, section.first_page_footer] if section.different_first_page_header_footer
+             else [section.header, section.footer])
+    lines = []
+    for part in parts:
+        if not part.is_linked_to_previous:  # in the first section, "linked" means there is none
+            lines.extend(line for line in _block_lines(part._element, part) if line.strip())
+    return lines
 
 
 def _block_lines(element, parent) -> list[str]:

@@ -283,3 +283,31 @@ def test_a_two_column_word_layout_table_is_read_column_by_column():
     assert [s["name"] for s in draft["skills"]] == ["Python", "SQL"]
     assert [(e["organization"], [b["text"] for b in e["bullets"]]) for e in draft["experience"]] == [
         ("Sample Analytics", ["Built a Flask REST API"])]
+
+
+def test_contact_details_in_a_word_page_header_or_footer_are_read():
+    def build(document):
+        section = document.sections[0]
+        section.header.paragraphs[0].text = "Jordan Example"
+        section.header.add_paragraph("jordan@example.com | +1 555 0100")
+        section.footer.paragraphs[0].text = "Austin, TX | linkedin.com/in/jordan-example"
+        for line in ("Summary", "Student who builds backend services.", "Skills", "Python, SQL"):
+            document.add_paragraph(line)
+
+    draft = read(word(build))
+    contact = draft["contact"]
+    assert (contact["name"], contact["email"], contact["phone"], contact["location"], contact["links"]["linkedin"]) == (
+        "Jordan Example", "jordan@example.com", "+1 555 0100", "Austin, TX", "linkedin.com/in/jordan-example")
+    assert draft["summary"] == "Student who builds backend services."
+
+
+def test_a_first_page_header_is_read():
+    def build(document):
+        section = document.sections[0]
+        section.different_first_page_header_footer = True
+        section.first_page_header.paragraphs[0].text = "Jordan Example · jordan@example.com"
+        section.header.paragraphs[0].text = "Jordan Example · page 2"
+        for line in ("Skills", "Python"):
+            document.add_paragraph(line)
+
+    assert read(word(build))["contact"]["email"] == "jordan@example.com"
