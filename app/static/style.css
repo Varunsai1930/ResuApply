@@ -38,6 +38,15 @@
 
   --radius: 6px;
   --radius-sm: 4px;
+  /* Elevation, not structure: a 1px ring, lift and ambient depth. Dark mode keeps only the ring. */
+  --shadow-border:
+    0px 0px 0px 1px oklch(0 0 0 / 0.06),
+    0px 1px 2px -1px oklch(0 0 0 / 0.06),
+    0px 2px 4px 0px oklch(0 0 0 / 0.04);
+  --shadow-border-hover:
+    0px 0px 0px 1px oklch(0 0 0 / 0.08),
+    0px 1px 2px -1px oklch(0 0 0 / 0.08),
+    0px 2px 4px 0px oklch(0 0 0 / 0.06);
   --header-h: 56px;
   color-scheme: light;
 }
@@ -83,6 +92,8 @@
     --unknown-wash: #2a2416;
     --neutral-dot: #6d7077;
     --progress: #7fa7d6;
+    --shadow-border: 0 0 0 1px oklch(1 0 0 / 0.08);
+    --shadow-border-hover: 0 0 0 1px oklch(1 0 0 / 0.13);
     color-scheme: dark;
   }
 }
@@ -110,6 +121,8 @@
   --unknown-wash: #2a2416;
   --neutral-dot: #6d7077;
   --progress: #7fa7d6;
+  --shadow-border: 0 0 0 1px oklch(1 0 0 / 0.08);
+  --shadow-border-hover: 0 0 0 1px oklch(1 0 0 / 0.13);
   color-scheme: dark;
 }
 
@@ -209,10 +222,12 @@ main.wrap { padding-top: 40px; padding-bottom: 64px; }
 .hint { display: block; color: var(--ink-3); font-size: 0.84rem; margin: 6px 0 0; line-height: 1.5; }
 .company-line { margin: 0; color: var(--ink-2); }
 
-/* A section of content. Plain white sheet, hairline border, no shadow. */
+/* A section of content: a white sheet raised by a shadow ring. The transparent border keeps
+   its edge in forced-colours mode, which drops every box-shadow. */
 .card {
   background: var(--surface);
-  border: 1px solid var(--rule);
+  border: 1px solid transparent;
+  box-shadow: var(--shadow-border);
   border-radius: var(--radius);
   padding: 24px 28px;
   margin-bottom: 20px;
@@ -228,7 +243,8 @@ main.wrap { padding-top: 40px; padding-bottom: 64px; }
 .greeting { margin: 0 0 6px; color: var(--ink-3); font-size: 0.95rem; }
 .greeting-card {
   display: flex; align-items: center; justify-content: space-between; gap: 16px 32px; flex-wrap: wrap;
-  background: var(--surface); border: 1px solid var(--rule); border-left: 3px solid var(--accent);
+  background: var(--surface); border: 1px solid transparent; border-left: 3px solid var(--accent);
+  box-shadow: var(--shadow-border);
   border-radius: var(--radius); padding: 22px 28px; margin-bottom: 32px;
 }
 .greeting-card > div { flex: 1 1 360px; }
@@ -443,7 +459,8 @@ th {
 table.simple { border: 1px solid var(--rule); border-radius: var(--radius-sm); }
 .tracker {
   background: var(--surface);
-  border: 1px solid var(--rule);
+  border: 1px solid transparent;
+  box-shadow: var(--shadow-border);
   border-radius: var(--radius);
   border-collapse: separate; border-spacing: 0;
   overflow: hidden;
@@ -465,7 +482,7 @@ table.simple { border: 1px solid var(--rule); border-radius: var(--radius-sm); }
 /* ------------------------------------------------------------------ profile */
 
 /* The saved profile reads like a CV: section titles on the left, facts on the right. */
-.doc { background: var(--surface); border: 1px solid var(--rule); border-radius: var(--radius); padding: 4px 36px; }
+.doc { background: var(--surface); border: 1px solid transparent; box-shadow: var(--shadow-border); border-radius: var(--radius); padding: 4px 36px; }
 .doc-section { display: grid; grid-template-columns: 180px minmax(0, 1fr); gap: 0 36px; padding: 28px 0; border-top: 1px solid var(--rule); }
 .doc-section:first-child { border-top: 0; }
 .doc-section > h2 { font-size: 1.05rem; margin: 0; line-height: 1.5; }
@@ -585,7 +602,7 @@ input.guessed { background: var(--accent-wash); border-color: var(--progress); }
 .board-query { margin: 0 0 16px; color: var(--ink-2); }
 .board { display: grid; grid-template-columns: minmax(0, 1fr); gap: 14px; margin-bottom: 20px; }
 .board-column {
-  background: var(--well); border: 1px solid var(--rule); border-radius: var(--radius);
+  background: var(--well); border: 1px solid var(--rule); border-radius: calc(var(--radius) + 12px + 1px);
   padding: 12px; display: flex; flex-direction: column; gap: 10px; min-width: 0;
 }
 .board-column h2 {
@@ -594,10 +611,12 @@ input.guessed { background: var(--accent-wash); border-color: var(--progress); }
 }
 .job-card {
   display: flex; flex-direction: column; gap: 4px; padding: 14px;
-  background: var(--surface); border: 1px solid var(--rule); border-radius: var(--radius);
+  background: var(--surface); border: 1px solid transparent; border-radius: var(--radius);
+  box-shadow: var(--shadow-border);
   color: var(--ink); text-decoration: none;
+  transition-property: box-shadow; transition-duration: 150ms; transition-timing-function: ease-out;
 }
-.job-card:hover { border-color: var(--rule-strong); color: var(--ink); }
+.job-card:hover { box-shadow: var(--shadow-border-hover); color: var(--ink); }
 .job-card-company { font-size: 0.82rem; color: var(--ink-3); overflow-wrap: anywhere; }
 .job-card-title { font-size: 0.95rem; margin-bottom: 6px; overflow-wrap: anywhere; }
 .job-card .st { align-items: flex-start; }
@@ -623,7 +642,8 @@ input.guessed { background: var(--accent-wash); border-color: var(--progress); }
 .steps-nav { margin-bottom: 20px; }
 .steps {
   list-style: none; margin: 0; padding: 8px; display: flex; flex-direction: column; gap: 2px;
-  background: var(--surface); border: 1px solid var(--rule); border-radius: var(--radius);
+  background: var(--surface); border: 1px solid transparent; box-shadow: var(--shadow-border);
+  border-radius: calc(var(--radius-sm) + 8px + 1px);
 }
 .step-link {
   display: flex; gap: 12px; padding: 12px; border-radius: var(--radius-sm);
