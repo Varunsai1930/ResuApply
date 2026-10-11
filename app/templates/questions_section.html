@@ -86,6 +86,8 @@
     <p class="sub-label">Your earlier answer. It stays when you set the category.</p>
   {% elif q.category in ['factual', 'sensitive_factual'] and item.value %}
     <p class="answer-line"><span class="muted">Profile value:</span> <strong>{{ item.value }}</strong></p>
+  {% elif q.category in ['factual', 'sensitive_factual'] and row.value_note and not own_answer %}
+    <p class="notice small">{{ row.value_note }}</p>
   {% elif q.category in ['factual', 'sensitive_factual'] and row.manual_name_part %}
     <p class="notice small">Type this part of your name below. Your profile stores your full name only, and ResuApply never splits it.</p>
   {% elif q.category in ['factual', 'sensitive_factual'] %}

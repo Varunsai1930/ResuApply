@@ -71,7 +71,8 @@ _FIELD_LABELS = [
     ("linkedin", r"linkedin(?: profile)?(?: url| link)?"),
     ("github", r"github(?: profile)?(?: url| link)?"),
     ("portfolio", rf"(?:portfolio website|{_SITE}(?:{_OR}{_SITE})?)(?: url| link)?"),
-    ("graduation_date", r"(?:(?:expected|anticipated) )?graduation(?: date)?"),
+    ("graduation_date", r"(?:(?:expected|anticipated) )?(?:graduation(?: date| month(?: and | ?/ ?)year)?|"
+                        r"(?:date|month and year) of graduation)"),
     ("graduation_year", r"(?:(?:expected|anticipated) )?(?:graduation year|year of graduation)"),
     ("start_date", r"(?:start|(?:earliest |available )?start date|availability(?: date)?)"),
     ("gpa", r"(?:(?:current|cumulative) )?(?:gpa|grade point(?: average)?)"),
@@ -89,7 +90,7 @@ _LOCATION_PART = r"(?:city|state|province|country|region|zip(?: code)?|postal co
 _TRAILING_HINT = re.compile(
     r"\s*\((?:optional|required|if (?:any|applicable)|url|link|full url|"
     r"(?:e\.g\.?|i\.e\.?|eg|ie|example|format)[:,]? [^()]*|"
-    r"[mdy]{1,4}(?: ?[/.-] ?[mdy]{1,4}){1,2}|y{4}|y{2}|"
+    r"[mdy]{1,4}(?: ?[/.-] ?[mdy]{1,4}){1,2}|y{4}|y{2}|month ?(?:/|and) ?year|"
     r"(?:with|including|include) (?:the |your )?(?:country|area) code|"
     r"(?:out of|on a) [\d.]+(?: scale)?|"
     rf"{_LOCATION_PART}(?: ?(?:,|/|and|&) ?{_LOCATION_PART})+)\)$"
@@ -97,7 +98,8 @@ _TRAILING_HINT = re.compile(
 _FACTUAL = [(key, re.compile(_FIELD_PREFIX + label)) for key, label in _FIELD_LABELS]
 _FACTUAL.extend([
     ("graduation_date", re.compile(
-        r"when (?:(?:do|will) you (?:expect to )?graduate|(?:is|was) your (?:expected )?graduation(?: date)?)"
+        r"when (?:(?:do|will) you (?:expect to )?graduate|did you graduate|"
+        r"(?:is|was) your (?:expected )?graduation(?: date)?)"
     )),
     ("graduation_year", re.compile(r"(?:what|which) year (?:will|do|did) you (?:expect to )?graduate")),
     ("start_date", re.compile(
@@ -244,6 +246,46 @@ def _yes_no(value) -> str | None:
     return {True: "Yes", False: "No"}.get(value)
 
 
+GRADUATION_KEYS = ("graduation_date", "graduation_year")
+# The date formats a graduation-date question may ask for in its label, most specific first.
+_DATE_FORMATS = [
+    (re.compile(r"\bmm ?/ ?dd ?/ ?yyyy\b"), "{m}/{d}/{y}"),
+    (re.compile(r"\bdd ?/ ?mm ?/ ?yyyy\b"), "{d}/{m}/{y}"),
+    (re.compile(r"\byyyy ?- ?mm\b"), "{y}-{m}"),
+    (re.compile(r"\bmm ?- ?yyyy\b"), "{m}-{y}"),
+    (re.compile(r"\bmm ?/ ?yy\b"), "{m}/{yy}"),
+    (re.compile(r"\bmm ?/ ?yyyy\b|\bmonth ?/ ?year\b"), "{m}/{y}"),
+]
+_PRECISION = ("This question asks for more than your profile holds: the end date of your education has no "
+              "{part}. Add it to your profile, or answer the question yourself.")
+
+
+def _graduation(key: str, question: str, prof: dict) -> tuple[str | None, str | None]:
+    """A graduation question's answer from the education end date, or None with why (None: the date is missing).
+
+    A year question gets the year, which every stored date has. A date question gets the month and
+    year (as "2027-05", or in the format its label asks for, such as "MM/YYYY"); a date stored with
+    only the year, or without the day a "MM/DD/YYYY" label asks for, is left to the user.
+    """
+    end = profile_service.graduation_date(prof)
+    if not end:
+        return None, None
+    year, month, day = (end.split("-") + ["", ""])[:3]
+    if key == "graduation_year":
+        return year, None
+    form = next((form for pattern, form in _DATE_FORMATS if pattern.search(norm_text(question))), "{y}-{m}")
+    if not month or ("{d}" in form and not day):
+        return None, _PRECISION.format(part="month" if not month else "day")
+    return form.format(y=year, yy=year[2:], m=month, d=day), None
+
+
+def graduation_note(key: str, question: str, profile: Profile | dict) -> str | None:
+    """Why a graduation question isn't answered from a profile that has an education end date, or None."""
+    if key not in GRADUATION_KEYS:
+        return None
+    return _graduation(key, question, profile.model_dump() if isinstance(profile, Profile) else profile)[1]
+
+
 def factual_value(key: str, question: str, profile: Profile | dict) -> str | None:
     """The profile's value for a factual question, or None when missing."""
     prof = profile.model_dump() if isinstance(profile, Profile) else profile
@@ -257,10 +299,8 @@ def factual_value(key: str, question: str, profile: Profile | dict) -> str | Non
         return contact.get(key) or None
     if key in ("linkedin", "github", "portfolio"):
         return links.get(key) or None
-    if key == "graduation_date":
-        return profile_service.graduation_date(prof)
-    if key == "graduation_year":  # the profile's date, YYYY or longer, gives the year whatever its precision
-        return (profile_service.graduation_date(prof) or "")[:4] or None
+    if key in GRADUATION_KEYS:
+        return _graduation(key, question, prof)[0]
     if key == "start_date":
         return (prof.get("availability") or {}).get("start_date") or None
     if key == "school":

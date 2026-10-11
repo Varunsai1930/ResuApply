@@ -36,3 +36,66 @@ def test_year_mentions_inside_other_requests_are_not_factual(question):
 def test_no_end_date_is_left_to_the_user():
     assert factual_value("graduation_year", "Graduation year", profile()) is None
     assert factual_value("graduation_year", "Graduation year", profile("present")) is None
+
+
+@pytest.mark.parametrize("question", [
+    "Expected graduation date", "When did you graduate?", "When will you graduate?", "Graduation month and year",
+    "Month and year of graduation", "Anticipated graduation date (Month/Year)", "Graduation date (MM/YYYY)",
+])
+def test_date_questions_are_factual(question):
+    assert classify(question) == ("factual", "graduation_date")
+
+
+@pytest.mark.parametrize("question, end, answer", [
+    ("Expected graduation date", "2027-05", "2027-05"),
+    ("Expected graduation date", "2027-05-15", "2027-05"),  # month and year, not the day
+    ("Graduation date (MM/YYYY)", "2027-05", "05/2027"),
+    ("Graduation date (mm/yy)", "2027-05", "05/27"),
+    ("Anticipated graduation date (Month/Year)", "2027-05", "05/2027"),
+    ("Graduation date (YYYY-MM)", "2027-05", "2027-05"),
+    ("Graduation date (MM-YYYY)", "2027-05", "05-2027"),
+    ("Graduation date (MM/DD/YYYY)", "2027-05-15", "05/15/2027"),
+])
+def test_a_date_question_gets_the_month_and_year_in_the_format_it_asks_for(question, end, answer):
+    assert factual_value("graduation_date", question, profile(end)) == answer
+
+
+@pytest.mark.parametrize("question, end", [
+    ("Expected graduation date", "2027"),  # no month
+    ("Graduation date (MM/DD/YYYY)", "2027-05"),  # no day
+])
+def test_a_date_the_profile_doesnt_hold_precisely_enough_is_left_to_the_user(question, end):
+    from app.services.questions import graduation_note
+
+    assert factual_value("graduation_date", question, profile(end)) is None
+    assert "asks for more than your profile holds" in graduation_note("graduation_date", question, profile(end))
+    assert graduation_note("graduation_date", question, profile("2027-05-15")) is None
+
+
+# ---------------------------------------------------------------- in the Questions step
+
+from tests.test_questions_routes import add, qid_of, ready_job, row, workspace  # noqa: E402
+
+
+def test_graduation_questions_are_filled_in_from_the_profile_and_stay_editable(client, sample_profile):
+    job_id = ready_job(client, sample_profile)  # the sample profile's degree ends 2099-05
+    year, date = qid_of(add(client, job_id, "What is your graduation year?")), qid_of(
+        add(client, job_id, "Graduation date (MM/YYYY)"))
+    page = workspace(client, job_id)
+    assert '<div class="answer-text">2099</div>' in row(page, year) and "From profile" in row(page, year)
+    assert '<div class="answer-text">05/2099</div>' in row(page, date)
+    typed = client.post(f"/jobs/{job_id}/questions/{year}/answer", data={"text": "2100", "origin": "user"},
+                        follow_redirects=False)
+    assert typed.status_code == 303
+    assert '<div class="answer-text">2100</div>' in row(workspace(client, job_id), year)  # the user's answer stands
+
+
+def test_a_date_the_profile_holds_only_as_a_year_says_why(client, sample_profile):
+    sample_profile["education"][0]["end"] = "2099"
+    job_id = ready_job(client, sample_profile)
+    qid = qid_of(add(client, job_id, "Expected graduation date"))
+    html = row(workspace(client, job_id), qid)
+    assert "the end date of your education has no month" in html
+    assert "Your profile has no value for this" not in html
+    refused = client.post(f"/jobs/{job_id}/questions/{qid}/confirm", data={"confirmation_token": "x"})
+    assert "the end date of your education has no month" in refused.text

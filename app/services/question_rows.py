@@ -31,6 +31,7 @@ class QuestionRow:
     unsupported: list[str] = field(default_factory=list)  # an accepted AI answer the profile no longer backs
     replacement: bool = False  # the pending draft would replace an accepted answer
     manual_name_part: bool = False  # a first- or last-name question: typed by the user, never from the profile
+    value_note: str | None = None  # why a profile fact the profile has doesn't answer the question
     confirmation_token: str = ""  # sent with Confirm / Use the profile value
     draft_token: str = ""  # sent with Accept draft
 
@@ -66,6 +67,7 @@ def rows(session: Session, job: Job, application: Application, candidate: Candid
             unsupported=answer_service.answer_problems(job, question, answer, candidate.profile),
             replacement=draft is not None and accepted,
             manual_name_part=q_rules.name_part(question.factual_key or "", question.text) is not None,
+            value_note=q_rules.graduation_note(question.factual_key or "", question.text, candidate.profile),
             confirmation_token=answer_service.confirmation_token(job, question, item.value, candidate),
             draft_token=answer_service.draft_token(job, question, draft) if draft is not None else "",
         ))
