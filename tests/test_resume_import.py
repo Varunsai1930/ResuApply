@@ -148,3 +148,17 @@ def _unsupported_compression() -> bytes:
 def test_a_damaged_word_file_is_reported_plainly(make):
     with pytest.raises(ResumeImportError, match="couldn't be read"):
         extract_text(make())
+
+
+def test_styles_without_an_id_are_still_followed_to_their_list_style():
+    from types import SimpleNamespace
+
+    from docx import Document
+
+    from app.services.resume_import import _numbered
+
+    list_bullet = Document().styles["List Bullet"]  # numbered in its own definition
+    unnamed = SimpleNamespace(style_id=None, element=SimpleNamespace(pPr=None), base_style=list_bullet)
+    outer = SimpleNamespace(style_id=None, element=SimpleNamespace(pPr=None), base_style=unnamed)
+    paragraph = SimpleNamespace(_p=SimpleNamespace(pPr=None), style=outer)
+    assert _numbered(paragraph)  # two styles without an ID are two styles, not a loop

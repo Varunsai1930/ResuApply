@@ -293,10 +293,11 @@ def _numbered(paragraph) -> bool:
     if properties is not None and properties.numPr is not None:
         number = properties.numPr.numId
         return number is None or number.val != 0
-    style, seen = paragraph.style, set()
-    # A style may be based on itself, or on a style that leads back to it: each is looked at once.
-    while style is not None and style.style_id not in seen:
-        seen.add(style.style_id)
+    style, seen = paragraph.style, []
+    # A style may be based on itself, or on a style that leads back to it: each is looked at once. Styles are
+    # told apart by their definitions, not their IDs, which a style may lack.
+    while style is not None and not any(style.element is element for element in seen):
+        seen.append(style.element)
         properties = style.element.pPr
         if properties is not None and properties.numPr is not None and properties.numPr.numId is not None:
             return properties.numPr.numId.val != 0  # 0: the style switches its base's numbering off
