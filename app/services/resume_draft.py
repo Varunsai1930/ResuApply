@@ -68,6 +68,10 @@ def _named(key: str) -> str | None:
     return None
 
 
+_WITH_CERTIFICATIONS = "+certifications"  # "skills+certifications": a line is one or the other
+_CERTIFICATE = re.compile(r"(?i)certif|licen[cs]e|credential")
+
+
 def heading(line: str) -> str | None:
     """The section a heading line starts, or None: for the import, which finds a page's columns by their headings."""
     return _heading(line)
@@ -78,7 +82,9 @@ def _heading(line: str) -> str | None:
 
     Besides the listed headings, this reads a qualified one ("Research Experience"), a combined one
     ("Skills & Interests" is Skills, "Leadership & Activities" is left out) when every part is a
-    heading, and a letter-spaced one ("E X P E R I E N C E").
+    heading, and a letter-spaced one ("E X P E R I E N C E"). A combined heading of two sections the
+    profile holds is left out ("Experience & Education"), except Certifications with Skills or with
+    Education, whose lines are each read as a certification or as the other section's.
     """
     if len(line) > 60:
         return None
@@ -93,7 +99,11 @@ def _heading(line: str) -> str | None:
     if len(parts) > 1:
         sections = [_named(part) for part in parts]
         if all(sections):
-            return next((section for section in sections if section != "other"), "other")
+            held = {section for section in sections if section != "other"}
+            if held in ({"skills", "certifications"}, {"education", "certifications"}):
+                return (held - {"certifications"}).pop() + _WITH_CERTIFICATIONS  # read line by line
+            # Other sections the profile holds can't be told apart line by line: left out, not misfiled.
+            return held.pop() if len(held) == 1 else "other"
     return None
 
 
@@ -489,9 +499,13 @@ def sections(text: str, blanks: bool = False) -> dict[str, list[str]]:
         if (section := _heading(line)) is not None:
             current = section
             found.setdefault(section, [])
+        elif current.endswith(_WITH_CERTIFICATIONS):  # each line where it belongs
+            other = current.removesuffix(_WITH_CERTIFICATIONS)
+            found.setdefault("certifications" if _CERTIFICATE.search(line) else other, []).append(line)
         else:
             found.setdefault(current, []).append(line)
-    found.pop("other", None)
+    for name in [name for name in found if name == "other" or name.endswith(_WITH_CERTIFICATIONS)]:
+        found.pop(name)
     return {name: lines[:-1] if lines and not lines[-1] else lines for name, lines in found.items()}
 
 

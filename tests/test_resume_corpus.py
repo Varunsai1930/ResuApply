@@ -647,3 +647,24 @@ M.S. Computer Science | 2022
         "University of Texas at Austin", "B.S.", "2016", "2020")
     assert [b["text"] for b in first["bullets"]] == ["Dean's List, Fall 2018 and Spring 2019"]
     assert (second["institution"], second["degree"], second["end"]) == ("Example State University", "M.S.", "2022")
+
+
+def test_a_heading_that_combines_two_profile_sections_doesnt_misfile_them():
+    draft = draft_profile("""Jordan Example
+
+Skills & Certifications
+Python, SQL
+AWS Certified Cloud Practitioner
+Example Scrum Master Certificate
+
+Experience & Education
+Example State University | B.S. Computer Science | 2027
+Sample Analytics | Intern | 2024
+
+Summary and Skills
+Builds backend services.
+""")
+    assert [s["name"] for s in draft["skills"]] == ["Python", "SQL"]
+    assert [c["name"] for c in draft["certifications"]] == [
+        "AWS Certified Cloud Practitioner", "Example Scrum Master Certificate"]
+    assert draft["experience"] == [] and draft["education"] == [] and draft["summary"] == ""  # left out, not misfiled
