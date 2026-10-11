@@ -252,3 +252,13 @@ def test_links_are_kept_without_their_scheme():
                           "TaskBot | https://www.example.com/taskbot | 2024\n- Built it")
     assert draft["contact"]["links"]["github"] == "github.com/jordan-example"
     assert draft["projects"][0]["link"] == "example.com/taskbot"
+
+
+def test_merge_never_adds_a_skill_the_profile_says_you_dont_have():
+    current = profile_service.normalize(copy.deepcopy(SAMPLE_PROFILE)).profile.model_dump()
+    current["skills_absent"] = ["Docker"]
+    current = profile_service.normalize(current).profile.model_dump()
+    merged = merge(current, draft_profile(RESUME))
+    assert "Docker" not in [s["name"] for s in merged.data["skills"]]
+    assert "1 skill" in merged.added  # JavaScript only
+    profile_service.normalize(merged.data)  # the review accepts it: no skill is both had and not had

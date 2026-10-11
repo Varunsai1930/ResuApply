@@ -597,7 +597,9 @@ def merge(current: dict, draft: dict) -> Merged:
                 have.add(key)
                 new.append(entry)
         add(section, new)
+    # A skill the user said they don't have is never added: the review refuses a skill listed as both.
     have_skills = {canon(s["name"]) for s in data.get("skills") or []}
+    have_skills |= {canon(name) for name in data.get("skills_absent") or []}
     add("skills", [s for s in draft["skills"] if canon(s["name"]) not in have_skills])
     have_certs = {_key(c.get("name", "")) for c in data.get("certifications") or []}
     add("certifications", [c for c in draft["certifications"] if _key(c["name"]) and _key(c["name"]) not in have_certs])
