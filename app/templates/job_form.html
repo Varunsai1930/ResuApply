@@ -84,7 +84,7 @@
   {% endif %}
   {% if preview %}
   <input type="hidden" name="imported" value="{{ preview_json }}">
-  <label class="check"><input type="checkbox" name="add_questions" value="1" checked> Add these {{ preview.questions | length }} question{{ 's' if preview.questions | length != 1 }} from the posting to the job</label>
+  {% if preview.questions %}<label class="check"><input type="checkbox" name="add_questions" value="1" checked> Add these {{ preview.questions | length }} question{{ 's' if preview.questions | length != 1 }} from the posting to the job</label>{% endif %}
   {% endif %}
   {% if conflict %}
   <input type="hidden" name="replace_token" value="{{ saved_token }}">

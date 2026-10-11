@@ -270,3 +270,18 @@ def test_a_failure_part_way_through_the_questions_saves_neither_the_job_nor_any_
     with pytest.raises(RuntimeError):
         client.post("/jobs", data=fields, follow_redirects=False)
     assert jobs(client) == []  # sending the form again can't make a duplicate job
+
+
+def test_a_posting_without_questions_offers_none_and_saves_a_plain_job(client, greenhouse):
+    uploads_only = posting()
+    uploads_only["questions"] = [q for q in uploads_only["questions"] if q["label"] == "Resume/CV"]
+    uploads_only["location_questions"], uploads_only["compliance"] = [], []
+    uploads_only.pop("demographic_questions", None)
+    greenhouse.queue.append(uploads_only)
+    page = client.post("/jobs/import", data={"url": POSTING_URL}).text
+    assert "Its application form has no questions to add." in page
+    assert "Add these 0 questions" not in page and 'name="add_questions"' not in page
+    saved = client.post("/jobs", data=job_fields(page), follow_redirects=False)
+    assert saved.headers["location"].endswith("?msg=job_created")  # not "saved with the questions"
+    (job,) = jobs(client)
+    assert job.questions == [] and job.posting_import is None
