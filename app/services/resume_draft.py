@@ -525,8 +525,12 @@ def draft_profile(text: str) -> dict:
     """A profile in the shape the profile form shows, read from a resume's text."""
     with_blanks = sections(text, blanks=True)
     parts = {name: [line for line in lines if line] for name, lines in with_blanks.items()}
-    certifications = [{"id": "", "name": _BULLET.sub("", line), "issuer": "", "date": ""}
-                      for line in parts.get("certifications", [])]
+    certifications, seen = [], set()
+    for line in parts.get("certifications", []):
+        name = _BULLET.sub("", line)
+        if _key(name) not in seen:  # a certification the resume lists twice is drafted once
+            seen.add(_key(name))
+            certifications.append({"id": "", "name": name, "issuer": "", "date": ""})
     return {
         "contact": _contact(parts.get("header", [])[:HEADER_LINES]),
         "summary": " ".join(parts.get("summary", [])),

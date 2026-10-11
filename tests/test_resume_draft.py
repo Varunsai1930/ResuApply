@@ -271,3 +271,9 @@ def test_merge_adds_a_certification_listed_twice_once():
     merged = merge(current, draft)
     assert [c["name"] for c in merged.data["certifications"]] == ["Example Cloud Practitioner"]
     assert "1 certification" in merged.added
+
+
+def test_a_certification_listed_twice_is_drafted_once():
+    draft = draft_profile("Jordan Example\n\nCertifications\nAWS Certified Cloud Practitioner\n"
+                          "• AWS certified cloud practitioner\nExample Scrum Master\n")
+    assert [c["name"] for c in draft["certifications"]] == ["AWS Certified Cloud Practitioner", "Example Scrum Master"]
