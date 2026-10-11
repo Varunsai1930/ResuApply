@@ -293,8 +293,10 @@ def _numbered(paragraph) -> bool:
     if properties is not None and properties.numPr is not None:
         number = properties.numPr.numId
         return number is None or number.val != 0
-    style = paragraph.style
-    while style is not None:
+    style, seen = paragraph.style, set()
+    # A style may be based on itself, or on a style that leads back to it: each is looked at once.
+    while style is not None and style.style_id not in seen:
+        seen.add(style.style_id)
         properties = style.element.pPr
         if properties is not None and properties.numPr is not None:
             return True

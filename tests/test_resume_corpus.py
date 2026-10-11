@@ -691,3 +691,23 @@ def test_a_long_line_of_repeated_month_names_drafts_quickly():
 def test_month_names_of_every_length_are_still_dates(heading, start, end):
     (job,) = draft_profile(f"Jordan Example\n\nExperience\n{heading}\n- Built an API\n")["experience"]
     assert (job["start"], job["end"]) == (start, end)
+
+
+def test_a_word_style_based_on_itself_doesnt_hang_the_import():
+    import threading
+
+    from lxml import etree
+
+    def build(document):
+        for line in ("Jordan Example", "jordan@example.com", "Skills", "Python, SQL"):
+            document.add_paragraph(line)
+        normal = document.styles["Normal"].element
+        based_on = etree.SubElement(normal, "{http://schemas.openxmlformats.org/wordprocessingml/2006/main}basedOn")
+        based_on.set("{http://schemas.openxmlformats.org/wordprocessingml/2006/main}val", "Normal")
+
+    data, result = word(build), {}
+    reader = threading.Thread(target=lambda: result.update(draft=read(data)), daemon=True)
+    reader.start()
+    reader.join(timeout=5)
+    assert not reader.is_alive(), "the import is stuck following the style chain"
+    assert [s["name"] for s in result["draft"]["skills"]] == ["Python", "SQL"]
