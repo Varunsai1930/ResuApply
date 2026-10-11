@@ -681,7 +681,7 @@ input.guessed { background: var(--accent-wash); border-color: var(--progress); }
 .step-card-text .meta { margin: 0; }
 .step-card h2 { margin: 2px 0 4px; }
 .step-next { display: flex; flex-direction: column; align-items: flex-end; gap: 6px; }
-.step-next .btn-primary { min-height: 44px; padding: 0 20px; font-weight: 600; }
+.step-next .btn-primary { min-height: 44px; padding: 0 18px 0 20px; font-weight: 600; }  /* less on the arrow side */
 .table-scroll { overflow-x: auto; }
 .approving { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
 .approving th, .approving td { text-align: left; vertical-align: top; padding: 10px 12px 10px 0; border-bottom: 1px solid var(--rule); }
@@ -864,7 +864,7 @@ details.card[open] summary::after { content: " −"; }
 
   .editor-layout { grid-template-columns: minmax(0, 1fr) 380px; }
   .editor-side { position: sticky; top: calc(var(--header-h) + 20px); align-self: start; }
-  .editor-side .description { max-height: calc(100vh - 220px); }
+  .editor-side .description { max-height: calc(100vh - 220px); overscroll-behavior: contain; }
 }
 
 @media (min-width: 920px) {
