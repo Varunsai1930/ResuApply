@@ -254,3 +254,16 @@ def test_a_format_resuapply_cant_fill_is_left_to_the_user():
     assert classify(question) == ("factual", "graduation_date")
     assert factual_value("graduation_date", question, profile("2027-05")) is None
     assert "a format ResuApply can't fill in" in graduation_note("graduation_date", question, profile("2027-05"))
+
+
+@pytest.mark.parametrize("degree", ["BBA", "B.E.", "B.Com", "BFA", "LLB", "B.Arch", "BSc", "B.Tech", "", "Diploma"])
+def test_a_bachelors_question_is_answered_from_the_only_degree_unless_it_is_another_level(degree):
+    assert factual_value("graduation_date", "Bachelor's degree graduation date",
+                         profile("2027-05", degrees=(degree,))) == "2027-05"
+
+
+@pytest.mark.parametrize("degree", ["MFA", "M.Ed.", "LLM", "MPH", "M.Tech"])
+def test_masters_abbreviations_are_masters_degrees(degree):
+    one = profile("2027-05", degrees=(degree,))
+    assert factual_value("graduation_date", "Master's degree graduation date", one) == "2027-05"
+    assert factual_value("graduation_date", "Bachelor's degree graduation date", one) is None  # another level

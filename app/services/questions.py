@@ -262,10 +262,12 @@ _PRECISION = ("This question asks for more than your profile holds: the end date
 
 # Degree levels, read in a question and in an education entry's degree.
 _LEVELS = [
-    re.compile(r"\bbachelor|\bundergrad|\bb\.? ?(?:s|a|sc|eng|tech)\b"),
-    re.compile(r"\bmaster|\bm\.? ?(?:s|a|sc|eng|tech)\b|\bmba\b|\bgraduate (?:degree|program|school|studies)|\(graduate\)"),
-    re.compile(r"\bph\.? ?d\b|\bdoctor"),
-    re.compile(r"\bassociate"),
+    re.compile(r"\bbachelor|\bundergrad|\bb\.? ?(?:s|a|sc|e|eng|tech|com|fa|arch|ed|sw|ba|bus)\b|\bbba\b|"
+               r"\bll\.? ?b\b"),
+    re.compile(r"\bmaster|\bm\.? ?(?:s|a|sc|e|eng|tech|fa|arch|ed|sw|ba|pa|ph|phil|com)\b|\bll\.? ?m\b|"
+               r"\bgraduate (?:degree|program|school|studies)|\(graduate\)"),
+    re.compile(r"\bph\.? ?d\b|\bd\.? ?phil\b|\bdoctor|\bed\.? ?d\b"),
+    re.compile(r"\bassociate|\ba\.? ?a\.? ?s\b"),
 ]
 _NO_LEVEL = "This question asks about a kind of degree your profile doesn't list. Answer it yourself."
 _SEVERAL = ("Your profile has several degrees, and this question doesn't say which one it means. "
@@ -286,9 +288,14 @@ def _graduation(key: str, question: str, prof: dict) -> tuple[str | None, str | 
         return None, None
     named = [level for level in _LEVELS if level.search(norm_text(question))]
     if len(named) == 1:
-        dated = [e for e in dated if named[0].search(norm_text(e.get("degree") or ""))]
-        if not dated:
-            return None, _NO_LEVEL
+        matching = [e for e in dated if named[0].search(norm_text(e.get("degree") or ""))]
+        unread = [e for e in dated if not any(level.search(norm_text(e.get("degree") or "")) for level in _LEVELS)]
+        if matching:
+            dated = matching
+        elif not unread:
+            return None, _NO_LEVEL  # every degree is clearly of another level
+        # Otherwise a degree whose level can't be read ("Diploma", none given) may be the one asked
+        # about: an only degree answers the question, and several are ambiguous unless they agree.
     answers = {_graduation_answer(key, question, entry["end"]) for entry in dated}
     if len(answers) != 1:
         return None, _SEVERAL
