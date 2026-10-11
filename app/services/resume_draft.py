@@ -73,12 +73,8 @@ _CERTIFICATE = re.compile(r"(?i)certif|licen[cs]e|credential")
 
 
 def heading(line: str) -> str | None:
-    """The section a heading line starts, or None: for the import, which finds a page's columns by their headings."""
-    return _heading(line)
-
-
-def _heading(line: str) -> str | None:
     """The section a heading line starts ("other" for one the profile doesn't hold), or None for any other line.
+    The import also uses it to find a page's columns by their headings.
 
     Besides the listed headings, this reads a qualified one ("Research Experience"), a combined one
     ("Skills & Interests" is Skills, "Leadership & Activities" is left out) when every part is a
@@ -502,7 +498,7 @@ def sections(text: str, blanks: bool = False) -> dict[str, list[str]]:
             if blanks and found.get(current) and found[current][-1]:
                 found[current].append("")
             continue
-        if (section := _heading(line)) is not None:
+        if (section := heading(line)) is not None:
             current = section
             found.setdefault(section, [])
         elif current.endswith(_WITH_CERTIFICATIONS):  # each line where it belongs
