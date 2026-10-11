@@ -168,7 +168,7 @@ def _starts_entry(line: str) -> bool:
                 or re.search(rf"(?i)\b(?:{_MONTH}[a-z]*\.?\s+\d{{4}}|present)\b", line))
 
 
-def _entries(lines: list[str]) -> list[_Entry]:
+def _entries(lines: list[str], section: str = "") -> list[_Entry]:
     """Entries of a section. A line after a bullet continues it (the bullet wrapped) unless it reads as
     an entry's heading, or the line after it does (a two-line heading), or the bullet ended a sentence."""
     entries: list[_Entry] = []
@@ -183,11 +183,26 @@ def _entries(lines: list[str]) -> list[_Entry]:
                 or (not entries[-1].bullets[-1].endswith((".", "!", "?")) and not _starts_entry(line)
                     and not (after and not _BULLET.match(after) and _starts_entry(after)))):
             entries[-1].bullets[-1] += " " + line  # a bullet that wrapped onto the next line
-        elif not entries or entries[-1].bullets:
+        elif not entries or entries[-1].bullets or _another_entry(entries[-1].heading, line, section):
             entries.append(_Entry([line]))
         else:
             entries[-1].heading.append(line)
     return entries
+
+
+# A year or a month and year in a heading line: a date, not a count ("1,200 users").
+_DATED = re.compile(rf"(?i)\b(?:{_MONTH}[a-z]*\.?\s+)?(?:19|20)\d{{2}}\b|\bpresent\b")
+
+
+def _another_entry(heading: list[str], line: str, section: str) -> bool:
+    """Whether a heading line starts the next entry of a section whose entries have no bullets.
+
+    Entries are usually told apart by their bullets; an education section rarely has any. A line
+    that brings a second set of dates, or in Education a second school, belongs to the next entry.
+    """
+    if section == "education" and _SCHOOL.search(line) and any(_SCHOOL.search(h) for h in heading):
+        return True
+    return bool(_DATED.search(line)) and any(_DATED.search(h) for h in heading)
 
 
 def _bullets(entry: _Entry) -> list[dict]:
@@ -293,9 +308,9 @@ def draft_profile(text: str) -> dict:
     return {
         "contact": _contact(parts.get("header", [])[:HEADER_LINES]),
         "summary": " ".join(parts.get("summary", [])),
-        "education": [_education(e) for e in _entries(parts.get("education", []))],
-        "experience": [_experience(e) for e in _entries(parts.get("experience", []))],
-        "projects": [_project(e) for e in _entries(parts.get("projects", []))],
+        "education": [_education(e) for e in _entries(parts.get("education", []), "education")],
+        "experience": [_experience(e) for e in _entries(parts.get("experience", []), "experience")],
+        "projects": [_project(e) for e in _entries(parts.get("projects", []), "projects")],
         "skills": _skills(parts.get("skills", [])),
         "skills_absent": [],
         "certifications": certifications,

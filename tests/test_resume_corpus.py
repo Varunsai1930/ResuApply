@@ -66,3 +66,29 @@ def test_word_list_bullets_stay_bullets():
         ("Example Labs", ["Cleaned survey data in Python"]),
     ]
     assert [s["name"] for s in draft["skills"]] == ["Python", "SQL"]
+
+
+def test_entries_without_bullets_stay_apart():
+    draft = draft_profile("""Jordan Example
+
+Education
+Example State University | Austin, TX
+B.S. in Computer Science | Aug 2023 – May 2027
+Example Community College | Dallas, TX
+Associate of Science | 2021 – 2023
+
+Experience
+Sample Analytics | Software Engineering Intern | Jun 2024 – Aug 2024
+Example Labs | Research Assistant | Jan 2025 – Present
+Software Engineering Intern | Jun 2023 – Aug 2023
+Example Robotics | Remote
+""")
+    assert [(e["institution"], e["degree"], e["start"], e["end"]) for e in draft["education"]] == [
+        ("Example State University", "B.S.", "2023-08", "2027-05"),
+        ("Example Community College", "Associate", "2021", "2023"),
+    ]
+    assert [(e["organization"], e["title"], e["start"]) for e in draft["experience"]] == [
+        ("Sample Analytics", "Software Engineering Intern", "2024-06"),
+        ("Example Labs", "Research Assistant", "2025-01"),
+        ("Example Robotics", "Software Engineering Intern", "2023-06"),  # a two-line heading stays one entry
+    ]
