@@ -73,21 +73,34 @@ def _columns(layout: str) -> str | None:
 
     pypdf's layout text puts a column that starts at one position at one character position, with
     a gutter of spaces before it. A position after a wide gap on several lines, with a gutter on
-    nearly every line that reaches it and a section heading on both sides of it, is a column: a
-    column of dates or places set flush right never holds a heading.
+    nearly every line between the first and last of those, and a section heading on both sides of
+    it, is a column: a column of dates or places set flush right never holds a heading. A line
+    across the gutter (a centred name, a contact line) is kept whole: above the columns when it
+    comes before them, below when after, and in the left column when between.
     """
     lines = [line.rstrip() for line in layout.splitlines() if line.strip()]
     starts = Counter(m.start(1) for line in lines for m in re.finditer(r" {4,}(\S)", line))
     for start, count in starts.most_common(3):
         if count < 3:
             break
-        reaching = [line for line in lines if len(line) > start]
-        if sum(line[start - 2:start] == "  " for line in reaching) < 0.9 * len(reaching):
+
+        def crosses(line: str) -> bool:
+            return len(line) > start and line[start - 2:start] != "  "
+
+        rows = [i for i, line in enumerate(lines) if len(line) > start and not crosses(line)]
+        first, last = rows[0], rows[-1]
+        reaching = [line for line in lines[first:last + 1] if len(line) > start]
+        if len(rows) < 0.9 * len(reaching):
             continue
-        left = [line[:start].strip() for line in lines]
-        right = [line[start:].strip() for line in lines]
+        top, left, right, bottom = [], [], [], []
+        for index, line in enumerate(lines):
+            if crosses(line):
+                (top if index < first else bottom if index > last else left).append(line.strip())
+            else:
+                left.append(line[:start].strip())
+                right.append(line[start:].strip())
         if any(heading(part) for part in left if part) and any(heading(part) for part in right if part):
-            return "\n".join([part for part in left if part] + [part for part in right if part])
+            return "\n".join(part for part in top + left + right + bottom if part)
     return None
 
 

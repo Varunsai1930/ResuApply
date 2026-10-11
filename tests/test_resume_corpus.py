@@ -573,3 +573,16 @@ def test_a_year_and_month_is_not_a_short_year_range():
     assert dates("Example State University | B.S. Computer Science | 1999–00") == ("1999", "2000")
     assert dates("Example State University | B.S. Computer Science | 2019 - 20") == ("2019", "2020")
     assert dates("Example State University | B.S. Computer Science | 2024–05") == ("", "2024")  # no range ends earlier
+
+
+def test_a_line_across_both_columns_is_kept_whole():
+    items = [(150, 780, "Jordan Example"),
+             (60, 766, "jordan@example.com | (555) 123-4567 | linkedin.com/in/jordan-example | Austin, TX"),
+             *column(SIDEBAR[3:], x=40, top=740), *column(MAIN, x=260, top=740)]
+    items.sort(key=lambda item: (-item[1], item[0]))
+    draft = read(layout_pdf_bytes([items]))
+    contact = draft["contact"]
+    assert (contact["name"], contact["email"], contact["phone"], contact["links"]["linkedin"]) == (
+        "Jordan Example", "jordan@example.com", "(555) 123-4567", "linkedin.com/in/jordan-example")
+    assert [s["name"] for s in draft["skills"]] == ["Python", "SQL", "Docker"]
+    assert [e["organization"] for e in draft["experience"]] == ["Sample Analytics"]
