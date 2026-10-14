@@ -15,12 +15,13 @@ Shapes follow ResuSkill's package model (resuskill_core.package and .questions):
 
 from __future__ import annotations
 
+from copy import deepcopy
 from datetime import date, datetime
 from typing import Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, PrivateAttr, field_serializer, model_validator
 
-from .profile import Profile
+from .profile import Profile, stored_profile
 
 QuestionCategory = Literal["factual", "sensitive_factual", "sensitive", "open", "unknown"]
 QUESTION_CATEGORIES: tuple[str, ...] = QuestionCategory.__args__
@@ -91,15 +92,48 @@ def stored_approval(value: Any) -> Any:
 
 
 def stored_snapshots(value: Any) -> Any:
-    """Read hook for stored snapshots: adapt the approval each one froze."""
+    """Read legacy snapshots safely while retaining their frozen profile facts for storage."""
     if not isinstance(value, list):
         return value
-    return [s | {"approval": stored_approval(s["approval"])} if isinstance(s, dict) and "approval" in s else s
-            for s in value]
+    snapshots = []
+    for snapshot in value:
+        if not isinstance(snapshot, dict):
+            snapshots.append(snapshot)
+            continue
+        adapted = dict(snapshot)
+        if "approval" in adapted:
+            adapted["approval"] = stored_approval(adapted["approval"])
+        if "profile" in adapted:
+            recovered = stored_profile(adapted["profile"])
+            if isinstance(recovered, Profile) and recovered.unicode_recovered:
+                adapted["profile"] = recovered
+                loaded = SubmittedSnapshot.model_validate(adapted)
+                loaded._stored_profile = deepcopy(snapshot["profile"])
+                snapshots.append(loaded)
+                continue
+        snapshots.append(adapted)
+    return snapshots
 
 
 class SubmittedSnapshot(_Model):
     """Everything the user submitted, frozen at the moment they recorded Applied."""
+
+    _stored_profile: dict[str, Any] | None = PrivateAttr(default=None)
+
+    @model_validator(mode="after")
+    def readable_profile(self):
+        # Revalidate nested text even when the database receives an existing snapshot
+        # instance whose mutable Profile was changed after construction.
+        Profile.model_validate(self.profile)
+        return self
+
+    @field_serializer("profile", mode="wrap")
+    def serialize_profile(self, value, serialize, info):
+        # Only the database asks for the original legacy payload. Display/export dumps
+        # use readable text; approval upgrades and appending snapshots preserve history.
+        if info.context and info.context.get("preserve_stored_snapshot_profile") and self._stored_profile is not None:
+            return deepcopy(self._stored_profile)
+        return serialize(value)
 
     id: int
     submitted_on: date

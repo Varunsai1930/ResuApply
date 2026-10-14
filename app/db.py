@@ -82,7 +82,10 @@ class PydanticJSON(TypeDecorator):
     def process_bind_param(self, value, dialect):
         if value is None:
             return None
-        return self.adapter.dump_python(self.adapter.validate_python(value), mode="json", by_alias=True)
+        return self.adapter.dump_python(
+            self.adapter.validate_python(value), mode="json", by_alias=True,
+            context={"preserve_stored_snapshot_profile": True},
+        )
 
     def process_result_value(self, value, dialect):
         if value is None:
