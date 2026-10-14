@@ -20,7 +20,7 @@ import subprocess
 import sys
 import tempfile
 import time
-from contextlib import contextmanager
+from contextlib import closing, contextmanager
 from html import unescape
 from pathlib import Path
 
@@ -127,7 +127,7 @@ def running_server(env: dict[str, str], base_url: str, log_path: Path):
 
 
 def stored_state(database: Path):
-    with sqlite3.connect(f"{database.as_uri()}?mode=ro", uri=True) as connection:
+    with closing(sqlite3.connect(f"{database.as_uri()}?mode=ro", uri=True)) as connection:
         return (connection.execute("SELECT profile, revision, id_counters FROM candidates").fetchall(),
                 connection.execute("SELECT title, company, revision FROM jobs").fetchall(),
                 connection.execute("SELECT accepted_package FROM applications").fetchall())

@@ -4,6 +4,7 @@ import builtins
 import json
 import os
 import re
+import sqlite3
 import subprocess
 import sys
 import threading
@@ -15,6 +16,41 @@ import pytest
 
 from scripts.smoke_local import ROOT, running_server
 from scripts import smoke_local
+
+
+@pytest.mark.parametrize("query_fails", [False, True])
+def test_stored_state_closes_its_connection_before_cleanup(tmp_path, monkeypatch, query_fails):
+    database = tmp_path / "acceptance.db"
+    connect = sqlite3.connect
+    setup = connect(database)
+    try:
+        setup.execute("CREATE TABLE candidates (profile TEXT, revision INTEGER, id_counters TEXT)")
+        setup.execute("CREATE TABLE jobs (title TEXT, company TEXT, revision INTEGER)")
+        if not query_fails:
+            setup.execute("CREATE TABLE applications (accepted_package TEXT)")
+        setup.commit()
+    finally:
+        setup.close()
+
+    # Retain the real connections so garbage collection cannot mask a leaked handle.
+    connections = []
+
+    def tracked_connect(*args, **kwargs):
+        connection = connect(*args, **kwargs)
+        connections.append(connection)
+        return connection
+
+    monkeypatch.setattr(smoke_local.sqlite3, "connect", tracked_connect)
+    if query_fails:
+        with pytest.raises(sqlite3.OperationalError, match="no such table: applications"):
+            smoke_local.stored_state(database)
+    else:
+        assert smoke_local.stored_state(database) == ([], [], [])
+
+    assert len(connections) == 1
+    with pytest.raises(sqlite3.ProgrammingError, match="closed database"):
+        connections[0].execute("SELECT 1")
+    database.unlink()  # Windows permits this only after all database handles are closed.
 
 
 def test_real_local_smoke_uses_temporary_data_and_disables_ai(tmp_path):
