@@ -4,31 +4,37 @@
 {% block content %}
 {% if not candidate %}
 <div class="empty card">
-  <h1>Create your profile</h1>
-  <p>Your profile holds the facts every application is built from: contact details, education, experience, projects, skills, work authorization and availability. You are the only one who changes it.</p>
+  <span class="option-icon">{{ m.icon('file-text', 28) }}</span>
+  <p class="eyebrow">Your application foundation</p>
+  <h1>Make your experience work for you</h1>
+  <p>Add your experience, projects and skills once. Use these facts to tailor every resume and prepare your application answers.</p>
   <div class="greeting-actions">
-    <a class="btn-primary" href="/profile/edit">Create profile</a>
+    <a class="btn-primary" href="/profile/edit">Create profile {{ m.icon('arrow-right', 17) }}</a>
     <a class="btn-secondary" href="/profile/import">Import from a resume</a>
   </div>
 </div>
 {% else %}
 {% set p = candidate.profile %}
 {% include "_sample_banner.html" %}
+{% if p.unicode_recovered %}
+<p class="notice warn" role="alert">Some saved profile text could not be read and is shown as �. <a href="/profile/edit">Edit the profile</a>, correct the marked text, and review and save it to repair the stored profile.</p>
+{% endif %}
 <div class="page-head with-actions">
   <div>
+    <p class="eyebrow">Your profile</p>
     <h1>{{ p.contact.name }}{% if candidate.sample %} <span class="tag">Sample</span>{% endif %}</h1>
-    <p class="meta">Revision {{ candidate.revision }} · last saved {{ candidate.updated_at | local_datetime }} · <a href="/profile/sharing">What the AI model may see</a></p>
+    <p class="meta">Revision {{ candidate.revision }} · last saved {{ candidate.updated_at | local_datetime }} · <a href="/profile/sharing">Review AI sharing</a></p>
   </div>
   <div class="greeting-actions">
     {% if not candidate.sample %}<a class="btn-secondary" href="/profile/import">Import from a resume</a>{% endif %}
-    <a class="btn-primary" href="/profile/edit">Edit profile</a>
+    <a class="btn-primary" href="/profile/edit">Edit profile {{ m.icon('arrow-right', 17) }}</a>
   </div>
 </div>
 
 <section class="card profile-gaps" aria-labelledby="gaps-title">
-  <h2 id="gaps-title">What your applications still ask for</h2>
+  <div class="section-heading"><span class="option-icon">{{ m.icon('check-circle', 20) }}</span><h2 id="gaps-title">Your application checklist</h2></div>
   {% if gaps %}
-  <p class="hint">From the questions in your jobs that aren't closed. Missing facts stay unknown; nothing is guessed.</p>
+  <p class="hint">These active applications need a few more details. Add the facts you know; anything else stays unknown.</p>
   <ul class="gap-list">
     {% for g in gaps %}
     <li>
@@ -43,14 +49,17 @@
     {% endfor %}
   </ul>
   {% elif asked_jobs %}
-  <p>{{ m.status_line(Meaning(Status.DONE, "everything your jobs' questions ask for so far is in your profile")) }}</p>
+  <p>{{ m.status_line(Meaning(Status.DONE, "Your profile covers the details your current job questions ask for.")) }}</p>
   {% else %}
-  <p class="hint">Once you add questions to a job, any fact they need that your profile lacks shows here.</p>
+  <p class="hint">Once you add questions to a job, missing profile details will appear here.</p>
   {% endif %}
 </section>
 
-<div class="doc">
-<section class="doc-section">
+<nav class="profile-jump" aria-label="Profile details">
+  {% for anchor, label in [('contact', 'Contact'), ('education', 'Education'), ('experience', 'Experience'), ('projects', 'Projects'), ('skills', 'Skills'), ('authorization', 'Work authorization'), ('preferences', 'Preferences')] %}<a href="#profile-{{ anchor }}">{{ label }}</a>{% endfor %}
+</nav>
+<div class="doc profile-document">
+<section class="doc-section" id="profile-contact">
   <h2>Contact <a class="section-edit" href="/profile/edit?section=contact">Edit<span class="visually-hidden"> contact and summary</span></a></h2>
   <div class="doc-body">
   <dl class="facts">
@@ -74,7 +83,7 @@
 {% endif %}
 
 {% for section, title in [('education', 'Education'), ('experience', 'Experience'), ('projects', 'Projects')] %}
-<section class="doc-section">
+<section class="doc-section" id="profile-{{ section }}">
   <h2>{{ title }} <a class="section-edit" href="/profile/edit?section={{ section }}">Edit<span class="visually-hidden"> {{ title | lower }}</span></a></h2>
   <div class="doc-body">
   {% for e in p[section] %}
@@ -103,7 +112,7 @@
 </section>
 {% endfor %}
 
-<section class="doc-section">
+<section class="doc-section" id="profile-skills">
   <h2>Skills <a class="section-edit" href="/profile/edit?section=skills">Edit<span class="visually-hidden"> skills and certifications</span></a></h2>
   <div class="doc-body">
   {% if p.skills %}
@@ -114,7 +123,7 @@
     {% endfor %}
   </dl>
   {% else %}<p class="muted">None added.</p>{% endif %}
-  <h3>Confirmed you don't have</h3>
+  <h3>Skills marked as absent</h3>
   <p>{{ p.skills_absent | join(', ') if p.skills_absent else '—' }}</p>
   </div>
 </section>
@@ -128,7 +137,7 @@
   </div>
 </section>
 
-<section class="doc-section">
+<section class="doc-section" id="profile-authorization">
   <h2>Work authorization <a class="section-edit" href="/profile/edit?section=authorization">Edit<span class="visually-hidden"> work authorization</span></a></h2>
   <div class="doc-body">
   {% if p.authorization %}
@@ -144,7 +153,7 @@
   </div>
 </section>
 
-<section class="doc-section">
+<section class="doc-section" id="profile-preferences">
   <h2>Preferences and availability <a class="section-edit" href="/profile/edit?section=preferences">Edit<span class="visually-hidden"> preferences and availability</span></a></h2>
   <div class="doc-body">
   <dl class="facts">

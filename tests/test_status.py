@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import re
 from datetime import UTC, datetime
+from html import unescape
 
 import pytest
 
@@ -115,15 +116,23 @@ def _nav(html: str) -> str:
     return re.search(r'<nav aria-label="Main">(.*?)</nav>', html, re.S).group(1)
 
 
+def main_nav_links(html: str) -> list[tuple[str, str, bool]]:
+    """Link destinations, visible labels and current states, allowing decorative icons."""
+    return [
+        (re.search(r'href="([^"]+)"', attrs).group(1),
+         unescape(re.sub(r"<[^>]+>", "", content)).strip(),
+         'aria-current="page"' in attrs)
+        for attrs, content in re.findall(r"<a\b([^>]*)>(.*?)</a>", _nav(html), re.S)
+    ]
+
+
 @pytest.mark.parametrize("path, current", [
     ("/jobs", "Jobs"), ("/jobs/new", "Jobs"), ("/answers", "Answers"), ("/profile", "Profile"),
 ])
 def test_every_page_shares_the_same_header_with_its_section_current(client, path, current):
     html = client.get(path).text
     assert html.count('<header class="site-header">') == 1
-    nav = _nav(html)
-    assert re.findall(r'<a href="([^"]+)"', nav) == [href for _, href, _ in NAV_ITEMS]
-    assert re.findall(r'aria-current="page">(\w+)<', nav) == [current]
+    assert main_nav_links(html) == [(href, label, label == current) for _, href, label in NAV_ITEMS]
 
 
 def test_error_pages_mark_no_section_current(client):

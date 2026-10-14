@@ -30,12 +30,12 @@
 {% set a = row.item.answer %}
 {% set current = a.text if (a and not a.skipped and a.origin in ['user', 'bank']) else '' %}
 {% set text = err.text if (err and err.text is not none) else current %}
-<form method="post" action="/jobs/{{ job.id }}/questions/{{ q.id }}/answer" class="stack answer-form">
+<form method="post" action="/jobs/{{ job.id }}/questions/{{ q.id }}/answer" class="stack answer-form" data-guard>
   <input type="hidden" name="origin" value="user">
   <input type="hidden" name="bank_id" value="">
   <div class="field">
     <label for="answer-{{ q.id }}">Your answer</label>
-    <textarea id="answer-{{ q.id }}" name="text" rows="4"{% if q.limit %} aria-describedby="limit-{{ q.id }}"{% endif %}{% if err and err.text is not none %} class="invalid" aria-invalid="true"{% endif %}>{{ text }}</textarea>
+    <textarea id="answer-{{ q.id }}" name="text" rows="4"{% if q.limit %} aria-describedby="limit-{{ q.id }}"{% endif %}{% if err and err.text is not none %} class="invalid" aria-invalid="true"{% endif %}>{{ m.textarea_value(text) }}</textarea>
     {% if q.limit %}<small id="limit-{{ q.id }}" class="hint" data-counter-for="answer-{{ q.id }}" data-limit="{{ q.limit }}" data-unit="{{ q.limit_unit }}">Limit: {{ '{:,}'.format(q.limit) }} {{ unit_words[q.limit_unit] }}.</small>{% endif %}
   </div>
   {% if row.suggestions %}
@@ -139,7 +139,7 @@
 
   {# Actions for this kind of question #}
   {% if q.category == 'unknown' %}
-    <form method="post" action="/jobs/{{ job.id }}/questions/{{ q.id }}/category" class="stack category-form">
+    <form method="post" action="/jobs/{{ job.id }}/questions/{{ q.id }}/category" class="stack category-form" data-guard>
       <div class="field">
         <label for="category-{{ q.id }}">This question is</label>
         <select id="category-{{ q.id }}" name="category">
@@ -181,7 +181,7 @@
     {% if q.category != 'unknown' %}
     <details>
       <summary>Change category</summary>
-      <form method="post" action="/jobs/{{ job.id }}/questions/{{ q.id }}/category" class="stack category-form">
+      <form method="post" action="/jobs/{{ job.id }}/questions/{{ q.id }}/category" class="stack category-form" data-guard>
         <div class="field">
           <label for="recategory-{{ q.id }}">This question is</label>
           <select id="recategory-{{ q.id }}" name="category">
@@ -225,10 +225,10 @@
 
     <details class="add-question" {% if not question_rows or (question_error and not question_error.id and question_form) %}open{% endif %}>
       <summary>Add a question</summary>
-      <form method="post" action="/jobs/{{ job.id }}/questions" class="stack">
+      <form method="post" action="/jobs/{{ job.id }}/questions" class="stack" data-guard>
         <div class="field">
           <label for="question-text">Question, as the employer wrote it</label>
-          <textarea id="question-text" name="text" rows="2" placeholder="e.g. Why do you want to work here?">{{ question_form.get('text', '') }}</textarea>
+          <textarea id="question-text" name="text" rows="2" placeholder="e.g. Why do you want to work here?">{{ m.textarea_value(question_form.get('text', '')) }}</textarea>
         </div>
         <label class="check"><input type="checkbox" name="required" value="1" {% if question_form.get('required', true) %}checked{% endif %}> Required</label>
         <div class="grid">

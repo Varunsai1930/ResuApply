@@ -77,7 +77,7 @@ def test_main_pages_render(client):
     assert client.get("/", follow_redirects=False).headers["location"] == "/welcome"  # a fresh install
     for url, text in [
         ("/jobs", "No jobs yet"),
-        ("/profile", "Create your profile"),
+        ("/profile", "Make your experience work for you"),
         ("/profile/edit", "Review changes"),
         ("/jobs/new", "Add a job"),
     ]:
@@ -110,7 +110,8 @@ def test_missing_job_is_a_friendly_404(client):
 
 def test_profile_review_then_save(client, sample_profile):
     review, saved = review_and_save(client, profile_form(sample_profile))
-    assert "This creates your profile as revision 1" in review.text
+    assert "save your first profile" in review.text
+    assert 'name="base_revision" value="0"' in review.text
     assert "exp-1-b1" in review.text
     assert saved.status_code == 303 and saved.headers["location"] == "/profile?msg=profile_saved"
 
@@ -122,7 +123,7 @@ def test_profile_review_then_save(client, sample_profile):
 
 def test_review_step_saves_nothing(client, sample_profile):
     client.post("/profile/review", data=profile_form(sample_profile))
-    assert "Create your profile" in client.get("/profile").text
+    assert 'href="/profile/edit">Create profile' in client.get("/profile").text
 
 
 def test_edit_form_round_trips_ids_and_revision_only_moves_on_change(client, sample_profile):
@@ -135,7 +136,8 @@ def test_edit_form_round_trips_ids_and_revision_only_moves_on_change(client, sam
     saved = client.get("/profile").text
     assert "Revision 1" in saved
     unchanged = client.post("/profile/review", data=profile_form(client_profile(client)))
-    assert "Nothing changed" in unchanged.text
+    assert "There is nothing to save." in unchanged.text
+    assert "Your profile stays at revision 1." in unchanged.text
     assert 'action="/profile/save"' not in unchanged.text
 
     # Edit one bullet's text and delete another; IDs survive, revision becomes 2.
@@ -191,7 +193,7 @@ def test_validation_errors_are_shown_and_nothing_is_saved(client, sample_profile
     assert 'id="experience-0-start" name="experience-0-start" type="text" value="June 2024" placeholder="YYYY-MM" class="invalid"' in response.text
     # The user's input is kept so they can correct it.
     assert "Sample Analytics" in response.text
-    assert "Create your profile" in client.get("/profile").text
+    assert 'href="/profile/edit">Create profile' in client.get("/profile").text
 
 
 def test_back_to_editing_keeps_the_proposed_edits(client, sample_profile):
@@ -300,7 +302,7 @@ def test_tracker_lists_jobs_with_review_and_status(client):
     create_job(client)
     create_job(client, title="Data Intern", company="Sample Labs", location="")
     page = client.get("/jobs").text
-    assert "2 jobs ·" in page
+    assert "2 saved jobs ·" in page
     assert page.index("Data Intern") < page.index("Backend Engineering Intern")  # newest first
     assert page.count('<span class="badge review-draft">Draft</span>') == 2
     saved = board_column(page, "saved")  # both jobs are Saved: the column is their status
@@ -357,7 +359,7 @@ def test_cross_site_posts_are_refused(client):
         assert response.status_code == 403
     assert client.post("/jobs", data=SAMPLE_JOB, headers={"Referer": "https://evil.example/page"}).status_code == 403
     assert client.post("/jobs", data=SAMPLE_JOB, headers={"Origin": BASE_URL}, follow_redirects=False).status_code == 303
-    assert "1 job ·" in client.get("/jobs").text
+    assert "1 saved job ·" in client.get("/jobs").text
 
 
 def test_only_loopback_host_headers_are_accepted(settings):

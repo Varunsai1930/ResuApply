@@ -28,10 +28,10 @@ def set_status(client, job_id, status, on):
     assert response.status_code == 303, response.text
 
 
-def built(client, query=""):
+def built(client, query="", *, today=TODAY):
     with client.app.state.session_factory() as session:
         jobs = job_service.list_all(session)
-        return board_service.board(jobs, get_candidate(session), TODAY, query)
+        return board_service.board(jobs, get_candidate(session), today, query)
 
 
 def cards_by_column(board):

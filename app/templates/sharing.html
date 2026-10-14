@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% import "macros.html" as m with context %}
 {% block title %}AI sharing preview{% endblock %}
 
 {% macro include_box(item_id, label) -%}
@@ -10,14 +11,15 @@
 
 {% macro text_box(item_id, text) -%}
 <label class="visually-hidden" for="text-{{ item_id }}">Text sent for {{ item_id }}</label>
-<textarea id="text-{{ item_id }}" name="text-{{ item_id }}" rows="2">{{ choices.edits.get(item_id, text) }}</textarea>
+<textarea id="text-{{ item_id }}" name="text-{{ item_id }}" rows="2">{{ m.textarea_value(choices.edits.get(item_id, text)) }}</textarea>
 {%- endmacro %}
 
 {% block content %}
-{% if next_url %}<p class="crumbs"><a href="{{ back_url }}">← Back to the job</a></p>{% endif %}
+{% if next_url %}<p class="crumbs"><a href="{{ back_url }}">{{ m.icon('arrow-left', 16) }} Back to the job</a></p>{% endif %}
 <div class="page-head">
-  <h1>What the AI model may see</h1>
-  <p class="lead">AI features send a reduced copy of your career history to <strong>{{ settings.openrouter_model }}</strong> through OpenRouter. Review it, leave out anything confidential or identifying, and reword items if you like. Your saved profile is never changed here.</p>
+  <p class="eyebrow">Your data, your decision</p>
+  <h1>Review what you share with AI</h1>
+  <p class="lead">Choose which career details the AI model can use. Uncheck confidential items or edit the text below. These choices do not change your saved profile.</p>
 </div>
 
 {% if error %}<p class="notice warn" role="alert">{{ error }}</p>{% endif %}
@@ -30,23 +32,29 @@
 </div>
 {% else %}
 
+{% if state.profile_recovery_needed %}
+<p class="notice warn" role="alert">Some saved profile text could not be read. <a href="/profile/edit">Edit the profile</a>, correct the text shown as �, and review and save it before approving AI sharing.</p>
+{% endif %}
+
 <div class="split">
-<section class="card">
-  <h2>Status</h2>
+<section class="card sharing-status">
+  <div class="section-heading"><span class="option-icon">{{ m.icon('shield', 21) }}</span><h2>Sharing approval</h2></div>
+  <p class="hint">Selected details are sent to <strong>{{ settings.openrouter_model }}</strong> through OpenRouter.</p>
   {% if state.approval_current %}
-    <p><span class="badge check-met">Approved</span> on {{ state.approval.approved_at | local_datetime }} (profile revision {{ state.approval.profile_revision }}). It stays in use until your profile changes what would be sent.</p>
+    <p><span class="badge check-met">Approved</span> on {{ state.approval.approved_at | local_datetime }} (profile revision {{ state.approval.profile_revision }}). This approval stays in use until your profile changes the details being shared.</p>
   {% elif state.approval_stale %}
     <p><span class="badge check-unknown">Needs review</span> Your profile changed since you last approved. Your earlier choices are filled in below; check them and approve again.</p>
   {% elif state.required %}
-    <p><span class="badge check-unknown">Not approved yet</span> The configured model is marked <strong>free</strong> (<code>OPENROUTER_MODEL_TRUST=free</code>): free providers may log or train on what they receive, so nothing about you is sent until you approve it here.</p>
+    <p><span class="badge check-unknown">Not approved yet</span> This model uses a <strong>free provider</strong>. Free providers may log or train on the details they receive. Your details are only sent after you approve them here.</p>
   {% else %}
-    <p>The configured model is marked <strong>trusted</strong>, so this review is optional. Without changes, everything below is sent as shown.</p>
+    <p>This model is marked <strong>trusted</strong>, so approval is optional. The details below are sent as shown unless you change them.</p>
   {% endif %}
-  <p class="hint">Removing and rewording is best effort: it only covers what you notice and change. If you need stronger privacy, use a model whose data terms you trust. Requirements and job text are sent too; they are not about you.</p>
+  <p class="hint">Check the full text for details you want to keep private. These edits only remove what you identify. Job descriptions and requirements are also sent to the model.</p>
 </section>
 
-<section class="card">
-  <h2>Never sent</h2>
+<section class="card sharing-promise">
+  <div class="section-heading"><span class="option-icon">{{ m.icon('check-circle', 21) }}</span><h2>Always kept private</h2></div>
+  <p class="hint">These details are removed automatically.</p>
   <ul class="plain-list">
     {% for item in always_removed %}<li>{{ item }}</li>{% endfor %}
   </ul>
@@ -107,7 +115,7 @@
   {% endif %}
 
   <div class="form-actions sticky">
-    <button type="submit" class="btn-primary">Approve what is checked</button>
+    <button type="submit" class="btn-primary"{% if state.profile_recovery_needed %} disabled{% endif %}> {{ m.icon('check', 17) }} Approve selected details</button>
     {% if next_url %}<a class="btn-link" href="{{ back_url }}">Cancel</a>{% endif %}
   </div>
 </form>
@@ -120,7 +128,7 @@
 
 {% if state.context is not none %}
 <details class="card">
-  <summary><h2>Exactly what is sent now</h2></summary>
+  <summary><h2>View the exact data being shared</h2></summary>
   <pre class="payload">{{ state.context | tojson(indent=2) }}</pre>
 </details>
 {% endif %}

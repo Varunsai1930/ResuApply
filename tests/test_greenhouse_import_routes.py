@@ -44,8 +44,9 @@ def job_fields(page: str) -> dict[str, str]:
 def test_the_add_job_page_offers_the_import_and_says_what_is_fetched(client):
     page = client.get("/jobs/new").text
     assert '<form method="post" action="/jobs/import"' in page
-    assert "fetches the posting and its application questions from Greenhouse" in page
-    assert "Saved as a reference only: saving never fetches it." in page
+    assert "Import the description and application questions" in page
+    assert "Choosing Import fetches the public posting." in page
+    assert "Saved as a reference. Saving never fetches this link." in page
     assert "Nothing is fetched." not in page
     assert 'action="/jobs/import"' not in client.get(f"/jobs/{_saved_job(client)}/edit").text  # adding only
 

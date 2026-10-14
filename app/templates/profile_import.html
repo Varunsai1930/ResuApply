@@ -1,25 +1,41 @@
 {% extends "base.html" %}
-{% block title %}Import from a resume{% endblock %}
+{% import "macros.html" as m with context %}
+{% block title %}Import your resume{% endblock %}
 {% block content %}
-<p class="crumbs"><a href="{{ '/profile' if candidate else '/welcome' }}">← {{ 'Profile' if candidate else 'Welcome' }}</a></p>
+<p class="crumbs"><a href="{{ '/profile' if candidate else '/welcome' }}">{{ m.icon('arrow-left', 16) }} {{ 'Profile' if candidate else 'Welcome' }}</a></p>
 <div class="page-head">
-  <h1>Import from a resume</h1>
-  <p class="lead">Choose your resume as a PDF or Word file. It is read on this computer only, into the profile form, where you check every field. Nothing is saved until you review the changes.
-    {% if candidate %}Your profile already exists, so the import only adds what it lacks: nothing you saved is changed.{% endif %}</p>
+  <p class="eyebrow">Build your profile</p>
+  <h1>Start with your resume</h1>
+  <p class="lead">Upload a PDF or Word file. ResuApply reads it on this computer and fills your profile form. You check the details before saving.</p>
 </div>
 {% if error %}<p class="notice warn" role="alert" tabindex="-1" data-focus>{{ error }}</p>{% endif %}
 {% if message %}<p class="notice" role="status" tabindex="-1" data-focus>{{ message }}</p>{% endif %}
+<div class="import-layout">
 {% if not (candidate and candidate.sample) %}
-<form method="post" action="/profile/import" enctype="multipart/form-data" class="card stack">
+<form method="post" action="/profile/import" enctype="multipart/form-data" class="card stack upload-panel">
+  <div class="upload-symbol">{{ m.icon('file-text', 30) }}</div>
+  <h2>Choose your resume</h2>
+  <p class="hint">PDF or Word (.docx), up to {{ max_mb }} MB.</p>
   <div class="field">
     <label for="resume-file">Resume file</label>
     <input id="resume-file" name="file" type="file" accept=".pdf,.docx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document" required aria-describedby="resume-file-hint">
-    <small id="resume-file-hint" class="hint">PDF or Word (.docx), up to {{ max_mb }} MB. A scanned or image-only resume can't be read; work authorization is never read from a resume.</small>
+    <small id="resume-file-hint" class="hint">Use a file with selectable text. Scanned and image-only resumes cannot be read.</small>
   </div>
   <div class="form-actions">
-    <button type="submit" class="btn-primary">Read the resume</button>
+    <button type="submit" class="btn-primary">Read the resume {{ m.icon('arrow-right', 17) }}</button>
     <a class="btn-link" href="{{ '/profile' if candidate else '/welcome' }}">Cancel</a>
   </div>
 </form>
 {% endif %}
+<aside class="card import-guide" aria-labelledby="import-guide-title">
+  <p class="eyebrow">What happens next</p>
+  <h2 id="import-guide-title">A head start, with a final check</h2>
+  <ol class="onboarding-steps">
+    <li class="onboarding-step"><span class="step-mark here">1</span><span><strong>We read the file locally</strong><span class="hint">Your resume is processed on this computer.</span></span></li>
+    <li class="onboarding-step"><span class="step-mark here">2</span><span><strong>You check the profile form</strong><span class="hint">Fix anything missed or placed in the wrong field. Add your work authorization yourself.</span></span></li>
+    <li class="onboarding-step"><span class="step-mark here">3</span><span><strong>Review, then save</strong><span class="hint">Nothing is saved until you approve the changes.</span></span></li>
+  </ol>
+  {% if candidate %}<p class="notice">Your existing profile is kept. The import only adds details that are missing.</p>{% endif %}
+</aside>
+</div>
 {% endblock %}

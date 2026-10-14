@@ -34,7 +34,9 @@ def counts(client):
 def test_a_fresh_install_opens_the_welcome_page_and_later_the_board(client, sample_profile):
     assert client.get("/", follow_redirects=False).headers["location"] == "/welcome"
     page = client.get("/welcome").text
-    assert "Apply with evidence, not guesswork." in page and 'action="/sample"' in page
+    heading = re.search(r'<h1[^>]*id="welcome-title"[^>]*>(.*?)</h1>', page, re.S).group(1)
+    assert " ".join(re.sub(r"<[^>]+>", " ", heading).split()) == "Your experience. Your next opportunity."
+    assert 'action="/sample"' in page
     assert 'href="/profile/edit">Open the profile form' in page
     new_job(client)  # a job, even without a profile, means it's no longer a fresh install
     assert client.get("/", follow_redirects=False).headers["location"] == "/jobs"

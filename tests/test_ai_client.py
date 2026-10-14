@@ -37,9 +37,16 @@ def test_request_offers_one_forced_data_only_tool(fake_ai, ai_client):
 
 
 def test_timeout_is_ninety_seconds():
-    client = OpenRouterClient(FAKE_KEY, TEST_MODEL)
+    timeouts = []
+
+    def respond(request):
+        timeouts.append(request.extensions["timeout"])
+        return httpx.Response(200, json=tool_response("return_thing", {"value": 1}))
+
+    client = OpenRouterClient(FAKE_KEY, TEST_MODEL, transport=httpx.MockTransport(respond))
     assert TIMEOUT_SECONDS == 90.0
-    assert client._http.timeout.read == 90.0
+    assert client.complete("test_op", MESSAGES, TOOL).arguments == {"value": 1}
+    assert timeouts == [{"connect": 90.0, "read": 90.0, "write": 90.0, "pool": 90.0}]
     client.close()
 
 

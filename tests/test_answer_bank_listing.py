@@ -68,7 +68,7 @@ def test_search_matches_every_word_in_the_question_or_answer(client, sample_prof
     assert listing(client, "python fair") == []
     page = client.get("/answers", params={"q": "  campus   events "}).text
     assert "1 of 3 saved answers match “campus events”" in page and 'value="campus events"' in page
-    assert re.findall(r"<h4>([^<]+)</h4>", page) == ["Describe a project you&#39;re proud of"]
+    assert re.findall(r"<h3>([^<]+)</h3>", page) == ["Describe a project you&#39;re proud of"]
     none = client.get("/answers", params={"q": "<b>nothing</b>"}).text
     assert "No saved answers match" in none and "<b>nothing" not in none and "&lt;b&gt;nothing" in none
 

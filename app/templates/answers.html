@@ -2,38 +2,36 @@
 {% import "macros.html" as m with context %}
 {% block title %}Answer bank{% endblock %}
 {% block content %}
-<div class="page-head with-actions">
-  <div>
-    <h1>Answer bank</h1>
-    <p class="meta">{{ total }} saved answer{{ 's' if total != 1 }}</p>
-    <p class="lead">Answers you accepted and chose to keep. When a new question looks similar, they are offered as a starting point; you still review and save each one yourself.</p>
-  </div>
-  {% if total %}
+<div class="page-head">
+  <p class="eyebrow">Keep your best starting points</p>
+  <h1>Answer bank</h1>
+  <p class="lead">Reuse answers you have reviewed and saved. When a similar question appears, start here and adjust the answer for the new role.</p>
+</div>
+{% if total %}
+<div class="bank-toolbar">
+  <p class="bank-summary">{{ m.icon('file-text', 18) }} <strong>{{ total }}</strong> saved answer{{ 's' if total != 1 }}</p>
   <form method="get" action="/answers" class="board-search bank-controls" role="search">
     <label class="visually-hidden" for="bank-search">Search saved answers</label>
-    <input id="bank-search" name="q" type="search" value="{{ query }}" placeholder="Search saved answers" maxlength="200">
+    <input id="bank-search" name="q" type="search" value="{{ query }}" placeholder="Search questions or answers" maxlength="200">
     <label class="visually-hidden" for="bank-sort">Sort</label>
     <select id="bank-sort" name="sort">
       {% for s in sorts %}<option value="{{ s.value }}"{% if s == sort %} selected{% endif %}>{{ s.label }}</option>{% endfor %}
     </select>
-    <button type="submit" class="btn-secondary">Apply</button>
+    <button type="submit" class="btn-secondary">{{ m.icon('search', 16) }} Apply</button>
   </form>
-  {% endif %}
 </div>
-
-{% if total %}
-<p class="notice">Sensitive answers (gender, salary, disability and similar) and values filled from your profile are never saved here.</p>
+<p class="notice">{{ m.icon('shield', 18) }} Sensitive answers, such as gender, salary and disability, are never saved here. Values filled from your profile are also excluded.</p>
 {% endif %}
 {% if query %}
 <p class="board-query" role="status">{{ entries | length }} of {{ total }} saved answer{{ 's' if total != 1 }} match “{{ query }}”. <a href="/answers">Clear search</a></p>
 {% endif %}
 
 {% if entries %}
-<section class="card" aria-label="Saved answers">
+<section class="card answer-bank-card" aria-label="Saved answers">
   <div class="question-list">
     {% for e in entries %}
     <article class="question-row" id="bank-{{ e.entry.id }}">
-      <header class="question-head"><h4>{{ e.entry.question }}</h4><span class="tag">{{ e.category }}</span>
+      <header class="question-head"><h3>{{ e.entry.question }}</h3><span class="tag">{{ e.category }}</span>
         <span class="bank-use">{% if e.use.jobs %}Used for {{ e.use.jobs }} job{{ 's' if e.use.jobs != 1 }}{% else %}Not reused yet{% endif %}</span></header>
       <div class="answer-text">{{ e.entry.answer }}</div>
       <p class="hint">
@@ -49,14 +47,18 @@
 </section>
 {% elif total %}
 <div class="empty card">
+  <span class="option-icon">{{ m.icon('search', 26) }}</span>
   <h2>No saved answers match</h2>
-  <p>Nothing in a saved question or answer matches “{{ query }}”. <a href="/answers">Show every saved answer</a></p>
+  <p>No saved question or answer matches “{{ query }}”. Try another search or clear the filter.</p>
+  <a class="btn-secondary" href="/answers">Show all saved answers</a>
 </div>
 {% else %}
 <div class="empty card">
+  <span class="option-icon">{{ m.icon('file-text', 28) }}</span>
   <h2>No saved answers yet</h2>
-  <p>In a job's Questions section, choose Save to answer bank on an answer you accepted. Only accepted answers to non-sensitive questions can be saved: sensitive answers and values filled from your profile never are.</p>
-  <a class="btn-secondary" href="/jobs">Back to jobs</a>
+  <p>In a job's Questions section, accept an answer and choose Save to answer bank. You can reuse it as a starting point for a future application.</p>
+  <p class="hint">Only accepted answers to non-sensitive questions can be saved. Sensitive answers and values from your profile stay out of the bank.</p>
+  <a class="btn-primary" href="/jobs">Open your jobs {{ m.icon('arrow-right', 17) }}</a>
 </div>
 {% endif %}
 {% endblock %}

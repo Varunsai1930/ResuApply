@@ -233,6 +233,10 @@ The model has no browser-control role. Autofill uses reviewed data and determini
 
 pytest covers matching, validation, revision handling and FastAPI integration. Provider responses are mocked, so ordinary tests need no API key. Before the AI integration is called complete, a live smoke test runs with synthetic, non-identifying content.
 
+The live smoke command (`python -m scripts.smoke_openrouter`) now covers requirement extraction, evidence suggestions, resume tailoring and answer drafting, followed by local acceptance, package approval and a submitted snapshot. Its offline regression tests check every stage, failure handling and data isolation. Live provider acceptance remains pending until it succeeds against the configured provider.
+
+`python -m scripts.smoke_local` exercises the real CLI with temporary fictional data: startup, occupied-port rejection, PDF/DOCX import, reviewed saves, accepted print HTML, shutdown and persistence after restart in a path with spaces and Unicode. Optional `--print-pdf FILE` verifies Chromium PDF output. A Windows/Python 3.12 GitHub Actions workflow is prepared to run the full suite and these checks; native Windows acceptance remains pending until that workflow runs successfully. Browser packages are test dependencies only.
+
 Required scenarios:
 
 - A Python-only source does not gain Java, invented achievements or new metrics.

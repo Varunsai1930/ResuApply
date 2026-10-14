@@ -40,13 +40,15 @@
 
   // Unsaved-changes guard.
   const dirtyForms = new Set();
+  let pendingSubmission = null;
   function markDirty(el) {
     const form = el.closest("form[data-guard]");
     if (form) dirtyForms.add(form);
   }
   document.addEventListener("input", (e) => markDirty(e.target));
+  document.addEventListener("change", (e) => markDirty(e.target));
   document.addEventListener("submit", function (e) {
-    dirtyForms.delete(e.target);
+    pendingSubmission = e;
     if (e.target.matches("form[data-ai]")) {
       if (e.target.dataset.sent) {
         e.preventDefault();
@@ -87,7 +89,11 @@
     document.querySelectorAll("select[data-criterion-type]").forEach(syncCriterion);
   }).observe(document.documentElement, { childList: true, subtree: true });
   window.addEventListener("beforeunload", function (event) {
-    if (dirtyForms.size) {
+    const submitted = pendingSubmission && !pendingSubmission.defaultPrevented ? pendingSubmission.target : null;
+    pendingSubmission = null;
+    // Exempt only the form being submitted. Keep it dirty if another form's warning cancels
+    // navigation: the attempted save did not happen, and a later leave still needs a warning.
+    if (Array.from(dirtyForms).some((form) => form !== submitted)) {
       event.preventDefault();
       event.returnValue = "";
     }
@@ -151,6 +157,14 @@
   document.addEventListener("DOMContentLoaded", function () {
     document.querySelectorAll("select[data-criterion-type]").forEach(syncCriterion);
     syncStatusOptions();
+    // Keep the current step visible in the narrow-screen step rail. This moves only
+    // the rail, instantly, so page navigation and keyboard actions stay immediate.
+    const steps = document.querySelector(".steps");
+    const current = steps && steps.querySelector('[aria-current="step"]');
+    if (current && steps.scrollWidth > steps.clientWidth) {
+      steps.scrollLeft += current.getBoundingClientRect().left - steps.getBoundingClientRect().left
+        - (steps.clientWidth - current.offsetWidth) / 2;
+    }
     const summary = document.querySelector("[data-focus]");
     if (summary) summary.focus();
   });

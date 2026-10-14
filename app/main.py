@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import re
 from contextlib import asynccontextmanager
+import httpx
 from fastapi import FastAPI, Request
 from fastapi.responses import RedirectResponse
 from fastapi.staticfiles import StaticFiles
@@ -31,7 +32,7 @@ from .templating import STATIC_DIR, templates
 FORM_TOO_LARGE = re.compile(r"Too many (fields|files)|exceeded maximum size", re.IGNORECASE)
 
 
-def create_app(settings: Settings | None = None, ai_transport: httpx.BaseTransport | None = None,
+def create_app(settings: Settings | None = None, ai_transport: httpx.AsyncBaseTransport | None = None,
                greenhouse_transport: httpx.BaseTransport | None = None) -> FastAPI:
     """Build the app. ``ai_transport`` and ``greenhouse_transport`` replace the network for OpenRouter
     calls and Greenhouse imports (tests use mocks)."""

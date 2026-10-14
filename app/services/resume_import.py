@@ -185,24 +185,34 @@ def _without_running_lines(pages: list[str]) -> list[str]:
 
 def _docx_text(data: bytes) -> str:
     from docx.opc.exceptions import PackageNotFoundError
+    from docx.oxml.exceptions import InvalidXmlError
     from lxml.etree import XMLSyntaxError
 
     with zipfile.ZipFile(io.BytesIO(data)) as archive:
-        if sum(info.file_size for info in archive.infolist()) > MAX_UNZIPPED:
+        parts = archive.infolist()
+        if sum(info.file_size for info in parts) > MAX_UNZIPPED:
             raise ResumeImportError("This Word file is too large to read.")
+        if any(info.flag_bits & 1 for info in parts):
+            raise ResumeImportError("This Word file is password-protected. Save a copy without a password, "
+                                    "then import that.")
     try:
         return _docx_lines(data)
     # Damaged XML, a garbled compressed part, or a compression method zipfile can't read.
-    except (PackageNotFoundError, XMLSyntaxError, zlib.error, NotImplementedError, KeyError, IndexError, ValueError,
+    except (PackageNotFoundError, XMLSyntaxError, InvalidXmlError, zlib.error, NotImplementedError, KeyError, IndexError, ValueError,
             zipfile.BadZipFile) as exc:
         raise ResumeImportError("This Word file couldn't be read. Try saving it again as .docx.") from exc
 
 
 def _docx_lines(data: bytes) -> str:
     from docx import Document
+    from docx.oxml.ns import qn
 
     document = Document(io.BytesIO(data))
-    return "\n".join(_header_lines(document) + _block_lines(document.element.body, document))
+    # Well-formed XML can still lack the document structure python-docx expects.
+    body = document.element.find(qn("w:body"))
+    if document.element.tag != qn("w:document") or body is None:
+        raise ValueError("The Word document root or body is missing.")
+    return "\n".join(_header_lines(document) + _block_lines(body, document))
 
 
 def _header_lines(document) -> list[str]:

@@ -2,66 +2,83 @@
 {% import "macros.html" as m with context %}
 {% block title %}Welcome{% endblock %}
 {% block content %}
-<section class="welcome-hero">
-  <p class="eyebrow">Your job application copilot</p>
-  <h1>Apply with evidence, not guesswork.</h1>
-  <p class="lead">ResuApply turns your profile and a pasted job description into a checklist, a tailored resume and reviewed answers. Every claim cites your own profile, and nothing leaves this computer unless you approve it.</p>
+<section class="onboarding-layout" aria-labelledby="welcome-title">
+  <div class="onboarding-copy">
+    <p class="eyebrow">A clearer way to apply</p>
+    <h1 id="welcome-title">Your experience.<br>Your next opportunity.</h1>
+    <p class="lead">Bring your career history and a job description together. Build a tailored resume, prepare your answers, and keep every application in one place.</p>
+    <div class="onboarding-proof">{{ m.icon('shield', 18) }} <span>Grounded in your facts. Reviewed by you.</span></div>
+  </div>
+  <aside class="card onboarding-preview" aria-labelledby="preview-title">
+    <div class="section-heading"><span class="option-icon">{{ m.icon('briefcase', 22) }}</span><div><p class="eyebrow">One job, one workspace</p><h2 id="preview-title">A plan for every application</h2></div></div>
+    <ol class="onboarding-steps">
+      {% for icon, title, text in [('search', 'Check the fit', 'Match the requirements to your experience.'), ('file-text', 'Prepare your application', 'Tailor your resume and review your answers.'), ('check-circle', 'Submit with confidence', 'Approve the package, then submit it yourself.')] %}
+      <li class="onboarding-step"><span class="option-icon">{{ m.icon(icon, 19) }}</span><span><strong>{{ title }}</strong><span class="hint">{{ text }}</span></span></li>
+      {% endfor %}
+    </ol>
+  </aside>
 </section>
 
 {% if error %}<p class="notice warn" role="alert" tabindex="-1" data-focus>{{ error }}</p>{% endif %}
 {% include "_sample_banner.html" %}
 
 <section class="start" aria-labelledby="start-title">
-  <h2 id="start-title">{{ 'How would you like to start?' if not candidate else 'Pick up where you left off' }}</h2>
+  <div class="section-heading"><div><h2 id="start-title">{{ 'Choose your starting point' if not candidate else 'Continue your work' }}</h2><p class="hint">{{ 'Start with your resume, or take a look around first.' if not candidate else 'Your profile and applications are ready when you are.' }}</p></div></div>
   <div class="start-options">
-    <article class="card start-option">
-      <h3>Try it with sample data</h3>
-      {% if sample.present %}
-        <p>The sample data is loaded. Open the sample job on the board to walk through its five steps.</p>
-        <a class="btn-primary" href="/jobs">Go to the jobs board</a>
-      {% elif candidate %}
-        <p>Sample data can only be loaded before you create a profile, so it never mixes with yours.</p>
-      {% else %}
-        <p>Load a fictional student profile and a job posting to walk through the whole flow in a couple of minutes. Both are marked Sample, and you can remove them whenever you like.</p>
-        <form method="post" action="/sample">
-          <button type="submit" class="btn-primary">Load sample data</button>
-        </form>
-      {% endif %}
-    </article>
     {% if not candidate %}
-    <article class="card start-option">
+    <article class="card start-option start-option--featured">
+      <span class="option-icon">{{ m.icon('file-text', 22) }}</span>
+      <p class="option-label">Use what you have</p>
       <h3>Import your resume</h3>
-      <p>Choose a PDF or Word file. ResuApply reads it on this computer into the profile form, and you check every fact before anything is saved.</p>
-      <a class="btn-secondary" href="/profile/import">Import a resume</a>
+      <p>Upload a PDF or Word file to fill your profile. Check each fact before saving.</p>
+      <a class="btn-primary" href="/profile/import">Import a resume {{ m.icon('arrow-right', 17) }}</a>
     </article>
     {% endif %}
     <article class="card start-option">
-      <h3>{{ 'Start from scratch' if not candidate else 'Your profile' }}</h3>
-      {% if candidate %}
-        <p>Your profile holds the facts every resume and answer is built from. Keep it current, one section at a time.</p>
-        <a class="btn-secondary" href="/profile">Open your profile</a>
+      <span class="option-icon">{{ m.icon('layers', 22) }}</span>
+      <p class="option-label">{{ 'Explore the workflow' if not candidate else 'Take a guided look' }}</p>
+      <h3>Try the sample workspace</h3>
+      {% if sample.present %}
+        <p>The sample data is loaded. Follow the five application steps from your jobs board.</p>
+        <a class="btn-secondary" href="/jobs">Open the jobs board {{ m.icon('arrow-right', 17) }}</a>
+      {% elif candidate %}
+        <p>You can load sample data before creating a profile. Your existing profile stays separate.</p>
       {% else %}
-        <p>Fill in the guided profile form: contact details, education, experience, projects and skills. It takes about fifteen minutes, and nothing is saved until you review it.</p>
-        <a class="btn-secondary" href="/profile/edit">Open the profile form</a>
+        <p>Explore a fictional profile and job in a few minutes. Both are marked Sample and can be removed.</p>
+        <form method="post" action="/sample">
+          <button type="submit" class="btn-secondary">Load sample data {{ m.icon('arrow-right', 17) }}</button>
+        </form>
+      {% endif %}
+    </article>
+    <article class="card start-option">
+      <span class="option-icon">{{ m.icon('plus', 22) }}</span>
+      <p class="option-label">{{ 'Make it your own' if not candidate else 'Your source of truth' }}</p>
+      <h3>{{ 'Create your profile' if not candidate else 'Keep your profile current' }}</h3>
+      {% if candidate %}
+        <p>Update your experience, projects and skills. Every resume and answer starts with these facts.</p>
+        <a class="btn-secondary" href="/profile">Open your profile {{ m.icon('arrow-right', 17) }}</a>
+      {% else %}
+        <p>Add your contact details, education, experience, projects and skills in a guided form.</p>
+        <a class="btn-secondary" href="/profile/edit">Open the profile form {{ m.icon('arrow-right', 17) }}</a>
       {% endif %}
     </article>
   </div>
 </section>
 
 <section class="card" aria-labelledby="flow-title">
-  <h2 id="flow-title">What happens for each job</h2>
+  <div class="section-heading"><div><p class="eyebrow">From first look to follow-up</p><h2 id="flow-title">Five steps. Everything in one place.</h2></div></div>
   <ol class="flow-steps">
-    {% for title, text in [('Requirements', 'Met, unmet or unknown, with evidence'), ('Resume', 'Tailored wording, every line cited'),
-                           ('Questions', 'From your profile or your own words'), ('Review', 'Approve the package you checked'),
-                           ('Submit and track', 'You submit; ResuApply keeps the record')] %}
+    {% for title, text in [('Requirements', 'See the fit, with evidence'), ('Resume', 'Tailor each line to the role'),
+                           ('Questions', 'Prepare and check your answers'), ('Review', 'Approve the package'),
+                           ('Submit and track', 'Submit yourself, then record it')] %}
       <li><span class="step-mark here" aria-hidden="true">{{ loop.index }}</span><span><strong>{{ title }}</strong><span class="hint">{{ text }}</span></span></li>
     {% endfor %}
   </ol>
 </section>
 
-<section class="promises" aria-label="Promises">
-  <div><strong>Local only</strong><p>Your data stays in one folder on this computer. Only content you approve is sent to the AI model.</p></div>
-  <div><strong>Nothing invented</strong><p>Drafts that add skills, numbers or dates you don't have are rejected before you see them.</p></div>
-  <div><strong>You submit</strong><p>ResuApply never clicks an employer's Submit button. Approving a package never marks a job Applied.</p></div>
+<section class="promises" aria-label="How ResuApply handles your applications">
+  <div>{{ m.icon('shield', 20) }}<strong>You're in control</strong><p>Your data stays on this computer. Only the content you approve is sent to the AI model.</p></div>
+  <div>{{ m.icon('check-circle', 20) }}<strong>Built from your facts</strong><p>Drafts that add skills, numbers or dates you don't have are rejected before you see them.</p></div>
+  <div>{{ m.icon('external-link', 20) }}<strong>You make the final move</strong><p>You submit to the employer. ResuApply keeps the application record.</p></div>
 </section>
 {% endblock %}

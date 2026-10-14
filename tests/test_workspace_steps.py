@@ -251,7 +251,8 @@ def test_side_notes_show_the_latest_and_link_to_the_track_step(client, sample_pr
 def test_sharing_returns_to_the_step_that_asked_for_it(client, sample_profile):
     job_id = job_with_requirements(client, sample_profile)
     preview = client.get(f"/profile/sharing?next={quote(f'/jobs/{job_id}?step=questions')}").text
-    assert f'href="/jobs/{job_id}?step=questions#questions">← Back to the job' in preview
+    back = re.search(rf'<a[^>]*href="/jobs/{job_id}\?step=questions#questions"[^>]*>(.*?)</a>', preview, re.S).group(1)
+    assert re.sub(r"<[^>]+>", "", back).strip() == "Back to the job"
     base_hash = re.search(r'name="base_hash" value="([^"]*)"', preview).group(1)
     included = re.findall(r'name="include" value="([^"]+)" checked', preview)
     approved = client.post("/profile/sharing", data={"base_hash": base_hash, "include": included,

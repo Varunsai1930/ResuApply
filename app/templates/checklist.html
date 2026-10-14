@@ -95,7 +95,7 @@
     {% if source_groups %}
     <details>
       <summary>Link evidence</summary>
-      <form method="post" action="/jobs/{{ job.id }}/requirements/{{ r.id }}/evidence" class="stack">
+      <form method="post" action="/jobs/{{ job.id }}/requirements/{{ r.id }}/evidence" class="stack" data-guard>
         <input type="hidden" name="review_token" value="{{ r.review_token }}">
         {% set linked = r.evidence | map(attribute='id') | list %}
         {% for group in source_groups %}
@@ -115,7 +115,7 @@
     {% endif %}
     <details {% if check_error and check_error.id == r.id %}open{% endif %}>
       <summary>{{ 'Change override' if r.override else 'Override status' }}</summary>
-      <form method="post" action="/jobs/{{ job.id }}/requirements/{{ r.id }}/override" class="stack">
+      <form method="post" action="/jobs/{{ job.id }}/requirements/{{ r.id }}/override" class="stack" data-guard>
         <div class="field">
           <label for="override-{{ r.id }}">Status</label>
           <select id="override-{{ r.id }}" name="status">
@@ -127,7 +127,7 @@
         </div>
         <div class="field">
           <label for="reason-{{ r.id }}">Reason <span class="req" aria-hidden="true">*</span></label>
-          <textarea id="reason-{{ r.id }}" name="reason" rows="2" placeholder="Why the calculated status is wrong">{{ r.override.reason if r.override else '' }}</textarea>
+          <textarea id="reason-{{ r.id }}" name="reason" rows="2" placeholder="Why the calculated status is wrong">{{ m.textarea_value(r.override.reason if r.override else '') }}</textarea>
           <small class="hint">Overrides are always shown with your reason and the calculated status.</small>
         </div>
         <button type="submit" class="btn-secondary">Save override</button>

@@ -150,6 +150,8 @@ def check(job: Job, application: Application, candidate: Candidate | None) -> tu
     warnings: list[str] = []
     if candidate is None:
         blockers.append("Create your profile first. The package is built from it.")
+    elif candidate.profile.unicode_recovered:
+        blockers.append("Repair the unreadable profile text: edit it, review the changes and save before approving a package.")
     current = resume_service.state(job, candidate)
     if current.accepted is None:
         blockers.append("No accepted resume. Prepare a resume, review it and accept it.")
@@ -286,7 +288,8 @@ def _recorded_state(job: Job, application: Application, candidate: Candidate | N
     if approval is None:
         return ReviewState.DRAFT
     # Changed inputs read as Stale even when they also changed the content.
-    if candidate is None or approval.profile_revision != candidate.revision or approval.job_revision != job.revision:
+    if (candidate is None or candidate.profile.unicode_recovered
+            or approval.profile_revision != candidate.revision or approval.job_revision != job.revision):
         return ReviewState.STALE
     if approval.content_hash != content_hash(resolved_package(job, application, candidate)):
         return ReviewState.DRAFT

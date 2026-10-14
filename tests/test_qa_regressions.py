@@ -397,7 +397,8 @@ def test_saving_unchanged_forms_over_legacy_control_characters_changes_nothing(c
     # Profile editor: reviewing the stored profile lists no changes, and saving keeps the revision.
     from tests.test_routes import client_profile
     review = client.post("/profile/review", data=profile_form(client_profile(client)))
-    assert review.status_code == 200 and "Nothing changed" in review.text
+    assert review.status_code == 200 and "There is nothing to save." in review.text
+    assert 'action="/profile/save"' not in review.text
 
     with client.app.state.session_factory() as session:
         assert jobs.get(session, job_id).revision == job_revision

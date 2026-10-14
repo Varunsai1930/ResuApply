@@ -17,7 +17,7 @@ from scripts.fake_ai_server import _handle
 from tests.conftest import make_settings
 
 
-def test_all_three_smoke_stages_use_only_the_local_fake_provider(tmp_path, monkeypatch, capsys):
+def test_all_four_smoke_stages_use_only_the_local_fake_provider(tmp_path, monkeypatch, capsys):
     settings = make_settings(tmp_path, openrouter_model="fake/local-stand-in")
     requests = []
     clients = []
@@ -37,7 +37,7 @@ def test_all_three_smoke_stages_use_only_the_local_fake_provider(tmp_path, monke
     try:
         assert smoke_openrouter.main() == 0
         assert [body["tool_choice"]["function"]["name"] for body in requests] == [
-            "return_requirements", "return_evidence_suggestions", "return_resume",
+            "return_requirements", "return_evidence_suggestions", "return_resume", "return_answers",
         ]
         printed = capsys.readouterr().out
         assert "3. tailor_resume" in printed and "fictional resume was accepted locally" in printed

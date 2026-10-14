@@ -1,0 +1,44 @@
+name: Windows acceptance
+
+on:
+  workflow_dispatch:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    timeout-minutes: 20
+    env:
+      OPENROUTER_API_KEY: ""
+      PYTHONUTF8: "1"
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: |
+            requirements.txt
+            requirements-dev.txt
+      - name: Install application, test and browser dependencies
+        run: python -m pip install -r requirements-dev.txt playwright==1.63.0
+      - name: Install Chromium
+        run: python -m playwright install chromium
+      - name: Run the full test suite
+        run: python -m pytest -q --junitxml=validation-results/pytest.xml
+      - name: Check real startup, imports, restart persistence and PDF output
+        run: python -m scripts.smoke_local --output-dir validation-results/local-smoke --print-pdf validation-results/local-smoke/accepted-resume.pdf
+      - name: Keep synthetic validation results
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: windows-python312-validation
+          path: validation-results/
+          if-no-files-found: ignore
+          retention-days: 7

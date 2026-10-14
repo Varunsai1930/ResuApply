@@ -19,10 +19,10 @@
   }
 
   // Swap the colours with every transition off, so buttons, inputs and cards change at once
-  // instead of each fading at its own speed. The toggle's own icon keeps its cross-fade.
+  // instead of each fading at its own speed.
   function withoutTransitions(change) {
     var style = document.createElement("style");
-    style.textContent = "*:not(.theme-toggle svg),*::before,*::after{transition:none !important}";
+    style.textContent = "*,*::before,*::after{transition:none !important}";
     document.head.appendChild(style);
     change();
     void document.body.offsetHeight;  // apply the new colours while the override is in place

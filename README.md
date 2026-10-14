@@ -47,7 +47,7 @@ Run the tests:
 
 ### Windows
 
-The app has no platform-specific code, but it has not yet been verified on Windows. If a step fails, please [open an issue](https://github.com/Varunsai1930/ResuApply/issues) with the command and its output.
+Windows setup commands are provided below. Native Windows acceptance remains pending. A Windows validation workflow is prepared in `.github/workflows/windows-validation.yml`; it runs the tests and acceptance checks on a Windows runner once the workflow is available in GitHub. If a step fails, please [open an issue](https://github.com/Varunsai1930/ResuApply/issues) with the command and its output.
 
 1. Install **Python 3.12** from [python.org](https://www.python.org/downloads/windows/) (keep **py launcher** selected in the installer), or run `winget install Python.Python.3.12`. Install [Git for Windows](https://git-scm.com/download/win) if you don't have it.
 2. In **PowerShell** or **Command Prompt**, run:
@@ -56,18 +56,37 @@ The app has no platform-specific code, but it has not yet been verified on Windo
 git clone https://github.com/Varunsai1930/ResuApply.git
 cd ResuApply
 py -3.12 -m venv .venv
-.venv\Scripts\python -m pip install -r requirements-dev.txt
+.\.venv\Scripts\python.exe -m pip install -r requirements-dev.txt
 copy .env.example .env
-.venv\Scripts\python -m app
+.\.venv\Scripts\python.exe -m app
 ```
 
 Then open <http://127.0.0.1:8000>. Stop the server with Ctrl+C.
 
-Run the tests with `.venv\Scripts\python -m pytest`.
+Run the tests and the local acceptance check from the project folder:
+
+```powershell
+.\.venv\Scripts\python.exe -m pytest -q
+.\.venv\Scripts\python.exe -m scripts.smoke_local
+```
+
+The acceptance check starts the real localhost server using fictional data in a temporary folder. It verifies imports, reviewed profile saving, resume acceptance and print HTML, port conflicts, shutdown and persistence after restart. It needs no API key. On macOS or Linux, use `.venv/bin/python -m scripts.smoke_local`.
+
+The prepared GitHub Actions workflow also checks Chromium PDF output with CI-only browser dependencies. Runtime dependencies are unchanged. GitHub documents the Python setup and Windows runner configuration in its [Python Actions guide](https://docs.github.com/en/actions/tutorials/build-and-test-code/python). A prepared workflow is not evidence that Windows verification has passed.
+
+To run the same optional PDF check locally on Windows:
+
+```powershell
+.\.venv\Scripts\python.exe -m pip install playwright==1.63.0
+.\.venv\Scripts\python.exe -m playwright install chromium
+.\.venv\Scripts\python.exe -m scripts.smoke_local --output-dir validation-results --print-pdf validation-results\accepted-resume.pdf
+```
+
+These extra browser packages are needed for acceptance checks, not for running the app. The output contains fictional data only; the temporary application database is removed after the check. Once the workflow is present on GitHub's default branch, **Actions → Windows acceptance → Run workflow** runs these checks without requiring a Windows machine locally.
 
 Notes for Windows:
 
-- The commands call `.venv\Scripts\python` directly, so you don't need to activate the environment. This also avoids PowerShell's script execution policy, which blocks `Activate.ps1` by default.
+- The commands call `.\.venv\Scripts\python.exe` directly, so you don't need to activate the environment. This also avoids PowerShell's script execution policy, which blocks `Activate.ps1` by default.
 - `py -3.12` picks Python 3.12 even if another version is your default. If `py` isn't found, reinstall Python with the py launcher option, or use the full path to `python.exe`.
 - With [uv](https://docs.astral.sh/uv/): `uv venv --python 3.12 .venv`, then `uv pip install --python .venv\Scripts\python.exe -r requirements-dev.txt`.
 - Edit `.env` in any text editor (for example `notepad .env`) to add your OpenRouter key.
@@ -100,11 +119,13 @@ The model is a setting, and the app never switches it on its own. Free models ca
 - **Suggesting evidence** sends a reduced copy of your career history: never your contact details, links, work authorization, preferences, availability, GPA, job locations or skills you said you lack. With a `free` model you see an editable preview at **Profile → What the AI model may see** and approve it first; you can leave out or reword any item. The approval is reused until a profile change alters what would be sent. Redaction is best effort.
 - **Tailoring a resume** uses that same approved, reduced context plus the job and requirements. Removed items cannot be selected or cited, and each rewrite is checked against both the original profile and the exact text shared. Sharing approval and input freshness are checked before each request, including the corrective retry.
 
-To check requirement extraction, evidence suggestions and resume tailoring with a key and model using fictional data (a throwaway database; your `data/` is untouched):
+To check requirement extraction, evidence suggestions, resume tailoring and answer drafting with a key and model using fictional data (a throwaway database; your `data/` is untouched):
 
 ```bash
 .venv/bin/python -m scripts.smoke_openrouter
 ```
+
+On Windows, use `.\.venv\Scripts\python.exe -m scripts.smoke_openrouter`. A missing key returns exit code 2 and makes no provider request. Live provider validation remains pending until this check succeeds with the configured model; the ordinary test suite exercises all four stages with a local stand-in.
 
 To try the AI screens without a key, run the app against a simple local stand-in for the model (nothing leaves your machine):
 
@@ -185,7 +206,7 @@ app/
   routes/         Profile, jobs, resume, questions, package/snapshot and answer bank pages
   templates/      Jinja2 pages
   static/         CSS and a small amount of JavaScript
-scripts/          Live OpenRouter smoke test and a fake-AI dev server
+scripts/          Live OpenRouter smoke test, local acceptance check and a fake-AI dev server
 tests/            pytest: rules, mocked AI, HTTP integration and restart persistence
 ```
 

@@ -122,6 +122,7 @@ class OutboundState:
     base_hash: str
     approval: OutboundApproval | None
     required: bool  # the preview must be approved before sending (free models)
+    profile_recovery_needed: bool = False
 
     @property
     def approval_current(self) -> bool:
@@ -134,6 +135,8 @@ class OutboundState:
     @property
     def ready(self) -> bool:
         """True when a request may be sent now."""
+        if self.profile_recovery_needed:
+            return False
         if self.approval_current:
             return True
         # A stale approval holds choices the user made; ask again rather than ignore them.
@@ -165,6 +168,7 @@ def state(session: Session, settings: Settings, candidate: Candidate) -> Outboun
         base_hash=content_hash(base),
         approval=get_approval(session, candidate),
         required=settings.openrouter_model_trust == "free",
+        profile_recovery_needed=candidate.profile.unicode_recovered,
     )
 
 
@@ -176,6 +180,8 @@ def approve(
     texts: dict[str, str],
 ) -> OutboundApproval:
     """Save what the user approved. ``reviewed_hash`` must match the context they were shown."""
+    if candidate.profile.unicode_recovered:
+        raise OutboundError("Repair the unreadable profile text in the profile editor before approving AI sharing.")
     base = reduced_context(candidate.profile)
     base_hash = content_hash(base)
     if reviewed_hash != base_hash:

@@ -11,12 +11,17 @@ contain the API key, prompts, responses or any candidate or job text.
 
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
+import multiprocessing
 import re
+import tempfile
 import time
 from collections.abc import Callable
 from dataclasses import dataclass, field
+from multiprocessing.connection import Connection
+from pathlib import Path
 from typing import Literal, TypeVar
 
 import httpx
@@ -25,6 +30,7 @@ logger = logging.getLogger("resuapply.ai")
 
 API_URL = "https://openrouter.ai/api/v1/chat/completions"
 TIMEOUT_SECONDS = 90.0
+MAX_RESPONSE_BYTES = 2 * 1024 * 1024
 T = TypeVar("T")
 
 ErrorKind = Literal["not_configured", "auth", "quota", "timeout", "provider", "invalid", "busy"]
@@ -73,18 +79,21 @@ class StructuredResult:
 
 
 class OpenRouterClient:
-    def __init__(self, api_key: str | None, model: str, transport: httpx.BaseTransport | None = None,
+    def __init__(self, api_key: str | None, model: str, transport: httpx.AsyncBaseTransport | None = None,
                  timeout: float = TIMEOUT_SECONDS):
         self._api_key = (api_key or "").strip()
         self.model = model
-        self._http = httpx.Client(timeout=timeout, transport=transport)
+        self._transport = transport
+        self._timeout = timeout
 
     @property
     def configured(self) -> bool:
         return bool(self._api_key)
 
     def close(self) -> None:
-        self._http.close()
+        # Every request closes its own client, including on timeout. There is no
+        # event-loop-bound connection pool to share between the sync route threads.
+        pass
 
     # ------------------------------------------------------------ one request
 
@@ -105,20 +114,30 @@ class OpenRouterClient:
             "Authorization": f"Bearer {self._api_key}",
             "HTTP-Referer": "http://127.0.0.1",
             "X-Title": "ResuApply",
+            "Accept-Encoding": "identity",
         }
         started = time.monotonic()
         outcome = "ok"
         usage: dict = {}
         try:
             try:
-                response = self._http.post(API_URL, json=body, headers=headers)
-            except httpx.TimeoutException:
-                raise AIError("timeout", "The model took longer than 90 seconds. Your work is unchanged; try again.") from None
-            except httpx.HTTPError:
-                raise AIError("provider", "Could not reach OpenRouter. Check your connection; your work is unchanged.") from None
+                deadline = started + self._timeout
+                if self._transport is None:
+                    response = self._request_in_process(body, headers, deadline=deadline)
+                else:
+                    response = asyncio.run(self._request(body, headers, deadline=deadline))
+            except (TimeoutError, httpx.TimeoutException):
+                raise AIError("timeout", f"The model took longer than {self._timeout:g} seconds. "
+                                        "Your work is unchanged; try again.") from None
+            except (httpx.HTTPError, OSError):
+                raise AIError("provider", "The AI request could not finish. Check your connection and local storage; "
+                                          "your work is unchanged.") from None
             data = self._json(response)
             self._raise_for_error(response.status_code, data)
             usage = _usage(data)
+            if time.monotonic() - started >= self._timeout:
+                raise AIError("timeout", f"The model took longer than {self._timeout:g} seconds. "
+                                        "Your work is unchanged; try again.")
             return Completion(_arguments(data, tool.name), usage)
         except AIError as exc:
             outcome = exc.kind
@@ -129,6 +148,92 @@ class OpenRouterClient:
                 operation, self.model, attempt, outcome, (time.monotonic() - started) * 1000,
                 usage.get("total_tokens", "-"),
             )
+
+    def _request_in_process(self, body: dict, headers: dict, *, deadline: float) -> httpx.Response:
+        """Own the real network worker, including a system DNS lookup that cannot be cancelled.
+
+        Only a small completion/error message crosses the pipe. The bounded body
+        is read from a private temporary file after the worker has closed HTTPX,
+        so reading a partially sent response cannot defeat the parent's deadline.
+        The worker receives request data in memory, never shell arguments or logs.
+        """
+        context = multiprocessing.get_context("spawn")
+        with tempfile.TemporaryDirectory(prefix="resuapply-ai-") as directory:
+            output = Path(directory) / "response"
+            receiver, sender = context.Pipe(duplex=False)
+            process = context.Process(target=_request_worker,
+                                      args=(body, headers, self._timeout, deadline, API_URL, str(output), sender), daemon=True)
+            try:
+                process.start()
+                sender.close()
+                remaining = deadline - time.monotonic()
+                if remaining <= 0 or not receiver.poll(remaining):
+                    raise TimeoutError
+                try:
+                    message = json.loads(receiver.recv_bytes(maxlength=4096))
+                except (EOFError, OSError, ValueError):
+                    raise AIError("provider", "OpenRouter's request could not finish. "
+                                              "Your work is unchanged; try again.") from None
+                # A returned response is usable only after its worker is gone.
+                process.join(timeout=max(0, deadline - time.monotonic()))
+                if process.is_alive() or time.monotonic() >= deadline:
+                    raise TimeoutError
+                if "error" in message:
+                    raise AIError(message["error"], message["message"])
+                with output.open("rb") as stored:
+                    content = stored.read(MAX_RESPONSE_BYTES + 1)
+                if len(content) > MAX_RESPONSE_BYTES:
+                    raise self._response_too_large()
+                return httpx.Response(message["status"], content=content)
+            finally:
+                sender.close()
+                receiver.close()
+                if process.pid is not None:
+                    if process.is_alive():
+                        process.terminate()
+                        process.join(timeout=0.25)
+                    if process.is_alive():
+                        process.kill()
+                    process.join()
+                process.close()
+
+    async def _request(self, body: dict, headers: dict, *, deadline: float,
+                       api_url: str | None = None) -> httpx.Response:
+        """Read a bounded response under one cancellable deadline for the whole exchange.
+
+        ``complete`` stays synchronous, but the socket work is asynchronous so the
+        deadline cancels a blocked connect/read instead of leaving a worker behind.
+        A request owns its client and closes it before returning to the route thread.
+        ``MockTransport`` implements the same async transport API for offline tests.
+        """
+        async with httpx.AsyncClient(timeout=self._timeout, transport=self._transport) as client:
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                raise TimeoutError
+            async with asyncio.timeout(remaining):
+                async with client.stream("POST", api_url or API_URL, json=body, headers=headers) as response:
+                    # Ask for identity above and refuse unexpected compression rather
+                    # than decompress an unbounded body before checking its size.
+                    if response.headers.get("content-encoding", "identity").strip().lower() not in ("", "identity"):
+                        raise AIError("provider", "OpenRouter returned an unsupported compressed response. "
+                                                  "Your work is unchanged; try again.")
+                    length = response.headers.get("content-length", "")
+                    digits = length.lstrip("0") or "0"
+                    if length.isascii() and length.isdigit() and (
+                        len(digits) > len(str(MAX_RESPONSE_BYTES)) or int(digits) > MAX_RESPONSE_BYTES
+                    ):
+                        raise self._response_too_large()
+                    content = bytearray()
+                    async for chunk in response.aiter_bytes():
+                        if len(chunk) > MAX_RESPONSE_BYTES - len(content):
+                            raise self._response_too_large()
+                        content.extend(chunk)
+                    return httpx.Response(response.status_code, headers=response.headers, content=bytes(content))
+
+    @staticmethod
+    def _response_too_large() -> AIError:
+        return AIError("provider", f"OpenRouter's response was over {MAX_RESPONSE_BYTES // (1024 * 1024)} MB. "
+                                   "Your work is unchanged; try again.")
 
     @staticmethod
     def _json(response: httpx.Response) -> dict:
@@ -268,3 +373,26 @@ def _pydantic_problems(exc: ValueError) -> list[str]:
     if not callable(errors):
         return [str(exc)[:300]]
     return [f"{'.'.join(str(p) for p in e.get('loc', ())) or 'result'}: {e.get('msg')}" for e in errors()][:20]
+
+
+def _request_worker(body: dict, headers: dict, timeout: float, deadline: float, api_url: str,
+                    output: str, sender: Connection) -> None:
+    """Spawnable network-only worker: no candidate models, sessions or persistence."""
+    try:
+        client = OpenRouterClient(None, "", timeout=timeout)
+        response = asyncio.run(client._request(body, headers, deadline=deadline, api_url=api_url))
+        with open(output, "xb") as stored:
+            stored.write(response.content)
+        message = {"status": response.status_code}
+    except (TimeoutError, httpx.TimeoutException):
+        message = {"error": "timeout", "message": f"The model took longer than {timeout:g} seconds. "
+                                                   "Your work is unchanged; try again."}
+    except AIError as exc:
+        message = {"error": exc.kind, "message": exc.message[:300]}
+    except Exception:
+        message = {"error": "provider", "message": "Could not reach OpenRouter. Check your connection; "
+                                                    "your work is unchanged."}
+    try:
+        sender.send_bytes(json.dumps(message).encode("utf-8"))
+    finally:
+        sender.close()

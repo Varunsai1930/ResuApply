@@ -27,7 +27,10 @@ def form_fields(html: str) -> dict[str, str]:
             value = re.search(r'value="([^"]*)"', match.group(0))
             fields.append((name, unescape(value.group(1)) if value else ""))
         elif tag == "textarea":
-            fields.append((name, unescape(form[match.end():form.index("</textarea>", match.end())])))
+            body = form[match.end():form.index("</textarea>", match.end())]
+            # HTML normalizes source line endings and consumes one initial LF after the tag.
+            body = unescape(body.replace("\r\n", "\n").replace("\r", "\n"))
+            fields.append((name, body[1:] if body.startswith("\n") else body))
         else:
             body = form[match.end():form.index("</select>", match.end())]
             selected = re.search(r'<option value="([^"]*)"\s+selected', body)

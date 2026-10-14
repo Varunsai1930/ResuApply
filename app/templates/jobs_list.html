@@ -3,13 +3,12 @@
 {% block title %}Jobs{% endblock %}
 {% block content %}
 {% include "_sample_banner.html" %}
-{% if candidate %}
-<p class="greeting">Hello, {{ candidate.profile.contact.name | first_name }}.</p>
-{% else %}
+{% if not candidate %}
 <section class="greeting-card" aria-labelledby="greeting-title">
   <div>
-    <h2 id="greeting-title">Hello there.</h2>
-    <p>Create your profile so every requirement check and resume is tailored to you. It holds the facts each application is built from, and only you can change it.</p>
+    <p class="eyebrow">Start with your experience</p>
+    <h2 id="greeting-title">Make every application yours.</h2>
+    <p>Create a profile to check job requirements and build resumes from your experience. You control the facts in it.</p>
   </div>
   <div class="greeting-actions">
     <a class="btn-primary" href="/profile/edit">Create your profile</a>
@@ -19,28 +18,20 @@
 {% endif %}
 <div class="page-head with-actions">
   <div>
-    <h1>Jobs</h1>
-    <p class="meta">{{ jobs | length }} job{{ 's' if jobs | length != 1 }}{% if jobs %} · each card shows where a job stands and the one thing to do next{% endif %}</p>
+    <p class="eyebrow">Application workspace</p>
+    <h1>Your applications</h1>
+    <p class="lead">{% if candidate %}Hello, {{ candidate.profile.contact.name | first_name }}. {% endif %}Keep your next opportunity moving, one step at a time.</p>
   </div>
-  <div class="board-actions">
-    {% if jobs %}
-    <form method="get" action="/jobs" class="board-search" role="search">
-      <label class="visually-hidden" for="board-search">Search jobs</label>
-      <input id="board-search" name="q" type="search" value="{{ board.query }}" placeholder="Title, company or location" maxlength="200">
-      <button type="submit" class="btn-secondary">Search</button>
-    </form>
-    {% endif %}
-    <a class="btn-primary" href="/jobs/new">Add job</a>
-  </div>
+  <a class="btn-primary" href="/jobs/new">{{ m.icon('plus', 18) }} Add job</a>
 </div>
 
 {% if jobs %}
 {% set s = board.summary %}
 <section class="board-summary" aria-label="Summary of all jobs">
-  <div><span>Active jobs</span><strong>{{ s.active }}</strong></div>
-  <div><span>Applied this month</span><strong>{{ s.applied_this_month }}</strong></div>
-  <div><span>Heard back</span><strong>{{ s.heard_back }} of {{ s.applied }}</strong></div>
-  <div><span>Ready to submit</span><strong>{{ s.ready }}</strong></div>
+  <div><span class="summary-icon">{{ m.icon('briefcase', 20) }}</span><span class="summary-copy"><span>Active jobs</span><strong>{{ s.active }}</strong></span></div>
+  <div><span class="summary-icon">{{ m.icon('arrow-right', 20) }}</span><span class="summary-copy"><span>Applied this month</span><strong>{{ s.applied_this_month }}</strong></span></div>
+  <div><span class="summary-icon">{{ m.icon('circle', 20) }}</span><span class="summary-copy"><span>Heard back</span><strong>{{ s.heard_back }} <small>of {{ s.applied }}</small></strong></span></div>
+  <div><span class="summary-icon">{{ m.icon('check-circle', 20) }}</span><span class="summary-copy"><span>Ready to submit</span><strong>{{ s.ready }}</strong></span></div>
 </section>
 
 {% if board.follow_ups %}
@@ -73,22 +64,35 @@
 </p>
 {% endif %}
 
+<div class="board-toolbar">
+  <div>
+    <h2>Application board</h2>
+    <p class="meta">{{ jobs | length }} saved job{{ 's' if jobs | length != 1 }} · Open a card to see your next step.</p>
+  </div>
+  <form method="get" action="/jobs" class="board-search" role="search">
+    <label class="visually-hidden" for="board-search">Search jobs</label>
+    <span class="search-field">{{ m.icon('search', 18) }}<input id="board-search" name="q" type="search" value="{{ board.query }}" placeholder="Search title, company or location" maxlength="200"></span>
+    <button type="submit" class="btn-secondary">Search</button>
+  </form>
+</div>
+
 {% if board.shown %}
 <div class="board">
   {% for col in board.columns %}
   <section class="board-column" aria-labelledby="col-{{ col.key }}">
-    <h2 id="col-{{ col.key }}">{{ col.title }} <span class="count">{{ col.cards | length }}</span></h2>
+    <div class="board-column-head"><h2 id="col-{{ col.key }}"><span class="board-column-dot" data-stage="{{ col.key }}" aria-hidden="true"></span>{{ col.title }}</h2><span class="count" aria-label="{{ col.cards | length }} jobs">{{ col.cards | length }}</span></div>
     {% for c in col.cards %}
       {% set job = c.job %}
       <a class="job-card" href="/jobs/{{ job.id }}">
-        <span class="job-card-company">{{ job.company }}{% if job.location %} · {{ job.location }}{% endif %}</span>
-        <strong class="job-card-title">{{ job.title }}{% if job.sample %} <span class="tag">Sample</span>{% endif %}</strong>
+        <span class="job-card-head"><span class="company-mark" aria-hidden="true">{{ job.company[:1] | upper }}</span><span class="job-card-company">{{ job.company }}</span>{% if job.sample %}<span class="tag">Sample</span>{% endif %}</span>
+        <strong class="job-card-title">{{ job.title }}</strong>
+        {% if job.location %}<span class="job-card-location">{{ m.icon('map-pin', 14) }}{{ job.location }}</span>{% endif %}
         <span class="st st-{{ c.meaning.status.value }}">{{ m.status_icon(c.meaning.status) }}<span class="st-text">{% if c.meaning.status == Status.INFO %}<span class="visually-hidden">Info: </span>{% else %}{{ c.meaning.status.label }}: {% endif %}{{ c.meaning.note }}</span></span>
         {% if c.step %}
-        <span class="job-card-progress" aria-hidden="true"><span style="width: {{ (2 * c.step.number - 1) * 10 }}%"></span></span>
+        <span class="job-card-progress" data-step="{{ c.step.number }}" aria-hidden="true"><span></span></span>
         <span class="job-card-step">Step {{ c.step.number }} of {{ Step | length }} · {{ c.step.label }}</span>
         {% endif %}
-        <span class="job-card-foot">Package: {{ m.review_badge(job.application.review) }}</span>
+        <span class="job-card-foot"><span>Package: {{ m.review_badge(job.application.review) }}</span>{{ m.icon('chevron-right', 16) }}</span>
       </a>
     {% else %}
       <p class="board-empty">{{ col.empty }}</p>
@@ -98,6 +102,7 @@
 </div>
 {% else %}
 <div class="empty card">
+  <span class="empty-icon">{{ m.icon('search', 28) }}</span>
   <h2>No jobs match</h2>
   <p>Nothing in a title, company or location matches “{{ board.query }}”. <a href="/jobs">Show every job</a></p>
 </div>
@@ -111,9 +116,11 @@
 </section>
 {% else %}
 <div class="empty card">
+  <span class="empty-icon">{{ m.icon('briefcase', 30) }}</span>
+  <p class="eyebrow">Your next opportunity starts here</p>
   <h2>No jobs yet</h2>
-  <p>Add a job by pasting its description. Each job gets a workspace for its requirements, resume and tracking.</p>
-  <a class="btn-primary" href="/jobs/new">Add your first job</a>
+  <p>Save a job posting to check its requirements, prepare your resume and keep track of your application.</p>
+  <a class="btn-primary" href="/jobs/new">{{ m.icon('plus', 18) }} Add your first job</a>
 </div>
 {% endif %}
 {% endblock %}

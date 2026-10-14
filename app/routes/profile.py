@@ -16,6 +16,7 @@ from starlette.concurrency import run_in_threadpool
 from starlette.datastructures import UploadFile
 
 from ..db import get_session
+from ..unicode_text import has_invalid_unicode, repair_unicode
 from ..services import jobs as job_service
 from ..services import profile as profile_service
 from ..services import sample as sample_service
@@ -27,6 +28,9 @@ from ..templating import templates
 from .forms import read_form
 
 router = APIRouter(prefix="/profile")
+
+RECOVERY_MESSAGE = ("Some saved profile text could not be read and is shown as \ufffd. Edit the profile, "
+                    "correct the marked text, and review and save it to repair the stored profile.")
 
 # A new profile starts with one empty row in each repeating section.
 BLANK_PROFILE = {
@@ -102,6 +106,7 @@ def _render_form(request: Request, data: dict, errors=(), warnings=(), status_co
     """The profile editor. With ``section``, only that section shows; the others stay in the form as
     hidden fields with their saved values, so the review and save steps are the same as for the
     whole profile. A problem outside the section shows the whole profile, so it can be fixed."""
+    data = repair_unicode(data)  # damaged import/error input must also be safe to show for correction
     errors = list(errors)
     error_fields = {e.field for e in errors if e.field}
     if section and errors and not all(e.field and section.owns(e.field) for e in errors):
@@ -130,7 +135,9 @@ def _imported_of(raw: object) -> dict | None:
     """The import note carried through review as a hidden field, or None when missing or damaged."""
     try:
         note = json.loads(raw) if isinstance(raw, str) and raw else None
-    except (json.JSONDecodeError, RecursionError):
+    except (ValueError, RecursionError):
+        return None
+    if has_invalid_unicode(note):
         return None
     if not (isinstance(note, dict) and isinstance(note.get("filename"), str) and isinstance(note.get("text"), str)):
         return None
@@ -143,9 +150,9 @@ def _imported_of(raw: object) -> dict | None:
 def _load_payload(payload: object) -> dict:
     try:
         data = json.loads(payload) if isinstance(payload, str) else None
-    except (json.JSONDecodeError, RecursionError):  # RecursionError: absurdly deep nesting
+    except (ValueError, RecursionError):  # includes Python's oversized JSON integer limit
         data = None
-    if not is_form_shaped(data):
+    if not is_form_shaped(data) or has_invalid_unicode(data):
         raise HTTPException(400, "The reviewed profile data is missing or damaged. Edit the profile again.")
     return data
 
@@ -170,7 +177,8 @@ def edit_profile(request: Request, section: Section | None = None, session: Sess
     candidate = profile_service.get_candidate(session)
     data = candidate.profile.model_dump() if candidate else BLANK_PROFILE
     return _render_form(request, data, section=section if candidate else None,
-                        opened_revision=candidate.revision if candidate else None)
+                        opened_revision=candidate.revision if candidate else None,
+                        message=RECOVERY_MESSAGE if candidate and candidate.profile.unicode_recovered else "")
 
 
 @router.post("/edit", response_class=HTMLResponse)

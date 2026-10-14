@@ -12,25 +12,15 @@
   {% if name in guessed %}<small id="{{ name }}-guessed" class="hint">Filled in from the posting. Check it.</small>{% endif %}
 {%- endmacro %}
 {% block content %}
+<p class="crumbs"><a href="{{ '/jobs/%d' % job.id if job else '/jobs' }}">{{ m.icon('arrow-left', 16) }} {{ 'Back to workspace' if job else 'All jobs' }}</a></p>
 <div class="page-head">
+  <p class="eyebrow">{{ 'Application workspace' if job else 'A new opportunity' }}</p>
   <h1>{{ 'Edit job details' if job else 'Add a job' }}</h1>
   <p class="lead">
-    {% if job %}Changing the title, company, location or description increases the job revision (now {{ job.revision }}).
-    {% else %}Paste the whole posting. It is saved exactly as pasted and is treated as information only. Leave the title or company empty and ResuApply fills them in from the posting for you to check before saving.{% endif %}
+    {% if job %}Keep this posting up to date. Changes to the title, company, location or description increase the job revision (currently {{ job.revision }}).
+    {% else %}Save a posting and give your application a place to take shape.{% endif %}
   </p>
 </div>
-{% if not job %}
-<form method="post" action="/jobs/import" class="card stack import-form" aria-labelledby="import-title">
-  <h2 id="import-title">Import from Greenhouse</h2>
-  <p class="hint">For a posting on boards.greenhouse.io or job-boards.greenhouse.io only. ResuApply fetches the posting and its application questions from Greenhouse's public job board when you choose Import, and fills in the form below for you to check. Nothing is saved until you choose Save job. Any other link is only saved as a reference: paste that posting instead.</p>
-  {% if import_error %}<p class="notice warn" role="alert" tabindex="-1" data-focus id="import-error">{{ import_error }}</p>{% endif %}
-  <div class="field">
-    <label for="import-url">Greenhouse posting link</label>
-    <input id="import-url" name="url" type="url" value="{{ import_url }}" placeholder="https://job-boards.greenhouse.io/…/jobs/…"{% if import_error %} class="invalid" aria-invalid="true" aria-describedby="import-error"{% endif %}>
-  </div>
-  <div><button type="submit" class="btn-secondary">Import</button></div>
-</form>
-{% endif %}
 {% if preview %}
 <section class="notice import-preview" role="status" tabindex="-1" data-focus aria-labelledby="preview-title">
   <h2 id="preview-title">{{ m.status_icon(Status.NEEDS_YOU) }} Imported from Greenhouse. Check everything before saving.</h2>
@@ -77,7 +67,9 @@
 </section>
 {% endif %}
 
-<form method="post" action="{{ '/jobs/%d/edit' % job.id if job else '/jobs' }}" class="card" data-guard novalidate>
+<div class="job-form-layout">
+<form method="post" action="{{ '/jobs/%d/edit' % job.id if job else '/jobs' }}" class="card job-details-form" data-guard novalidate aria-labelledby="job-details-title">
+  <div class="form-section-head">{{ m.icon('briefcase', 20) }}<div><h2 id="job-details-title">Job details</h2><p class="hint">{% if job %}Update the details below and save your changes.{% else %}Paste the full description. Leave the title or company empty to fill them from the posting, then check the result before saving.{% endif %}</p></div></div>
   {% if job %}
   <input type="hidden" name="base_revision" value="{{ values.get('base_revision', job.revision) }}">
   <input type="hidden" name="base_token" value="{{ values.get('base_token', '') }}">
@@ -93,12 +85,12 @@
   <div class="grid">
     <div class="field">
       <label for="title">Job title <span class="req" aria-hidden="true">*</span></label>
-      <input id="title" name="title" value="{{ values.get('title', '') }}" required{{ attrs('title') }}>
+      <input id="title" name="title" value="{{ values.get('title', '') }}" required{{ attrs('title') }} placeholder="e.g. Senior Product Designer">
       {{ field_error('title') }}{{ guessed_hint('title') }}
     </div>
     <div class="field">
       <label for="company">Company <span class="req" aria-hidden="true">*</span></label>
-      <input id="company" name="company" value="{{ values.get('company', '') }}" required{{ attrs('company') }}>
+      <input id="company" name="company" value="{{ values.get('company', '') }}" required{{ attrs('company') }} placeholder="Company name">
       {{ field_error('company') }}{{ guessed_hint('company') }}
     </div>
     <div class="field">
@@ -107,14 +99,15 @@
       {{ field_error('location') }}{{ guessed_hint('location') }}
     </div>
     <div class="field">
-      <label for="url">Posting URL</label>
+      <label for="url">Posting link</label>
       <input id="url" name="url" type="url" value="{{ values.get('url', '') }}" placeholder="https://…"{{ attrs('url') }}>
-      <small class="hint">Saved as a reference only: saving never fetches it.{% if not job %} To fetch a Greenhouse posting, use Import from Greenhouse above.{% endif %}</small>
+      <small class="hint">Saved as a reference. Saving never fetches this link.{% if not job %} Use the Greenhouse import to fetch a supported posting.{% endif %}</small>
       {{ field_error('url') }}
     </div>
     <div class="field wide">
       <label for="description">Job description <span class="req" aria-hidden="true">*</span></label>
-      <textarea id="description" name="description" rows="16" required{{ attrs('description') }}>{{ values.get('description', '') }}</textarea>
+      <textarea id="description" name="description" rows="14" placeholder="Paste the responsibilities, requirements and other details from the posting…" required{{ attrs('description') }}>{{ m.textarea_value(values.get('description', '')) }}</textarea>
+      <small class="hint">The description is saved exactly as pasted and treated as information only.</small>
       {{ field_error('description') }}
     </div>
   </div>
@@ -123,4 +116,30 @@
     <a class="btn-link" href="{{ '/jobs/%d' % job.id if job else '/jobs' }}">Cancel</a>
   </div>
 </form>
+<aside class="job-form-aside" aria-label="Ways to add a job">
+  {% if not job %}
+  <form method="post" action="/jobs/import" class="card stack import-form" data-guard aria-labelledby="import-title">
+    <span class="form-aside-icon">{{ m.icon('external-link', 22) }}</span>
+    <h2 id="import-title">Import from Greenhouse</h2>
+    <p class="hint">Have a Greenhouse link? Import the description and application questions, then check the details before saving.</p>
+    {% if import_error %}<p class="notice warn" role="alert" tabindex="-1" data-focus id="import-error">{{ import_error }}</p>{% endif %}
+    <div class="field">
+      <label for="import-url">Greenhouse posting link</label>
+      <input id="import-url" name="url" type="url" value="{{ import_url }}" placeholder="https://job-boards.greenhouse.io/…"{% if import_error %} class="invalid" aria-invalid="true" aria-describedby="import-error"{% endif %}>
+    </div>
+    <div><button type="submit" class="btn-secondary">{{ m.icon('arrow-right', 16) }} Import posting</button></div>
+    <p class="hint">Supports boards.greenhouse.io and job-boards.greenhouse.io only. Choosing Import fetches the public posting. Nothing is saved until you choose Save job. For other sites, paste the description.</p>
+  </form>
+  {% endif %}
+  <section class="card job-form-guide" aria-labelledby="job-form-guide-title">
+    <h2 id="job-form-guide-title">A clear path to applying</h2>
+    <ol class="form-guide-steps">
+      <li><span>{{ m.icon('layers', 18) }}</span><div><strong>Check the fit</strong><p>Compare the requirements with your experience.</p></div></li>
+      <li><span>{{ m.icon('file-text', 18) }}</span><div><strong>Prepare your application</strong><p>Build a resume and answer the employer's questions.</p></div></li>
+      <li><span>{{ m.icon('check-circle', 18) }}</span><div><strong>Review, then submit</strong><p>Approve the package, apply on the employer's site and record it here.</p></div></li>
+    </ol>
+    <p class="form-guide-note">{{ m.icon('shield', 16) }} You stay in control. ResuApply never contacts employers.</p>
+  </section>
+</aside>
+</div>
 {% endblock %}

@@ -144,6 +144,47 @@ def _unsupported_compression() -> bytes:
     return bytes(data)
 
 
+def _missing_body() -> bytes:
+    return _rewritten_docx(lambda info, data: (
+        info, b'<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"/>'
+        if info.filename == "word/document.xml" else data,
+    ))
+
+
+def _unexpected_root() -> bytes:
+    return _rewritten_docx(lambda info, data: (info, b"<x/>" if info.filename == "word/document.xml" else data))
+
+
+def _missing_table_span() -> bytes:
+    xml = (b'<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">'
+           b'<w:body><w:tbl><w:tr><w:tc><w:tcPr><w:gridSpan/></w:tcPr>'
+           b'<w:p><w:r><w:t>Jordan Example</w:t></w:r></w:p>'
+           b'</w:tc></w:tr></w:tbl></w:body></w:document>')
+    return _rewritten_docx(lambda info, data: (info, xml if info.filename == "word/document.xml" else data))
+
+
+def _encrypted_member() -> bytes:
+    data = bytearray(docx_bytes(LINES))
+    with zipfile.ZipFile(io.BytesIO(data)) as archive:
+        info = archive.getinfo("word/document.xml")
+    # An encrypted member is advertised in both the local header and the zip directory.
+    for offset in (info.header_offset + 6, data.rindex(b"word/document.xml") - 46 + 8):
+        flags = int.from_bytes(data[offset:offset + 2], "little") | 1
+        data[offset:offset + 2] = flags.to_bytes(2, "little")
+    return bytes(data)
+
+
+@pytest.mark.parametrize("make", [_missing_body, _unexpected_root, _missing_table_span])
+def test_a_word_file_with_a_missing_document_structure_is_reported_plainly(make):
+    with pytest.raises(ResumeImportError, match="couldn't be read"):
+        extract_text(make())
+
+
+def test_an_encrypted_word_zip_member_is_refused():
+    with pytest.raises(ResumeImportError, match="password-protected.*without a password"):
+        extract_text(_encrypted_member())
+
+
 @pytest.mark.parametrize("make", [_broken_xml, _broken_deflate, _unsupported_compression])
 def test_a_damaged_word_file_is_reported_plainly(make):
     with pytest.raises(ResumeImportError, match="couldn't be read"):

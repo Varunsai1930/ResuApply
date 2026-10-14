@@ -48,8 +48,12 @@ def parse_days(text: str, choices: tuple[int, ...], field: str = "follow_up") ->
     text = (text or "").strip()
     if not text:
         return None
-    if text.isascii() and text.isdigit() and int(text) in choices:
-        return int(text)
+    if text.isascii() and text.isdigit():
+        # Compare bounded strings before converting: a damaged form can carry thousands of digits.
+        digits = text.lstrip("0") or "0"
+        for choice in choices:
+            if digits == str(choice):
+                return choice
     raise TrackingError("Choose when to be reminded from the list.", field)
 
 

@@ -4,10 +4,11 @@
 {# In a section, the other sections stay in the form, hidden, so their saved values are posted unchanged. #}
 {% macro shown(key) %}{% if section and section.value != key %} hidden{% endif %}{% endmacro %}
 {% block content %}
-{% if section %}<p class="crumbs"><a href="/profile">← Profile</a></p>{% endif %}
+<p class="crumbs"><a href="/profile">{{ m.icon('arrow-left', 16) }} Profile</a></p>
 <div class="page-head">
-  <h1>{{ 'Edit ' ~ section.label | lower if section else 'Edit profile' }}</h1>
-  <p class="lead">Enter facts exactly as they are. Leave anything you don't know empty; it stays unknown. Nothing is saved until you review the changes.{% if section %} Other sections are kept as they are.{% endif %}</p>
+  <p class="eyebrow">Your application foundation</p>
+  <h1>{{ 'Edit ' ~ section.label | lower if section else 'Your profile' }}</h1>
+  <p class="lead">Add the facts that every application will draw from. Leave anything you do not know empty. You will review your changes before saving.{% if section %} Your other sections stay as they are.{% endif %}</p>
 </div>
 {% if section %}
 <nav aria-label="Profile sections" class="section-nav">
@@ -33,7 +34,7 @@
 <div class="notice"><ul>{% for w in warnings %}<li>{{ w }}</li>{% endfor %}</ul></div>
 {% endif %}
 
-<form method="post" action="/profile/review" class="profile-form" data-guard novalidate>
+<form method="post" action="/profile/review" class="profile-form profile-editor" data-guard novalidate>
   {% if section %}<input type="hidden" name="section" value="{{ section.value }}">
   <input type="hidden" name="opened_revision" value="{{ opened_revision if opened_revision is not none else '' }}">{% endif %}
   {% if imported %}<input type="hidden" name="imported" value="{{ imported | tojson | forceescape }}">{% endif %}
@@ -57,20 +58,20 @@
 
   <section class="card"{{ shown('education') }}>
     <h2>Education</h2>
-    <p class="hint">Dates are YYYY, YYYY-MM or YYYY-MM-DD. Use the expected graduation date if you're still studying.</p>
+    <p class="hint">Use a year, year-month or full date (for example, 2026, 2026-06 or 2026-06-15). Still studying? Use your expected graduation date.</p>
     <div id="education-list" class="entry-list">
       {% for entry in data.get('education') or [] %}{{ m.education_entry(m.key_of(entry, loop.index0), entry) }}{% endfor %}
     </div>
-    <button type="button" class="btn-secondary" data-add="tpl-education" data-target="education-list">+ Add education</button>
+    <button type="button" class="btn-secondary" data-add="tpl-education" data-target="education-list">{{ m.icon('plus', 16) }} Add education</button>
   </section>
 
   <section class="card"{{ shown('experience') }}>
     <h2>Experience</h2>
-    <p class="hint">One accomplishment per bullet. Use "present" as the end date for a current role.</p>
+    <p class="hint">Describe one accomplishment per bullet. Use "present" as the end date for a current role.</p>
     <div id="experience-list" class="entry-list">
       {% for entry in data.get('experience') or [] %}{{ m.experience_entry(m.key_of(entry, loop.index0), entry) }}{% endfor %}
     </div>
-    <button type="button" class="btn-secondary" data-add="tpl-experience" data-target="experience-list">+ Add experience</button>
+    <button type="button" class="btn-secondary" data-add="tpl-experience" data-target="experience-list">{{ m.icon('plus', 16) }} Add experience</button>
   </section>
 
   <section class="card"{{ shown('projects') }}>
@@ -78,7 +79,7 @@
     <div id="projects-list" class="entry-list">
       {% for entry in data.get('projects') or [] %}{{ m.project_entry(m.key_of(entry, loop.index0), entry) }}{% endfor %}
     </div>
-    <button type="button" class="btn-secondary" data-add="tpl-projects" data-target="projects-list">+ Add project</button>
+    <button type="button" class="btn-secondary" data-add="tpl-projects" data-target="projects-list">{{ m.icon('plus', 16) }} Add project</button>
   </section>
 
   <section class="card"{{ shown('skills') }}>
@@ -96,7 +97,7 @@ Tools: Git, Docker') }}
     <div id="certifications-list" class="row-list">
       {% for cert in data.get('certifications') or [] %}{{ m.certification_row(m.key_of(cert, loop.index0), cert) }}{% endfor %}
     </div>
-    <button type="button" class="btn-secondary" data-add="tpl-certification" data-target="certifications-list">+ Add certification</button>
+    <button type="button" class="btn-secondary" data-add="tpl-certification" data-target="certifications-list">{{ m.icon('plus', 16) }} Add certification</button>
   </section>
 
   <section class="card"{{ shown('authorization') }}>
@@ -105,7 +106,7 @@ Tools: Git, Docker') }}
     <div id="authorization-list" class="row-list">
       {% for auth in data.get('authorization') or [] %}{{ m.authorization_row(m.key_of(auth, loop.index0), auth) }}{% endfor %}
     </div>
-    <button type="button" class="btn-secondary" data-add="tpl-authorization" data-target="authorization-list">+ Add country</button>
+    <button type="button" class="btn-secondary" data-add="tpl-authorization" data-target="authorization-list">{{ m.icon('plus', 16) }} Add country</button>
   </section>
 
   <section class="card"{{ shown('preferences') }}>
@@ -129,7 +130,7 @@ Tools: Git, Docker') }}
   </section>
 
   <div class="form-actions sticky">
-    <button type="submit" class="btn-primary">Review changes</button>
+    <button type="submit" class="btn-primary">Review changes {{ m.icon('arrow-right', 17) }}</button>
     <a href="/profile" class="btn-link">Cancel</a>
     {% if section %}<a href="/profile/edit" class="btn-link">Edit all sections</a>{% endif %}
   </div>

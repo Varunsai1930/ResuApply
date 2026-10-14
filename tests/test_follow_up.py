@@ -9,15 +9,20 @@ from sqlalchemy import inspect, text
 
 from app.db import init_db, make_engine, make_session_factory
 from app.models import Job
+from app.routes import jobs as job_routes
 from app.services import jobs, tracking
 from app.services.profile import get_candidate
 from app.services.status import Status
 from app.services.workspace import Step, next_action
 from tests.conftest import DEMO_JOB
-from tests.test_jobs_board import built, new_job
+from tests.test_jobs_board import built as build_board, new_job
 from tests.test_questions_routes import approve_package, complete_package, page_token, ready_job, workspace
 
 TODAY = date.today()
+
+
+def built(client, query=""):
+    return build_board(client, query, today=TODAY)
 
 
 def days_ago(n: int) -> str:
@@ -116,11 +121,24 @@ def test_a_due_reminder_is_the_next_action(client):
     assert "No reply for 9 days. Time to follow up?" in page and "ResuApply never contacts employers" in page
 
 
-def test_the_board_shows_due_follow_ups_in_a_banner_and_on_the_card(client):
+@pytest.mark.parametrize("today", [TODAY, date(2001, 1, 2), date(2024, 2, 29), date(2035, 1, 2)],
+                         ids=["current-day", "historical-new-year", "leap-day", "future-new-year"])
+def test_the_board_shows_due_follow_ups_in_a_banner_and_on_the_card(client, monkeypatch, today):
+    class Clock(date):
+        @classmethod
+        def today(cls):
+            return today
+
+    # The submitted dates, tracking validation, service board and rendered board share one clock.
+    monkeypatch.setitem(globals(), "TODAY", today)
+    monkeypatch.setattr(tracking, "date", Clock)
+    monkeypatch.setattr(job_routes, "date", Clock)
     due = new_job(client, title="Data Analyst Intern")
-    apply(client, due, days_ago(9))
+    assert apply(client, due, days_ago(9)).status_code == 303
     waiting = new_job(client, title="Platform Intern")
-    apply(client, waiting, days_ago(2))
+    assert apply(client, waiting, days_ago(2)).status_code == 303
+    assert stored(client, due)[0] == today - timedelta(days=2)
+    assert stored(client, waiting)[0] == today + timedelta(days=5)
     board = built(client)
     assert [f.job.title for f in board.follow_ups] == ["Data Analyst Intern"]
     cards = {c.job.title: c.meaning for c in board.columns[1].cards}

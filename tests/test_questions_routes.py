@@ -12,6 +12,7 @@ from app.models import AnswerBankEntry, Job
 from tests.conftest import SAMPLE_JOB, tool_response
 from tests.test_resume_routes import accept, approval, manual_proposal, setup
 from tests.test_routes import client_profile, profile_form, review_and_save
+from tests.test_status import main_nav_links
 
 EMAIL_Q = "What is your email address?"
 AUTH_Q = "Are you authorized to work in the US?"
@@ -125,10 +126,9 @@ def test_workspace_replaces_the_placeholders_and_nav_has_answers(client, sample_
     assert "Milestone 3b" not in page
     assert "No questions yet" in page
     assert 'action="/jobs/%d/questions"' % job_id in page and "Add a question" in page
-    assert re.search(r'<a href="/jobs" aria-current="page">Jobs</a>\s*<a href="/answers" >Answers</a>\s*<a href="/profile" >Profile</a>', page)
+    assert main_nav_links(page) == [("/jobs", "Jobs", True), ("/answers", "Answers", False), ("/profile", "Profile", False)]
     answers_page = client.get("/answers").text
-    assert '<a href="/answers" aria-current="page">Answers</a>' in answers_page
-    assert 'aria-current="page">Jobs' not in answers_page
+    assert main_nav_links(answers_page) == [("/jobs", "Jobs", False), ("/answers", "Answers", True), ("/profile", "Profile", False)]
 
 
 def test_questions_need_a_profile(client):
@@ -281,7 +281,9 @@ def test_answer_bank_save_suggest_use_and_delete(client, sample_profile):
     saved = post(client, job_id, why, "bank")
     assert saved.headers["location"] == f"/jobs/{job_id}?step=questions&msg=bank_saved#question-{why}"
     page = client.get("/answers").text
-    assert "1 saved answer" in page and WHY_Q in page and "I like building Python services." in page
+    summary = re.search(r'<p class="bank-summary">(.*?)</p>', page, re.S).group(1)
+    assert " ".join(re.sub(r"<[^>]+>", " ", summary).split()) == "1 saved answer"
+    assert WHY_Q in page and "I like building Python services." in page
     assert "Backend Engineering Intern at Example Corp" in page and "Delete from answer bank" in page
 
     # A similar question on another job is offered the saved answer as a starting point, nothing more.

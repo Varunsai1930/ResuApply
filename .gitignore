@@ -10,5 +10,6 @@ data/
 *.sqlite3
 uploads/
 generated/
+validation-results/
 *.pdf
 .playwright/

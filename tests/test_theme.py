@@ -29,9 +29,13 @@ def test_every_page_has_the_toggle_and_loads_the_script_before_drawing(client):
         page = client.get(path).text
         assert re.search(r'<script src="/static/theme\.js\?v=\d+"></script>', page)  # not deferred
         assert page.index("theme.js") < page.index("<body>")
-        button = re.search(r"<button[^>]*data-theme-toggle[^>]*>", page).group(0)
+        buttons = re.findall(r"<button[^>]*data-theme-toggle[^>]*>", page)
+        assert len(buttons) == 1
+        button = buttons[0]
         assert "hidden" in button and 'aria-pressed="false"' in button  # shown by the script
         assert '<span class="visually-hidden">Dark mode</span>' in page
+        topbar = re.search(r'<div class="workspace-bar">(.*?)<main\b', page, re.S).group(1)
+        assert "Local workspace" in topbar and "data-theme-toggle" in topbar
 
 
 def test_the_script_is_served_and_keeps_the_choice_in_this_browser(client):

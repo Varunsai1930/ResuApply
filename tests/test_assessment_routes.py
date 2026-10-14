@@ -59,7 +59,7 @@ def card(html: str, req_id: str) -> str:
 
 def evidence_token(client, job_id, req_id):
     page = card(client.get(f"/jobs/{job_id}?step=requirements").text, req_id)
-    form = re.search(r'<form[^>]+action="[^"]+/evidence" class="stack">(.*?)</form>', page, re.DOTALL)
+    form = re.search(r'<form[^>]+action="[^"]+/evidence"[^>]*>(.*?)</form>', page, re.DOTALL)
     return re.search(r'name="review_token" value="([^"]+)"', form.group(1)).group(1)
 
 
@@ -276,7 +276,7 @@ def test_suggest_evidence_asks_for_sharing_approval_first(ai_app_client, fake_ai
     assert fake_ai.requests == []
 
     preview = client.get(redirect.headers["location"]).text
-    assert "Not approved yet" in preview and "Never sent" in preview
+    assert "Not approved yet" in preview and "Always kept private" in preview
     assert "jordan@example.com" not in preview and "Sample Analytics" in preview
     base_hash = re.search(r'name="base_hash" value="([^"]+)"', preview).group(1)
     included = re.findall(r'name="include" value="([^"]+)" checked', preview)
@@ -287,7 +287,7 @@ def test_suggest_evidence_asks_for_sharing_approval_first(ai_app_client, fake_ai
     assert approved.headers["location"] == f"/jobs/{job_id}?step=requirements&msg=sharing_approved#requirements"
 
     sharing = client.get("/profile/sharing").text
-    assert "Approved" in sharing and "Exactly what is sent now" in sharing
+    assert "Approved" in sharing and "View the exact data being shared" in sharing
     assert "Built a REST API for reporting" in sharing
 
     fake_ai.push(tool_response("return_evidence_suggestions", {"suggestions": [

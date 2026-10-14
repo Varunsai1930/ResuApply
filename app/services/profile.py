@@ -34,6 +34,7 @@ from sqlalchemy.orm import Session
 from ..db import utcnow
 from ..models import Application, Candidate
 from ..schemas.profile import Profile
+from ..unicode_text import has_invalid_unicode
 from .countries import normalize_country
 from .skills import canon, display
 from .text import ends_before_start, is_valid_date, norm_text, without_controls
@@ -234,6 +235,8 @@ def normalize(
     """
     if not isinstance(data, dict):
         raise ProfileInvalid([FieldError("Profile must be an object")])
+    if has_invalid_unicode(data):
+        raise ProfileInvalid([FieldError("Profile text contains unreadable Unicode. Correct it before saving.")])
     errors: list[FieldError] = []
     warnings: list[str] = []
     current = _dump(current)
@@ -619,7 +622,11 @@ def review(session: Session, data: dict) -> ReviewResult:
     # alone aren't listed as changes (see text.without_controls).
     current = without_controls(candidate.profile) if candidate else None
     normalized = normalize(data, current, candidate.id_counters if candidate else None)
-    return ReviewResult(normalized, diff(current, normalized.profile), candidate.revision if candidate else 0)
+    changes = diff(current, normalized.profile)
+    if candidate and candidate.profile.unicode_recovered:
+        changes.insert(0, Change("changed", "Unreadable profile text", before="Damaged stored text",
+                                 after="The corrected text shown in this review"))
+    return ReviewResult(normalized, changes, candidate.revision if candidate else 0)
 
 
 def save(session: Session, data: dict, base_revision: int | None = None) -> SaveResult:
@@ -638,7 +645,7 @@ def save(session: Session, data: dict, base_revision: int | None = None) -> Save
     current = without_controls(candidate.profile) if candidate else None  # as in review()
     normalized = normalize(data, current, candidate.id_counters if candidate else None)
     changes = diff(current, normalized.profile)
-    if candidate and current == normalized.profile:
+    if candidate and current == normalized.profile and not candidate.profile.unicode_recovered:
         # A long-lived session may still hold an older profile in its identity map.
         stored_revision = session.scalar(select(Candidate.revision).where(Candidate.id == candidate.id))
         if stored_revision != current_revision:

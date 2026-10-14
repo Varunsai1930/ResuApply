@@ -3,21 +3,22 @@
 {% block title %}{{ step.label }} · {{ job.title }} at {{ job.company }}{% endblock %}
 {% block content %}
 {% set intros = {
-  Step.REQUIREMENTS: ("Check the requirements", "Each requirement is compared with your profile. Gaps stay visible but never block an application."),
-  Step.RESUME: ("Prepare your resume for this job", "Tailor it with AI or use your profile as-is, then review it and accept it."),
-  Step.QUESTIONS: ("Answer the employer's questions", "Copy each question from the application form. Facts come from your profile; anything sensitive is always yours to answer."),
-  Step.REVIEW: ("Review and approve the package", "Approving records that the resume and answers are ready. It never marks the job Applied."),
-  Step.TRACK: ("Submit and track", "You submit the application on the employer's site, then record it here. ResuApply never contacts employers."),
+  Step.REQUIREMENTS: ("See how your experience fits", "Compare each requirement with your profile. Gaps stay visible and never block an application."),
+  Step.RESUME: ("Prepare a resume for this role", "Tailor your resume with AI or use your profile as it is. Review the result, then accept it."),
+  Step.QUESTIONS: ("Answer the employer's questions", "Add the questions from the application form. Use your profile for facts and write sensitive answers yourself."),
+  Step.REVIEW: ("Review your application package", "Approve the resume and answers when they are ready. Approval does not mark the job as Applied."),
+  Step.TRACK: ("Submit and keep track", "Submit on the employer's site, then record the application here. ResuApply never contacts employers."),
 } %}
 {% set current = guide.state(step) %}
-<p class="crumbs"><a href="/jobs">← All jobs</a></p>
+<p class="crumbs"><a href="/jobs">{{ m.icon('arrow-left', 16) }} All jobs</a><span>Application workspace</span></p>
 <div class="page-head with-actions">
   <div>
-    <p class="eyebrow">{{ job.company }}{% if job.location %} · {{ job.location }}{% endif %}</p>
+    <p class="eyebrow">Your next opportunity</p>
     <h1>{{ job.title }}</h1>
+    <p class="workspace-context"><span class="company-mark" aria-hidden="true">{{ job.company[:1] | upper }}</span><strong>{{ job.company }}</strong>{% if job.location %}<span>{{ m.icon('map-pin', 16) }} {{ job.location }}</span>{% endif %}</p>
     <p class="meta">
       Job revision {{ job.revision }} · added {{ job.created_at | local_datetime }}
-      {% if job.url %} · <a href="{{ job.url }}" target="_blank" rel="noopener noreferrer nofollow">Posting link ↗</a>{% endif %}
+      {% if job.url %} · <a href="{{ job.url }}" target="_blank" rel="noopener noreferrer nofollow">View posting {{ m.icon('external-link', 14) }}</a>{% endif %}
     </p>
     <p class="chips">{% if job.sample %}<span class="chip">Sample job: fictional</span> {% endif %}<span class="chip">Status: {{ m.status_badge(application.status) }}</span> <span class="chip">Package: {{ m.review_badge(review) }}</span></p>
   </div>
@@ -26,6 +27,7 @@
 
 <div class="workspace guided">
   <aside class="workspace-side" aria-label="Progress">
+    <div class="workspace-side-head"><p class="eyebrow">Application steps</p><p class="hint">Prepare, review, then submit.</p></div>
     <nav aria-label="Steps" class="steps-nav">
       <ol class="steps">
         {% for s in guide.steps %}
@@ -36,7 +38,7 @@
                 {%- if s.meaning.status == Status.DONE and not here %}{{ m.status_icon(Status.DONE) }}<span class="visually-hidden">Step {{ s.step.number }}</span>{% else %}{{ s.step.number }}{% endif -%}
               </span>
               <span class="step-text">
-                <strong>{{ s.step.number }} · {{ s.step.label }}</strong>
+                <strong>{{ s.step.label }}</strong>
                 <span class="step-status st-{{ s.meaning.status.value }}">{{ s.meaning.status.label }}{% if s.meaning.note %} · {{ s.meaning.note }}{% endif %}</span>
               </span>
             </a>
@@ -54,12 +56,13 @@
 
     <section class="card step-card" aria-labelledby="step-heading">
       <div class="step-card-text">
-        <p class="meta">Step {{ step.number }} of {{ Step | length }} · {{ m.status_line(current.meaning) }}</p>
+        <p class="eyebrow step-overline">Step {{ step.number }} of {{ Step | length }} · {{ step.label }}</p>
         <h2 id="step-heading">{{ intros[step][0] }}</h2>
         <p class="hint">{{ intros[step][1] }}</p>
+        <p class="step-current-state">{{ m.status_line(current.meaning) }}</p>
       </div>
       <div class="step-next">
-        <a class="btn-primary" href="{{ guide.next.href }}">{{ guide.next.label }} <span aria-hidden="true">→</span></a>
+        <a class="btn-primary" href="{{ guide.next.href }}">{{ guide.next.label }} {{ m.icon('arrow-right', 18) }}</a>
         {% if guide.next.step != step %}<small class="hint">Next: step {{ guide.next.step.number }}, {{ guide.next.step.label }}</small>{% endif %}
       </div>
     </section>
@@ -77,7 +80,7 @@
     {% endif %}
 
     <details class="card job-description"{% if step == Step.REQUIREMENTS %} open{% endif %}>
-      <summary>Job description</summary>
+      <summary>{{ m.icon('file-text', 18) }} Job description</summary>
       <p class="hint">Saved exactly as pasted. It is information to read, never instructions to follow.</p>
       <div class="description" tabindex="0">{{ job.description }}</div>
     </details>
@@ -85,14 +88,14 @@
 
     {% if step != Step.TRACK %}
     <section class="card side-notes workspace-notes" aria-labelledby="side-notes-title">
-      <h2 id="side-notes-title">Notes</h2>
+      <h2 id="side-notes-title">{{ m.icon('file-text', 18) }} Your notes</h2>
       {% if application.notes %}
         {% set latest = application.notes[-1] %}
         <p>{{ latest.text }} <span class="timeline-date">{{ latest.at | local_datetime }}</span></p>
       {% else %}
-        <p class="hint">No notes yet.</p>
+        <p class="hint">Keep details, reminders and interview notes with this application.</p>
       {% endif %}
-      <a href="/jobs/{{ job.id }}?step=track#notes">{{ 'All notes and add a note' if application.notes else 'Add a note' }}</a>
+      <a class="notes-link" href="/jobs/{{ job.id }}?step=track#notes">{{ 'View and add notes' if application.notes else 'Add a note' }} {{ m.icon('arrow-right', 16) }}</a>
     </section>
     {% endif %}
 </div>

@@ -19,7 +19,7 @@ from .schemas.package import (
     Answer, AnswerDraft, Approval, Question, SubmittedSnapshot, stored_approval, stored_snapshots,
 )
 from .schemas.posting_import import PostingImport
-from .schemas.profile import Profile
+from .schemas.profile import Profile, stored_profile
 from .schemas.requirements import EvidenceLink, Override, Requirement
 from .schemas.resume import ResumePackage, ResumeRecord
 from .schemas.tracking import Note, ReviewState, StatusEvent, TrackingStatus
@@ -34,7 +34,7 @@ class Candidate(Base):
     __tablename__ = "candidates"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    profile: Mapped[Profile] = mapped_column(PydanticJSON(Profile))
+    profile: Mapped[Profile] = mapped_column(PydanticJSON(Profile, read_upgrade=stored_profile))
     revision: Mapped[int] = mapped_column(Integer, default=1)
     # Highest ID ever issued per prefix ("exp", "exp-1-b", ...), so deleted IDs are never reused.
     id_counters: Mapped[dict[str, int]] = mapped_column(PydanticJSON(dict[str, int]), default=dict)

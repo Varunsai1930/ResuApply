@@ -86,7 +86,7 @@ def test_a_complete_profile_says_so_and_no_questions_says_what_will_show(client,
     setup_profile(client, sample_profile)
     assert "Once you add questions to a job" in gaps_card(client)
     add(client, new_job(client), "Email address")
-    assert "everything your jobs&#39; questions ask for so far is in your profile" in gaps_card(client)
+    assert "Your profile covers the details your current job questions ask for." in gaps_card(client)
 
 
 def test_adding_the_fact_clears_the_gap(client, sample_profile):
@@ -104,7 +104,7 @@ def test_closed_jobs_alone_never_say_the_profile_is_complete(client, sample_prof
     add(client, job_id, PORTFOLIO_Q)  # the profile has no portfolio
     set_status(client, job_id, "rejected", "2026-10-01")
     card = gaps_card(client)
-    assert "is in your profile" not in card and "Once you add questions to a job" in card
+    assert "Your profile covers" not in card and "Once you add questions to a job" in card
 
 
 def test_the_profile_is_read_once_however_many_questions(client, sample_profile, monkeypatch):
