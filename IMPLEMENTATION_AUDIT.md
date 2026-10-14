@@ -108,10 +108,21 @@ Existing uncommitted UI changes were preserved. The fixes and independent review
 
 ## Recommendations 4 and 5 follow-up validation
 
-The final full suite now passes: **1,463 passed, one dependency deprecation warning, no failures** in 44 seconds. The board and follow-up tests share the injected clock; regression dates include the current date, past and future dates, and a leap day.
+At completion of recommendations 4 and 5 preparation, the full suite passed: **1,463 passed, one dependency deprecation warning, no failures** in 44 seconds. The board and follow-up tests share the injected clock; regression dates include the current date, past and future dates, and a leap day.
 
 The OpenRouter smoke now exercises all four operations: job parsing, evidence suggestions, resume tailoring and answer drafting. It also accepts the proposals, approves a package and records a synthetic submission snapshot without changing the source profile. Offline regressions check failure handling, key redaction, data isolation and cleanup. A real provider run remains pending at the user's request.
 
 The portable local acceptance script passes on macOS using the real application launcher, synthetic PDF/DOCX imports, reviewed saves, accepted resume print HTML, occupied-port rejection, shutdown and restart persistence. Its temporary data path contains spaces and Unicode, and it disables AI even when a key is inherited. A regression proves that an unrelated healthy server cannot satisfy startup readiness or receive the script's requests. Missing optional browser dependencies produce a plain error and remove temporary data.
 
-Windows command examples and a Windows/Python 3.12 GitHub Actions workflow are prepared, including optional Chromium PDF checks and saved synthetic results. The workflow YAML parsed successfully, and the runtime, test and optional browser dependency set resolved to **37 Windows/Python 3.12 compatible wheels** in a disposable download directory. These preparation checks do not establish native Windows acceptance. The Windows workflow has not been pushed or run, native Windows execution remains pending, and the optional browser-PDF path has not been executed in this follow-up.
+Windows command examples and a Windows/Python 3.12 GitHub Actions workflow were prepared, including optional Chromium PDF checks and saved synthetic results. The workflow YAML parsed successfully, and the runtime, test and optional browser dependency set resolved to **37 Windows/Python 3.12 compatible wheels** in a disposable download directory. These preparation checks do not establish native Windows acceptance. At that point the Windows workflow had not been pushed or run, native Windows execution remained pending, and the optional browser-PDF path had not been executed in that follow-up.
+
+## Review fixes and push validation
+
+All four findings from the follow-up review are fixed in separate commits:
+
+- Historical submission snapshots recover unreadable profile text for display without rewriting the original frozen profile. Restart, stored approval upgrades, snapshot appends, and strict validation of new and mutated snapshots are covered.
+- AI submissions ask about other unsaved edits before entering their busy state. Cancellation leaves controls usable; confirmed requests prevent duplicates; history restoration restores labels, accessibility state and originally disabled controls.
+- Local acceptance database connections close on successful reads and query failures before temporary cleanup.
+- The stalled-DNS test permits Windows asyncio's loopback socketpair, with a regression that exercises that Windows fallback on macOS too.
+
+The full suite passes **1,476 tests**, with one dependency deprecation warning and no failures. Chromium confirmed that canceling the AI action sends no request, preserves the answer and leaves controls usable; confirming sends exactly one delayed request and keeps AI controls locked. An independent review found no additional defects in the historical snapshot fix. Live OpenRouter validation remains deferred. Native Windows CI is configured to run when these commits are pushed.
