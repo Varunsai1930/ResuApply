@@ -89,13 +89,14 @@
         button.textContent = button.dataset.busyLabel;
         button.setAttribute("aria-busy", "true");
       }
-      // Another submit listener may cancel the request after this listener runs.
-      queueMicrotask(function () {
+      // Browser-dispatched events can run microtasks between listeners. Wait for the
+      // full submit dispatch before checking whether another listener canceled it.
+      setTimeout(function () {
         if (e.defaultPrevented && aiSubmission && aiSubmission.event === e) {
           restoreAIControls();
           if (pendingSubmission && pendingSubmission.event === e) pendingSubmission = null;
         }
-      });
+      }, 0);
     } else {
       pendingSubmission = { event: e, confirmed: false };
     }

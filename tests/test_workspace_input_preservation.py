@@ -169,6 +169,8 @@ def test_ai_navigation_cancel_preserves_controls_and_confirmed_request_stays_loc
     script = r'''
 const fs = require('fs'), vm = require('vm'), assert = require('assert');
 const documentHandlers = {}, windowHandlers = {};
+const microtasks = [], timers = [];
+let cancelNextSubmit = false;
 const button = (html, disabled = false) => ({
   innerHTML: html, disabled, dataset: {busyLabel: 'Working'}, attrs: {},
   set textContent(text) {this.innerHTML = text;},
@@ -190,13 +192,20 @@ const window = {
   addEventListener(name, fn) { (windowHandlers[name] ||= []).push(fn); },
 };
 vm.runInNewContext(fs.readFileSync(process.argv[1], 'utf8'), {
-  document, window, queueMicrotask, MutationObserver: class {observe() {}},
+  document, window, MutationObserver: class {observe() {}},
+  queueMicrotask: fn => microtasks.push(fn), setTimeout: fn => timers.push(fn),
 });
+document.addEventListener('submit', event => {if (cancelNextSubmit) event.preventDefault();});
 const dispatch = (name, target) => {
   const event = {target, defaultPrevented: false, preventDefault() {this.defaultPrevented = true;}};
-  for (const fn of documentHandlers[name]) fn(event);
+  for (const fn of documentHandlers[name]) {
+    fn(event);
+    // Browser-originated events may perform a microtask checkpoint after each listener.
+    while (microtasks.length) microtasks.shift()();
+  }
   return event;
 };
+const runTimers = () => {while (timers.length) timers.shift()();};
 const leaving = () => {
   const event = {warned: false, preventDefault() {this.warned = true;}};
   for (const fn of windowHandlers.beforeunload) fn(event);
@@ -218,16 +227,17 @@ const restored = () => !first.disabled && !second.disabled && unavailable.disabl
   assert(dispatch('submit', aiA).defaultPrevented);
   assert(dispatch('submit', aiB).defaultPrevented);
   assert(!leaving()); // The accepted confirmation is used once, with no second native prompt.
-  await Promise.resolve();
+  runTimers();
   assert(first.disabled && aiA.dataset.sent); // A slow real request must remain protected.
 
   for (const fn of windowHandlers.pageshow) fn({persisted: true});
   assert(restored());
   assert(leaving()); // Back/forward cache restoration retains the unsaved edits.
 
+  cancelNextSubmit = true;
   const prevented = dispatch('submit', aiA);
-  prevented.preventDefault(); // A later submit listener canceled the navigation.
-  await Promise.resolve();
+  assert(prevented.defaultPrevented); // A later document listener canceled the navigation.
+  runTimers();
   assert(restored() && leaving());
   assert.strictEqual(confirmations, 3);
   console.log(JSON.stringify({passed: true}));
