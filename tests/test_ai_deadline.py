@@ -273,11 +273,18 @@ def _worker_with_stalled_dns(body, headers, timeout, deadline, api_url, output, 
         time.sleep(10)
         raise AssertionError("DNS should have been terminated with its worker")
 
-    def reject_connect(*args, **kwargs):
-        raise AssertionError("synthetic DNS test must not connect to a provider")
-
-    with patch("socket.getaddrinfo", stalled_resolution), patch.object(socket.socket, "connect", reject_connect):
+    # The resolver stalls before any external connection. Do not patch connect:
+    # Windows asyncio uses a loopback connection to construct its own self-pipe.
+    with patch.dict(os.environ, {"NO_PROXY": "*"}), patch("socket.getaddrinfo", stalled_resolution):
         client_module._request_worker(body, headers, timeout, deadline, api_url, output, sender)
+
+
+def _worker_with_windows_socketpair(body, headers, timeout, deadline, api_url, output, sender):
+    """Exercise Windows' TCP socketpair fallback even when this test runs on POSIX."""
+    from unittest.mock import patch
+
+    with patch.object(socket, "socketpair", socket._fallback_socketpair):
+        _worker_with_stalled_dns(body, headers, timeout, deadline, api_url, output, sender)
 
 
 def _worker_over_socketpair(body, headers, timeout, deadline, api_url, output, sender):
@@ -302,11 +309,13 @@ def _worker_over_socketpair(body, headers, timeout, deadline, api_url, output, s
         client_module._request_worker(body, headers, timeout, deadline, api_url, output, sender)
 
 
-def test_real_worker_total_deadline_terminates_stalled_dns_and_joins(monkeypatch):
+@pytest.mark.parametrize("windows_socketpair", [False, True], ids=["platform-socketpair", "windows-socketpair"])
+def test_real_worker_total_deadline_terminates_stalled_dns_and_joins(monkeypatch, windows_socketpair):
     before = {process.pid for process in multiprocessing.active_children()}
     context = multiprocessing.get_context("spawn")
     ready_receiver, ready_sender = context.Pipe(duplex=False)
-    monkeypatch.setattr(client_module, "_request_worker", _worker_with_stalled_dns)
+    worker = _worker_with_windows_socketpair if windows_socketpair else _worker_with_stalled_dns
+    monkeypatch.setattr(client_module, "_request_worker", worker)
     monkeypatch.setattr(client_module, "API_URL", "https://synthetic.invalid/completions")
     client = OpenRouterClient(FAKE_KEY, TEST_MODEL, timeout=2)
     started = time.monotonic()
