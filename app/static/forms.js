@@ -41,37 +41,70 @@
   // Unsaved-changes guard.
   const dirtyForms = new Set();
   let pendingSubmission = null;
+  let aiSubmission = null;
   function markDirty(el) {
     const form = el.closest("form[data-guard]");
     if (form) dirtyForms.add(form);
   }
+  function restoreAIControls() {
+    if (!aiSubmission) return;
+    delete aiSubmission.event.target.dataset.sent;
+    aiSubmission.buttons.forEach(({ button, disabled }) => { button.disabled = disabled; });
+    const label = aiSubmission.label;
+    if (label) {
+      label.button.innerHTML = label.html;
+      if (label.busy === null) label.button.removeAttribute("aria-busy");
+      else label.button.setAttribute("aria-busy", label.busy);
+    }
+    aiSubmission = null;
+  }
   document.addEventListener("input", (e) => markDirty(e.target));
   document.addEventListener("change", (e) => markDirty(e.target));
   document.addEventListener("submit", function (e) {
-    pendingSubmission = e;
+    if (e.defaultPrevented) return;
     if (e.target.matches("form[data-ai]")) {
-      if (e.target.dataset.sent) {
+      if (aiSubmission || e.target.dataset.sent) {
         e.preventDefault();
         return;
       }
-      e.target.dataset.sent = "1";
-      document.querySelectorAll("form[data-ai] button").forEach(function (button) {
-        button.disabled = true;
-      });
+      // Native beforeunload offers no cancellation event. Ask before locking AI controls,
+      // then exempt this confirmed navigation from a second unsaved-changes prompt.
+      const otherEdits = Array.from(dirtyForms).some((form) => form !== e.target);
+      if (otherEdits && !window.confirm("You have unsaved changes. Leave this page and discard them to run AI?")) {
+        e.preventDefault();
+        pendingSubmission = null;
+        return;
+      }
+      pendingSubmission = { event: e, confirmed: otherEdits };
+      const buttons = Array.from(document.querySelectorAll("form[data-ai] button"),
+        (button) => ({ button, disabled: button.disabled }));
       const button = e.target.querySelector("button");
-      if (button && button.dataset.busyLabel) {
+      const label = button && button.dataset.busyLabel ? {
+        button, html: button.innerHTML, busy: button.getAttribute("aria-busy"),
+      } : null;
+      aiSubmission = { event: e, buttons, label };
+      e.target.dataset.sent = "1";
+      buttons.forEach(({ button }) => { button.disabled = true; });
+      if (label) {
         button.textContent = button.dataset.busyLabel;
         button.setAttribute("aria-busy", "true");
       }
+      // Another submit listener may cancel the request after this listener runs.
+      queueMicrotask(function () {
+        if (e.defaultPrevented && aiSubmission && aiSubmission.event === e) {
+          restoreAIControls();
+          if (pendingSubmission && pendingSubmission.event === e) pendingSubmission = null;
+        }
+      });
+    } else {
+      pendingSubmission = { event: e, confirmed: false };
     }
   });
   // Pages restored from the back/forward cache should not keep buttons stuck in the busy state.
   window.addEventListener("pageshow", function (event) {
     if (!event.persisted) return;
-    document.querySelectorAll("form[data-ai]").forEach(function (form) {
-      delete form.dataset.sent;
-      form.querySelectorAll("button").forEach(function (b) { b.disabled = false; b.removeAttribute("aria-busy"); });
-    });
+    restoreAIControls();
+    pendingSubmission = null;
   });
 
   // Requirement criteria: show the fields for the selected type only.
@@ -89,11 +122,12 @@
     document.querySelectorAll("select[data-criterion-type]").forEach(syncCriterion);
   }).observe(document.documentElement, { childList: true, subtree: true });
   window.addEventListener("beforeunload", function (event) {
-    const submitted = pendingSubmission && !pendingSubmission.defaultPrevented ? pendingSubmission.target : null;
+    const submission = pendingSubmission && !pendingSubmission.event.defaultPrevented ? pendingSubmission : null;
+    const submitted = submission && submission.event.target;
     pendingSubmission = null;
     // Exempt only the form being submitted. Keep it dirty if another form's warning cancels
     // navigation: the attempted save did not happen, and a later leave still needs a warning.
-    if (Array.from(dirtyForms).some((form) => form !== submitted)) {
+    if (!(submission && submission.confirmed) && Array.from(dirtyForms).some((form) => form !== submitted)) {
       event.preventDefault();
       event.returnValue = "";
     }
