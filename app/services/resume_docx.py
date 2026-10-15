@@ -248,15 +248,15 @@ def export_resume(rendered: dict, layout: str = "classic") -> bytes:
     num_id = _bullet_numbering(document)
     title_paragraph = document.add_paragraph(_field(contact, "name"), "Title")
     _remove_borders(title_paragraph._p.get_or_add_pPr())
-    details = [_field(contact, key) for key in ("email", "phone", "location")]
+    details = [_field(contact, name) for name in ("email", "phone", "location")]
     if any(details):
         document.add_paragraph(" · ".join(value for value in details if value))
     links = _mapping(contact.get("links", {}), "contact links")
-    for key in ("linkedin", "github", "portfolio"):
-        value = _field(links, key)
+    for name in ("linkedin", "github", "portfolio"):
+        value = _field(links, name)
         if value:
             _link(document, value)
-    if layout == "modern" and len(document.paragraphs) > 1:
+    if key == "modern" and len(document.paragraphs) > 1:
         _rule(document.paragraphs[-1]._p.get_or_add_pPr(), "1F4E79", size="12")
 
     summary = rendered.get("summary")
