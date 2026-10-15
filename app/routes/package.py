@@ -8,10 +8,11 @@ from sqlalchemy.orm import Session
 
 from ..db import get_session
 from ..models import Job
-from ..services import package
+from ..services import package, resume_docx, resume_layouts
 from ..services.profile import get_candidate
 from ..templating import templates
 from .jobs import _job_or_404, _render_workspace
+from .resume_download import docx_response
 
 router = APIRouter(prefix="/jobs/{job_id}")
 
@@ -49,3 +50,15 @@ def snapshot_resume(request: Request, job_id: int, snapshot_id: int, session: Se
     return templates.TemplateResponse(request, "snapshot_resume.html", {
         "job": job, "snapshot": _snapshot_or_404(job, snapshot_id),
     })
+
+
+@router.get("/snapshots/{snapshot_id}/resume.docx")
+def snapshot_docx(job_id: int, snapshot_id: int, session: Session = Depends(get_session)):
+    job = _job_or_404(session, job_id)
+    snapshot = _snapshot_or_404(job, snapshot_id)
+    try:
+        layout = resume_layouts.get_layout(snapshot.resume.get("_layout", "classic")).key
+        content = resume_docx.export_resume(snapshot.resume, layout=layout)
+    except (ValueError, resume_docx.ResumeDocxError) as exc:
+        raise HTTPException(422, "This saved resume cannot be exported as a Word document.") from exc
+    return docx_response(content, snapshot.resume["contact"]["name"], snapshot.job.get("company", ""))

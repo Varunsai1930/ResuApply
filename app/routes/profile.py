@@ -144,7 +144,8 @@ def _imported_of(raw: object) -> dict | None:
     added = note.get("added")
     if added is not None and not (isinstance(added, list) and all(isinstance(a, str) for a in added)):
         return None
-    return {"filename": note["filename"][:200], "added": added, "text": note["text"][:resume_import.MAX_CHARS]}
+    return {"filename": note["filename"][:200], "added": added, "text": note["text"][:resume_import.MAX_CHARS],
+            "ocr": note.get("ocr") is True}
 
 
 def _load_payload(payload: object) -> dict:
@@ -297,11 +298,13 @@ async def import_resume(request: Request, session: Session = Depends(get_session
         file = form.get("file")
         file = file if isinstance(file, UploadFile) else None
         data = await file.read(resume_import.MAX_BYTES + 1) if file is not None else b""
+        use_ocr = form.get("use_ocr") == "1"
     try:
-        text = await run_in_threadpool(resume_import.extract_text, data)
+        read = await run_in_threadpool(resume_import.read_resume, data, use_ocr=use_ocr)
     except resume_import.ResumeImportError as exc:
         return _render_import(request, candidate, error=str(exc), status_code=422)
     try:
+        text = read.text
         draft = await run_in_threadpool(resume_draft.draft_profile, text)  # plain CPU work, kept off the event loop
     except RecursionError:  # text nested deeper than the layout rules follow
         return _render_import(request, candidate, status_code=422,
@@ -309,10 +312,12 @@ async def import_resume(request: Request, session: Session = Depends(get_session
                                     "profile form yourself, or save the resume again as a simpler PDF or Word file.")
     name = ((file.filename if file else "") or "your resume").rsplit("/", 1)[-1].rsplit("\\", 1)[-1][:200]
     if candidate is None:
-        return _render_form(request, draft, imported={"filename": name, "added": None, "text": text})
+        return _render_form(request, draft, imported={"filename": name, "added": None, "text": text,
+                                                     "ocr": bool(read.ocr_pages)})
     merged = resume_draft.merge(candidate.profile.model_dump(), draft)
     if not merged.added:
         return _render_import(request, candidate, message=f"Nothing new was found in {name}: everything it was "
                               "read to hold is already in your profile.")
-    return _render_form(request, merged.data, imported={"filename": name, "added": merged.added, "text": text},
+    return _render_form(request, merged.data, imported={"filename": name, "added": merged.added, "text": text,
+                                                       "ocr": bool(read.ocr_pages)},
                         opened_revision=candidate.revision)

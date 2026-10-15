@@ -21,9 +21,17 @@
 .resume-print-controls button { grid-column: 2; grid-row: 2 / span 2; border: 1px solid #1f3a5f; border-radius: 4px; background: #1f3a5f; color: #fff; font: 500 14px/1.2 inherit; font-family: inherit; padding: 10px 16px; cursor: pointer; }
 .resume-print-controls button:hover { background: #162b47; }
 .resume-print-controls button:focus-visible { outline: 2px solid #1f3a5f; outline-offset: 2px; }
+.resume-print-controls a.resume-print-download { grid-column: 2; justify-self: start; border: 1px solid #c0c5cc; border-radius: 4px; padding: 9px 15px; color: #1f3a5f; font-size: 14px; }
+.resume-layout-picker { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; margin-top: 14px; }
+.resume-layout-picker label { font-weight: 600; }
+.resume-layout-picker select { max-width: 100%; padding: 8px 30px 8px 10px; border: 1px solid #c0c5cc; border-radius: 4px; background: #fff; color: #17191c; font: inherit; }
+.resume-layout-picker p { flex-basis: 100%; margin: 0; }
+.resume-print-controls .resume-layout-picker { grid-column: 1 / -1; border-top: 1px solid #d0d2d5; padding-top: 16px; }
+.resume-print-controls .resume-layout-picker button { padding: 9px 14px; }
 @media (max-width: 640px) {
   .resume-print-controls { grid-template-columns: 1fr; padding: 0 16px; }
   .resume-print-controls button { grid-column: 1; grid-row: auto; justify-self: start; margin-top: 8px; }
+  .resume-print-controls a.resume-print-download { grid-column: 1; }
 }
 .resume-document { box-sizing: border-box; width: 100%; max-width: 210mm; min-height: 297mm; margin: 20px auto 40px; box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08); padding: 17mm 18mm; background: #fff; color: #111; font: 10.5pt/1.4 Arial, Helvetica, sans-serif; overflow-wrap: anywhere; }
 .resume-document h1 { font-size: 22pt; line-height: 1.15; margin: 0 0 7px; }
@@ -40,6 +48,29 @@
 .resume-entry-head p { font-size: 9.5pt; }
 .resume-document ul { margin: 5px 0 0; padding-left: 18px; }
 .resume-document li { margin: 4px 0; white-space: pre-wrap; }
+
+/* All choices keep the same content and one reading column. No external fonts are
+   needed, so the print view remains useful offline and on another computer. */
+.resume-layout-modern { font-family: Calibri, "Segoe UI", Arial, sans-serif; font-size: 10.5pt; line-height: 1.45; }
+.resume-layout-modern .resume-header { border-bottom: 2px solid #1f4e79; padding-bottom: 13px; margin-bottom: 18px; }
+.resume-layout-modern h1 { color: #1f4e79; font-size: 24pt; line-height: 1.16; margin-bottom: 9px; font-weight: 700; letter-spacing: -0.02em; }
+.resume-layout-modern h2 { color: #1f4e79; font-size: 11pt; border-bottom-color: #b9c7d5; padding-bottom: 5px; margin-bottom: 10px; letter-spacing: 0.1em; }
+.resume-layout-modern .resume-block { margin-top: 18px; }
+.resume-layout-modern .resume-entry + .resume-entry { margin-top: 14px; }
+.resume-layout-modern li { margin: 5px 0; }
+.resume-layout-compact { font-size: 10pt; line-height: 1.32; }
+.resume-layout-compact h1 { font-size: 19pt; margin-bottom: 5px; }
+.resume-layout-compact h2 { font-size: 10.5pt; margin-bottom: 6px; padding-bottom: 2px; }
+.resume-layout-compact h3 { font-size: 10pt; }
+.resume-layout-compact .resume-header { margin-bottom: 10px; }
+.resume-layout-compact .resume-block { margin-top: 11px; }
+.resume-layout-compact .resume-entry + .resume-entry { margin-top: 9px; }
+.resume-layout-compact p { margin: 2px 0; }
+.resume-layout-compact ul { margin-top: 4px; }
+.resume-layout-compact li { margin: 2px 0; }
+@media (max-width: 640px) {
+  .resume-document { padding: 24px 22px; min-height: 0; margin-top: 20px; }
+}
 @page { size: A4; margin: 15mm 17mm; }
 @media print {
   .resume-print-page { background: #fff; color: #000; }

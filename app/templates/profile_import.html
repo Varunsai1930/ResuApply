@@ -19,7 +19,11 @@
   <div class="field">
     <label for="resume-file">Resume file</label>
     <input id="resume-file" name="file" type="file" accept=".pdf,.docx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document" required aria-describedby="resume-file-hint">
-    <small id="resume-file-hint" class="hint">Use a file with selectable text. Scanned and image-only resumes cannot be read.</small>
+    <small id="resume-file-hint" class="hint">Selectable text gives the best results. For a scanned or image-only PDF, enable local OCR below.</small>
+  </div>
+  <div class="field">
+    <label for="use-ocr"><input id="use-ocr" name="use_ocr" type="checkbox" value="1" aria-describedby="ocr-hint"> Use OCR for scanned pages</label>
+    <small id="ocr-hint" class="hint">Reads English scans locally using Tesseract installed on this computer. This may take up to a minute. OCR can misread details; check the extracted text and every field before saving.</small>
   </div>
   <div class="form-actions">
     <button type="submit" class="btn-primary">Read the resume {{ m.icon('arrow-right', 17) }}</button>

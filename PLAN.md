@@ -12,9 +12,9 @@ Create profile → Add job → Review requirements
 → Save resume as PDF → Submit manually → Track outcome
 ```
 
-**V2 adds PDF/DOCX profile import, Greenhouse job import and limited Greenhouse autofill.** The user always clicks the employer's Submit button.
+**V2 adds PDF/DOCX profile import with optional OCR, advanced resume layouts, DOCX resume export, Greenhouse job import and limited Greenhouse autofill.** The user always clicks the employer's Submit button. OCR, layouts and Word export were added to the scope at the user's request.
 
-Matching is checklist-based throughout. These stay out of both releases: numeric scores, automatic job discovery, other application platforms, email tracking, cloud accounts and DOCX export.
+Matching is checklist-based throughout. These stay out of both releases: numeric scores, automatic job discovery, other application platforms, email tracking and cloud accounts.
 
 Success means the user can prepare and retrieve an accurate application package without re-entering their profile or losing reviewed work.
 
@@ -120,7 +120,7 @@ Placeholder substitution of employers, projects and dates is intentionally left 
 
 ### Resume tailoring
 
-- One fixed, single-column HTML resume template with A4 print styles. Page breaks stay readable, and long profiles run to more pages instead of being clipped.
+- Classic, Modern and Compact single-column HTML resume layouts with A4 print styles. Page breaks stay readable, and long profiles run to more pages instead of being clipped.
 - The model selects, orders and proposes rewrites of existing bullets. Each proposed bullet cites source bullet IDs **from the same entry**.
 - Names, employers, titles, dates, degrees, contact details and skill labels are rendered from trusted profile data.
 - Deterministic rejection rules:
@@ -131,7 +131,14 @@ Placeholder substitution of employers, projects and dates is intentionally left 
   - Skills not in the profile.
 - Original and proposed text are shown side by side. Source references and automated checks support semantic review; they don't replace it.
 - Proposals are kept separate from accepted content. Regenerating never overwrites the accepted resume; only an explicit accept does.
-- The approved resume is printed through the browser's Save as PDF. Advanced layout and DOCX export remain deferred.
+- The accepted resume is printed through the browser's Save as PDF or exported as editable DOCX. Both exports use the selected facts and chosen layout.
+
+Built layout and Word export behavior:
+
+- `applications.resume_layout` stores the choice; old rows migrate to Classic without rewriting accepted content or invalidating existing Classic approvals.
+- Layout changes lock and reload the application, require the package token shown on the page and clear current approval. Reapplying the current layout changes nothing.
+- The canonical rendered resume includes the non-Classic layout in package approval and submitted snapshots. Older snapshots use Classic. Saved HTML and Word content use frozen facts and layout after later edits.
+- Word export contains editable paragraphs, true list bullets and supported web hyperlinks, with A4 margins and headings kept with their next paragraph. It excludes source IDs, unselected facts and proposal history. Invalid export content returns a readable error.
 
 ### Questions, review and tracking
 
@@ -180,13 +187,14 @@ Snapshot review covers every frozen job field, including the posting URL. A URL-
 ### PDF and DOCX profile import
 
 - Extract text locally with `pypdf` (PDF) and `python-docx` (DOCX paragraphs and tables).
-- Support text-based PDFs. Scanned or image-only PDFs need manual entry; OCR is deferred.
+- Support text-based PDFs and opt-in local OCR for scanned PDFs. English Tesseract must be installed on PATH; text PDF and DOCX import do not require it.
 - Show the extracted text and a proposed structured profile before saving.
 - Extract contact details and identifying values locally. Any AI-assisted organization of career content uses the same outbound-context rules as V1.
 - Imported facts need user confirmation. The current profile is never overwritten automatically; a field-level diff is shown first.
 - Existing source IDs are kept for unchanged entries, and the revision increases when confirmed changes are saved.
 - Unreadable, encrypted or unsupported files return clear errors without touching existing data.
 - Built: the text is read in document order (Word paragraphs, tables, content controls, text boxes and the first page's header and footer; PDF pages in drawing order, with flush-right text kept apart and two-column pages split at their gutter when both columns have headings), and page numbers and running headers are left out. A corpus of synthetic resumes in common layouts (`tests/test_resume_corpus.py`) covers what is read, and the README lists the layouts that stay unsupported.
+- Built OCR: blank pages and pages substantially covered by scanned images are rendered in a separate PDFium process, then recognized by a separately owned Tesseract process. Mixed text/scanned PDFs keep page order and selectable headers. Small logos/headshots bypass OCR. A 60-second total deadline, bounded raster size, bounded image-layout traversal and one active OCR import limit resource use. Timeouts, missing engines, renderer failures and blank results return import errors without saving data. Recognition warnings and extracted text remain visible through review and correction.
 
 ### Greenhouse job import
 
@@ -229,6 +237,7 @@ The model has no browser-control role. Autofill uses reviewed data and determini
 | **3a — Tailoring** | Outbound-context preview, resume proposals, claim validation, side-by-side review, print export | A Python-only source never gains Java, new metrics or dates; the accepted resume prints cleanly |
 | **3b — Complete V1** | Questions, answers, answer bank, approval, staleness, submitted snapshots | Prepare, approve, submit manually and retrieve an unchanged package after profile edits |
 | **4 — V2 import** | PDF/DOCX extraction with profile diff; Greenhouse job import | Import without silently changing existing facts |
+| **4a — Resume extensions** | Opt-in local OCR, three layouts, current and frozen DOCX export | Recognize mixed scanned/text pages; preserve selected facts, approval freshness and frozen snapshots; inspect short and multi-page exports |
 | **5 — V2 autofill** | Limited Greenhouse adapter and browser handoff | Verify supported fields with zero automated submissions |
 
 pytest covers matching, validation, revision handling and FastAPI integration. Provider responses are mocked, so ordinary tests need no API key. Before the AI integration is called complete, a live smoke test runs with synthetic, non-identifying content.
@@ -250,6 +259,8 @@ Required scenarios:
 - Submitted snapshots stay unchanged after later edits.
 - Print output is readable for both short and long profiles.
 - PDF/DOCX imports require confirmation; failed imports leave the profile intact.
+- OCR tests cover mixed pages, selectable headers over scanned bodies, small images, missing Tesseract, timeouts, renderer failures and unchanged saved profiles.
+- Layout changes reject stale tokens, clear approval only on a real change and preserve frozen snapshots. Word exports contain only selected facts and correct attachment filenames.
 - Greenhouse import fixtures (fictional, recorded API responses; tests never use the network) cover custom questions, required flags, unsupported field types, bad links, timeouts, redirects, oversized and malformed responses.
 - Greenhouse autofill fixtures cover existing answers, custom questions, unsupported controls, upload verification and field readback.
 - Autofill tests capture submission events and assert that automation causes none. A manual smoke check confirms behavior on a supported hosted form without submitting.
@@ -261,5 +272,5 @@ Required scenarios:
 - Document the actual tested setup commands, OpenRouter configuration, model limitations and the V1/V2 support boundary.
 - Version control ignores the database, uploaded resumes, generated files, secrets and browser state.
 - Start with a fresh database; no migration of existing application data is needed. V1 data is preserved when V2 is introduced.
-- Defaults: one active profile, localhost access, one fixed resume template, manual tracking and explicit user review.
+- Defaults: one active profile, localhost access, Classic resume layout, manual tracking and explicit user review. OCR is opt-in.
 - Free-model availability is outside the app's control. If the configured endpoint becomes unavailable, the manual workflow keeps working and the failure is reported; replacing the model is an explicit configuration change.

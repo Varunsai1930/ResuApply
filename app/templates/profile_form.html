@@ -23,6 +23,7 @@
   <p><strong id="import-title">Read from {{ imported.filename }}. Check every field before reviewing.</strong>
     {% if imported.added is none %}The form was filled in from the resume's layout, which can put a fact in the wrong field or miss it; fix anything that's off, and add your work authorization yourself.
     {% else %}Added to your profile: {{ imported.added | join(', ') }}. Nothing you had saved was changed.{% endif %}</p>
+  {% if imported.ocr %}<p><strong>OCR was used for scanned pages.</strong> OCR can misread names, dates, numbers, and punctuation. Compare every field and the text below with your original resume before saving.</p>{% endif %}
   <details>
     <summary>Text read from the resume</summary>
     <div class="description" tabindex="0">{{ imported.text }}</div>

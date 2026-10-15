@@ -95,6 +95,9 @@ class Application(Base):
     follow_up_after: Mapped[date | None] = mapped_column(Date, nullable=True)
     current_proposal: Mapped[ResumeRecord | None] = mapped_column(PydanticJSON(ResumeRecord), nullable=True)
     accepted_package: Mapped[ResumePackage | None] = mapped_column(PydanticJSON(ResumePackage), nullable=True)
+    # Presentation choice stays separate from accepted content; the server default also
+    # upgrades older databases to the original layout without rewriting their packages.
+    resume_layout: Mapped[str] = mapped_column(String(32), default="classic", server_default="classic")
     answers: Mapped[list[Answer]] = mapped_column(PydanticJSON(list[Answer]), default=list)
     # AI proposals for open questions; not answers until the user accepts them.
     answer_drafts: Mapped[list[AnswerDraft]] = mapped_column(PydanticJSON(list[AnswerDraft]), default=list, server_default="[]")

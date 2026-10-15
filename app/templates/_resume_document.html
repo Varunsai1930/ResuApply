@@ -1,4 +1,4 @@
-  <main class="resume-document" aria-label="Accepted resume">
+  <main class="resume-document resume-layout-{{ selected_layout|default('classic') }}" aria-label="Accepted resume">
     <header class="resume-header">
       <h1>{{ rendered.contact.name }}</h1>
       <p class="resume-contact">
@@ -18,6 +18,7 @@
             {% if entry.location %}<p>{{ entry.location }}</p>{% endif %}
             {% if entry.start or entry.end %}<p>{{ entry.start }}{% if entry.start and entry.end %} – {% endif %}{{ entry.end | capitalize if entry.end == 'present' else entry.end }}</p>{% endif %}
             {% if entry.link %}<p class="resume-link">{{ entry.link }}</p>{% endif %}
+            {% if entry.technologies %}<p>Technologies: {{ entry.technologies | join(', ') }}</p>{% endif %}
           </header>
           {% if entry.bullets %}<ul>{% for bullet in entry.bullets %}<li>{{ bullet.text }}</li>{% endfor %}</ul>{% endif %}
         </article>{% endfor %}

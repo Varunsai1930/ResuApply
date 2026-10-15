@@ -33,7 +33,7 @@ from ..templating import templates
 from . import answers as answer_service
 from . import questions as q_rules
 from . import resume as resume_service
-from . import tracking, transactions
+from . import resume_layouts, tracking, transactions
 from .profile import get_candidate
 from .text import content_hash
 
@@ -73,7 +73,13 @@ def _resume_context(job: Job, application: Application, candidate: Candidate | N
     package = application.accepted_package
     if package is None or candidate is None:
         return None
-    return resume_service.render_context(candidate.profile, package.resume.resume)
+    context = resume_service.render_context(candidate.profile, package.resume.resume)
+    layout = resume_layouts.layout_key(application)
+    # Preserve the hashes of existing Classic approvals. Non-default presentation is
+    # part of the reviewed package and is frozen alongside the submitted content.
+    if layout != "classic":
+        context["_layout"] = layout
+    return context
 
 
 def _answer_entry(item: answer_service.ResolvedAnswer) -> dict:
@@ -192,6 +198,30 @@ def _check_token(job: Job, application: Application, candidate: Candidate | None
             "The package changed since you reviewed it, so nothing was recorded. "
             "Review the package as it is now, then try again.",
         )
+
+
+def set_resume_layout(session: Session, job: Job, candidate: Candidate | None, layout: str, token: str) -> bool:
+    """Choose a layout for the accepted resume without changing its content or older snapshots."""
+    try:
+        selected = resume_layouts.get_layout(layout).key
+    except ValueError as exc:
+        raise PackageError("Choose one of the available resume layouts.") from exc
+    with transactions.write(session, job, candidate):
+        current = resume_service.state(job, candidate)
+        if current.accepted is None or candidate is None:
+            raise PackageError("Review and accept a resume before choosing its layout.")
+        if current.accepted_stale:
+            raise PackageError("Your accepted resume is out of date. Review and accept a fresh resume first.")
+        _check_token(job, job.application, candidate, token)
+        application = job.application
+        if resume_layouts.layout_key(application) == selected:
+            return False
+        application.resume_layout = selected
+        application.approval = None
+        application.approval_rules_for = None
+        application.review_state = ReviewState.DRAFT.value
+        application.updated_at = utcnow()
+    return True
 
 
 # Raise this when approval checks get stricter. Approvals recorded under an older version are
@@ -355,7 +385,9 @@ def sync_review_state(session: Session, job: Job, application: Application,
 
 def _resume_html(context: dict) -> str:
     """The A4 resume document as a standalone string: content only, nothing request-specific."""
-    return templates.get_template(RESUME_DOCUMENT_TEMPLATE).render(rendered=context)
+    return templates.get_template(RESUME_DOCUMENT_TEMPLATE).render(
+        rendered=context, selected_layout=context.get("_layout", "classic"),
+    )
 
 
 def get_snapshot(application: Application, snapshot_id: int) -> SubmittedSnapshot | None:

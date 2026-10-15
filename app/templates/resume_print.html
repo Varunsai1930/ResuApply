@@ -2,4 +2,16 @@
 {% set name = rendered.contact.name %}
 {% block back_href %}/jobs/{{ job.id }}#resume{% endblock %}
 {% block heading %}Accepted resume{% endblock %}
+{% block download_extra %}<a class="resume-print-download" href="/jobs/{{ job.id }}/resume/docx">Download Word (.docx)</a>{% endblock %}
+{% block layout_controls %}
+  <form method="post" action="/jobs/{{ job.id }}/resume/layout" class="resume-layout-picker">
+    <input type="hidden" name="package_token" value="{{ layout_token }}">
+    <label for="print-resume-layout">Resume layout</label>
+    <select id="print-resume-layout" name="layout" aria-describedby="print-layout-hint">
+      {% for choice in layout_choices %}<option value="{{ choice.key }}"{% if choice.key == selected_layout %} selected{% endif %}>{{ choice.label }}</option>{% endfor %}
+    </select>
+    <button type="submit">Apply layout</button>
+    <p id="print-layout-hint">Changing the layout requires package review again.</p>
+  </form>
+{% endblock %}
 {% block document %}{% include "_resume_document.html" %}{% endblock %}

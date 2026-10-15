@@ -2,7 +2,7 @@
 
 A local job application copilot web app. It turns your verified profile and a pasted job description into an evidence checklist, a tailored resume, reviewed answers and an application record, **without inventing anything**.
 
-> **Status:** Milestones 1 (Foundation), 2 (Assessment), 3a (Tailoring) and 3b (Complete V1) are built: profile, jobs, tracker, requirements, evidence, source-backed resume proposals, A4 print export, questions and answers, the answer bank, package approval and submitted snapshots. AI features have passed mocked-provider and browser checks; live OpenRouter validation remains pending until a key is configured. From V2, PDF/DOCX profile import (read locally, by layout rules) and Greenhouse job import (fetched only when you choose Import) are built; Greenhouse autofill is not started; see [PLAN.md](PLAN.md). The same workflow is already available as an agent skill for Claude Code and Codex: [ResuSkill](https://github.com/Varunsai1930/ResuSkill).
+> **Status:** Milestones 1 (Foundation), 2 (Assessment), 3a (Tailoring) and 3b (Complete V1) are built: profile, jobs, tracker, requirements, evidence, source-backed resume proposals, A4 print export, questions and answers, the answer bank, package approval and submitted snapshots. AI features have passed mocked-provider and browser checks; live OpenRouter validation remains pending until a key is configured. PDF/DOCX profile import, optional local OCR, Classic/Modern/Compact resume layouts, editable DOCX resume export and Greenhouse job import are built. Greenhouse autofill is not started; see [PLAN.md](PLAN.md). The same workflow is already available as an agent skill for Claude Code and Codex: [ResuSkill](https://github.com/Varunsai1930/ResuSkill).
 
 ```text
 Create profile → Add job → Review requirements
@@ -20,7 +20,7 @@ Create profile → Add job → Review requirements
 
 ## Run it
 
-Requires Python 3.12 and Git. Nothing else is installed system-wide: the app keeps its packages in a `.venv` folder inside the project and its data in `data/`.
+Requires Python 3.12 and Git. The app keeps its Python packages in a `.venv` folder inside the project and its data in `data/`. Optional OCR also needs a local Tesseract installation, described below.
 
 ### macOS and Linux
 
@@ -109,6 +109,14 @@ The bind address is always `127.0.0.1` and cannot be configured. The app also re
 
 Tables are created on startup, and columns added by a later milestone are added to an existing database automatically (nothing is renamed or dropped). To start over, stop the app and delete `data/resuapply.db`. The database, `.env`, uploads and generated files are git-ignored.
 
+### Optional OCR for scanned resumes
+
+Install **Tesseract with English (`eng`) language data**, and make its `tesseract` command available on `PATH`. On macOS, use `brew install tesseract`; on Debian/Ubuntu, use `sudo apt install tesseract-ocr tesseract-ocr-eng`. Windows installers and other platforms are listed in [Tesseract's installation guide](https://tesseract-ocr.github.io/tessdoc/Installation.html). Restart the app after changing `PATH`. `tesseract --list-langs` should include `eng`.
+
+On **Profile → Import resume**, tick **Use OCR for scanned pages** before importing a scanned PDF. OCR runs locally and uses no API key. Normal selectable-text pages keep their existing extraction; pages with a scanned body use OCR even when their contact header is selectable. Review all recognized text, especially names, dates and numbers, before saving. Without Tesseract, ordinary text PDF and DOCX import still work, and requesting OCR displays a setup message.
+
+Imports keep the existing 10 MB, first-30-pages and 100,000-character limits. OCR has a 60-second total deadline, bounded page images and one active OCR import at a time. Failed, interrupted or unreadable OCR imports leave the saved profile unchanged.
+
 ### AI model
 
 The model is a setting, and the app never switches it on its own. Free models can change availability, limits or tool-calling support at any time; if the configured one stops working, the app reports the provider's error, keeps your work and the manual workflow keeps going. Changing `OPENROUTER_MODEL` is always your decision.
@@ -139,7 +147,11 @@ Open a job's **Resume** section. **Use profile as-is** creates a proposal withou
 
 Review the original sources and proposed wording side by side, then choose **Accept resume**. Employers, titles, dates, degrees, contact details and skill labels come from your saved profile. Automated checks reject unknown or cross-entry sources, unsupported numbers and years (including number words and scale suffixes), technologies, credentials and skills. You still need to review meaning: citations and token checks cannot prove that a paraphrase is accurate.
 
-**Print / save PDF** opens the fixed, single-column template of the accepted resume. Choose **Print / save PDF** again, select A4, and turn off browser headers and footers. Long profiles continue onto more pages. Both a one-page profile and a nine-page synthetic profile were checked in Chrome for content retention and unclipped output.
+Choose **Classic**, **Modern** or **Compact** in the Resume section or print view, then **Apply layout**. All three use the same selected resume facts in a single reading column; Modern adds a navy accent and Compact reduces spacing. The choice is saved for that job. Changing it clears package approval and requires review again; applying the current choice leaves approval intact. A page showing an older package cannot change its layout.
+
+**Print / save PDF** opens the accepted resume in your chosen layout. Choose **Print / save PDF** again, select A4, and turn off browser headers and footers. Long profiles continue onto more pages. Short and multi-page synthetic resumes were checked in Chromium for content retention and unclipped output across all three layouts.
+
+**Download Word (.docx)** exports the current accepted resume as editable Word paragraphs, bullets and links in the chosen layout. It includes only the selected content, with employers, dates and other facts from your verified profile. Submitted packages also offer a Word download from their frozen content and layout, even after later profile edits. Editing a downloaded file does not update the app's package, so review any outside edits yourself before submitting.
 
 Regenerating creates a separate proposal and leaves the accepted resume available for printing. Profile or job changes mark old proposals and accepted resumes stale; create and accept a fresh proposal before printing. Resume acceptance leaves tracking unchanged.
 
@@ -170,9 +182,9 @@ Labels you will see on a question: **From profile**, **AI draft**, **User answer
 ## What's included
 
 - **Profile:** a guided form for contact details, links, summary, education, experience, projects (with bullets and technologies), skills, skills you've confirmed you lack, certifications, preferences, availability and per-country work authorization (yes / no / unknown). Links must be web addresses, such as `github.com/you` or `https://example.com`; anything else (for example `javascript:` or `mailto:`) is refused. Every save goes through a **Review changes** step that lists each added, changed or removed fact. Entries, bullets and certifications get stable IDs (`exp-1`, `exp-1-b2`, `cert-1`) that survive edits, and deleted IDs are never reused. The revision increases only when something really changed. The validation and ID rules are ported from ResuSkill.
-- **Resume import:** choose a resume as a text-based PDF or Word (.docx) file, up to 10 MB, and it is read on this computer into the profile form, where you check every field before the usual review step. Nothing is sent to the AI model. With a saved profile, an import only adds what the profile lacks and never changes a saved fact. Scanned or image-only, password-protected, damaged and unsupported files are refused with a reason, and work authorization is never read from a resume.
+- **Resume import:** choose a PDF or Word (.docx) file, up to 10 MB, and it is read on this computer into the profile form, where you check every field before the usual review step. Nothing is sent to the AI model. With a saved profile, an import only adds what the profile lacks and never changes a saved fact. Scanned PDFs support opt-in local OCR; password-protected, damaged and unsupported files return a reason, and work authorization is never read from a resume.
   - **What it reads:** one- and two-column PDFs (a column is told apart by its section headings), dates and places set flush right on an entry's line, PDFs of several pages (page numbers and a header repeated on every page are left out), ligatures from LaTeX, Word list bullets, Word tables, text boxes and the first page's header and footer, the bullet marks Word and resume templates use, headings such as "Skills & Interests", "Research Experience" or "E X P E R I E N C E", and dates such as "Jan 2023 – Present", "2021–22", "Summer 2024" (the year only: a season names no month) or "May '24". Honours, the Dean's List, coursework and a minor are kept as bullets of their school.
-  - **What it can't read (fill these in yourself, from the text shown beside the form):** a resume without recognizable section headings (only the contact details are read); text in images, logos, icons or skill bars; a two-column PDF whose columns don't both have a section heading, or that a builder draws in an order other than column by column or line by line; headings in languages other than English; a heading that combines two profile sections, such as "Experience & Education" (Certifications with Skills or with Education is read line by line); entries laid out several to a table row; and Word headers and footers after the first section.
+  - **What it can't reliably read (fill these in yourself, from the text shown beside the form):** a resume without recognizable section headings (only the contact details are read); text in Word images, logos, icons or skill bars; a two-column PDF whose columns don't both have a section heading, or that a builder draws in an order other than column by column or line by line; headings in languages other than English; a heading that combines two profile sections, such as "Experience & Education" (Certifications with Skills or with Education is read line by line); entries laid out several to a table row; and Word headers and footers after the first section. OCR currently uses English and its recognition can be imperfect; extracted text stays visible for correction.
 - **Jobs:** manual entry with title, company and pasted description (required), plus location and URL (optional). The description is stored exactly as pasted and is only ever shown as text. Changing the title, company, location or description increases the job revision. A link is only ever saved as a reference: saving a job never fetches it.
 - **Greenhouse job import:** on **Add a job**, paste a posting link from `boards.greenhouse.io` or `job-boards.greenhouse.io` and choose **Import**. ResuApply fetches that posting and its application questions from Greenhouse's public job board (`boards-api.greenhouse.io`), fills in the title, company, location and description, and lists each question with its required flag, field type (short or long text, choose one, choose any) and category. Nothing is saved until you check it and choose **Save job**, which adds the questions you reviewed. Questions from the voluntary self-identification and demographic sections are always **Sensitive**; a field type ResuApply doesn't know is added as **Confirm category**; file uploads such as the resume are listed as left for the employer's form. Only https links on those two hosts are fetched, redirects are refused, an import gives up after 10 seconds or 2 MB, and a failed import changes nothing. The posting's text is information only, like a pasted description. Other job sites aren't fetched: paste the posting instead. An answer to an imported **Choose one** or **Choose any** question must name the form's choices as written there (one per line, or separated by commas or semicolons, for Choose any); until it does it shows **Not one of the form's choices** and blocks approval, even on an optional question. These questions are never drafted by the AI model.
 - **Tracker:** every job with its review state (Draft, Approved or Stale, recalculated whenever the list is opened) and tracking status (Saved, Applied, Assessment, Interview, Rejected, Offer, Withdrawn), a dated status history and notes. Status dates are entered as `YYYY-MM-DD`, from 1990 up to today. Only you change the status; approval never sets Applied.
@@ -180,7 +192,7 @@ Labels you will see on a question: **From profile**, **AI draft**, **User answer
 - **Requirements:** enter them yourself or have the AI model propose them; either way you review and correct each one before saving. Every requirement quotes words from the description, and if any excerpt can't be found there, nothing is saved. Each can have a comparable criterion (skills, degree, graduation window, location/work mode, work authorization, start date, years of experience). Requirement IDs (`r1`, `r2` …) stay stable across edits and are never reused.
 - **Checklist:** Python compares each requirement with your profile and shows **Met**, **Unmet** or **Unknown** with the reason, grouped as sources, gaps and unknowns. A skill that isn't in your profile is Unknown unless you confirmed you lack it; anything that can't be compared stays Unknown until you link evidence. Gaps stay visible but never block an application.
 - **Evidence and overrides:** link profile bullets or entries as evidence yourself, or ask the AI model for suggestions and accept or reject each one. Suggestions change nothing until you accept them. You can override any status, and the override is always shown with your reason and the calculated status.
-- **Resume:** manual or AI proposals, original/proposed comparisons with source IDs, claim checks, separate accepted content, stale-input checks and browser Save as PDF. Regeneration and provider failures preserve accepted work.
+- **Resume:** manual or AI proposals, original/proposed comparisons with source IDs, claim checks, separate accepted content, stale-input checks, three saved layouts, browser Save as PDF and editable Word export. Regeneration and provider failures preserve accepted work.
 - **Questions and answers:** categories by fixed rules, profile-backed answers, your own answers, and AI drafts only for open-ended questions, each reviewed and accepted by you. Sensitive questions are never drafted or banked.
 - **Answer bank:** the **Answers** page, with similar-question suggestions that only fill the answer box.
 - **Review and approval:** Draft, Approved or Stale, listed blockers and warnings, and an explicit **Approve package** step that never sets Applied.
@@ -215,11 +227,11 @@ tests/            pytest: rules, mocked AI, HTTP integration and restart persist
 | Release | Scope |
 |---|---|
 | **V1** | Profile, job entry, requirement checklist, resume tailoring, answers, approval, print-to-PDF, tracking |
-| **V2** | PDF/DOCX profile import, Greenhouse job import, limited Greenhouse autofill (you still click Submit) |
+| **V2** | PDF/DOCX profile import with optional OCR, resume layouts and DOCX export, Greenhouse job import, limited Greenhouse autofill (you still click Submit) |
 
 ## Stack
 
-Python 3.12 · FastAPI · Jinja2 · SQLAlchemy · SQLite · Pydantic · HTTPX → OpenRouter (model configurable) and Greenhouse's public job board (job import, on request) · pypdf and python-docx for resume import. No application browser-automation dependency before V2.
+Python 3.12 · FastAPI · Jinja2 · SQLAlchemy · SQLite · Pydantic · HTTPX → OpenRouter (model configurable) and Greenhouse's public job board (job import, on request) · pypdf and python-docx for import/export · pypdfium2, Pillow and optional Tesseract for local OCR. No application browser-automation dependency before autofill.
 
 ## License
 

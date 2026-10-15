@@ -14,6 +14,8 @@
     <h1>{% block heading %}{% endblock %}</h1>
     <p>{% block note %}Choose Print, then Save as PDF. Use A4 paper and disable the browser's headers and footers.{% endblock %}</p>
     <button type="button" data-print-resume>Print / save PDF</button>
+    {% block download_extra %}{% endblock %}
+    {% block layout_controls %}{% endblock %}
   </div>
 {% block document %}{% endblock %}
 </body>

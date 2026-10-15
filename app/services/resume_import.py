@@ -1,17 +1,19 @@
 """Reading a resume file (PDF or DOCX) into text, locally. Nothing is sent anywhere.
 
-Only text-based PDFs can be read: a scanned or image-only PDF has no text, and OCR is
-deferred (PLAN.md §4). Every failure is a ``ResumeImportError`` with a message the user can act
+Selectable text is preferred; scanned PDF pages can be read with opt-in local OCR.
+Every failure is a ``ResumeImportError`` with a message the user can act
 on, raised before anything is stored. Files are recognized by their content, never their name.
 """
 
 from __future__ import annotations
 
 import io
+import math
 import re
 import zipfile
 import zlib
 from collections import Counter
+from dataclasses import dataclass
 
 from .resume_draft import has_contact, heading
 from .text import tidy_lines
@@ -43,7 +45,118 @@ def file_kind(data: bytes) -> str | None:
     return None
 
 
-def _pdf_text(data: bytes) -> str:
+def _has_scan_image(page) -> bool:
+    """Whether painted images cover a substantial part of the page, without decoding images.
+
+    Scans can have selectable contact details, so text length cannot decide whether their body
+    needs OCR. Image drawing matrices distinguish a scanned body from a small logo/headshot.
+    Follow Form XObjects with their transforms and bounding boxes; cap recursion/operations.
+    """
+    from pypdf import mult
+    from pypdf.generic import ContentStream
+
+    identity = [1.0, 0.0, 0.0, 1.0, 0.0, 0.0]
+    page_box = tuple(float(value) for value in page.cropbox)
+    page_area = (page_box[2] - page_box[0]) * (page_box[3] - page_box[1])
+    if not math.isfinite(page_area) or page_area <= 0:
+        return False
+    rectangles = []
+    operations_left = 10_000
+
+    def resolve(value):
+        return value.get_object() if hasattr(value, "get_object") else value
+
+    def intersection(first, second):
+        return (max(first[0], second[0]), max(first[1], second[1]),
+                min(first[2], second[2]), min(first[3], second[3]))
+
+    def affine(values):
+        values = [float(value) for value in values]
+        if len(values) != 6 or not all(math.isfinite(value) for value in values):
+            raise ValueError("invalid image matrix")
+        return values
+
+    def transformed(box, matrix):
+        x0, y0, x1, y1 = box
+        points = [(x * matrix[0] + y * matrix[2] + matrix[4],
+                   x * matrix[1] + y * matrix[3] + matrix[5])
+                  for x, y in ((x0, y0), (x1, y0), (x0, y1), (x1, y1))]
+        if not all(math.isfinite(value) for point in points for value in point):
+            raise ValueError("invalid image bounds")
+        return (min(x for x, _ in points), min(y for _, y in points),
+                max(x for x, _ in points), max(y for _, y in points))
+
+    def walk(stream, resources, matrix, clip, ancestors=()):
+        nonlocal operations_left
+        if len(ancestors) > 6:
+            raise ResumeImportError("This PDF's image layout is too complex for OCR. Save a simpler PDF, "
+                                    "or fill in the profile form instead.")
+        if stream is None:
+            return
+        stream = stream if isinstance(stream, ContentStream) else ContentStream(stream, page.pdf)
+        operations = stream.operations
+        if not any(operator in (b"Do", b"INLINE IMAGE") for _, operator in operations):
+            return  # selectable text without any painted image needs no further OCR inspection
+        resources = resolve(resources) or {}
+        objects = resolve(resources.get("/XObject", {}))
+        saved = []
+        path_bounds = None
+        for arguments, operator in operations:
+            operations_left -= 1
+            if operations_left < 0:
+                raise ResumeImportError("This PDF's image layout is too complex for OCR. Save a simpler PDF, "
+                                        "or fill in the profile form instead.")
+            if operator == b"q":
+                saved.append((matrix[:], clip))
+            elif operator == b"Q" and saved:
+                matrix, clip = saved.pop()
+            elif operator == b"cm":
+                matrix = mult(affine(arguments), matrix)
+            elif operator == b"re":
+                x, y, width, height = (float(value) for value in arguments)
+                rectangle = transformed((x, y, x + width, y + height), matrix)
+                path_bounds = rectangle if path_bounds is None else (
+                    min(path_bounds[0], rectangle[0]), min(path_bounds[1], rectangle[1]),
+                    max(path_bounds[2], rectangle[2]), max(path_bounds[3], rectangle[3]))
+            elif operator in (b"W", b"W*") and path_bounds is not None:
+                clip = intersection(clip, path_bounds)
+            elif operator in (b"n", b"S", b"s", b"f", b"F", b"f*", b"B", b"B*", b"b", b"b*"):
+                path_bounds = None
+            elif operator in (b"Do", b"INLINE IMAGE"):
+                item = resolve(objects.get(arguments[0])) if operator == b"Do" and arguments else None
+                subtype = item.get("/Subtype") if item is not None else None
+                if subtype == "/Image" or operator == b"INLINE IMAGE":
+                    rectangle = intersection(transformed((0, 0, 1, 1), matrix), clip)
+                    if rectangle[2] > rectangle[0] and rectangle[3] > rectangle[1]:
+                        rectangles.append(rectangle)
+                        if len(rectangles) > 256:
+                            raise ResumeImportError("This PDF has too many image fragments for OCR. Save a "
+                                                    "simpler PDF, or fill in the profile form instead.")
+                elif subtype == "/Form" and id(item) not in ancestors:
+                    nested_matrix = mult(affine(item.get("/Matrix", identity)), matrix)
+                    nested_clip = intersection(transformed(tuple(float(value) for value in item.get("/BBox", page_box)), nested_matrix), clip)
+                    walk(item, item.get("/Resources", resources), nested_matrix, nested_clip, (*ancestors, id(item)))
+
+    walk(page.get_contents(), page.get("/Resources", {}), identity, page_box)
+    # Union of bounded rectangles, so a repeated logo is not mistaken for a full-page scan.
+    area = 0.0
+    edges = sorted({edge for rectangle in rectangles for edge in (rectangle[0], rectangle[2])})
+    for left, right in zip(edges, edges[1:]):
+        intervals = sorted((box[1], box[3]) for box in rectangles if box[0] < right and box[2] > left)
+        height = 0.0
+        bottom = top = None
+        for low, high in intervals:
+            if top is None or low > top:
+                height += top - bottom if top is not None else 0.0
+                bottom, top = low, high
+            else:
+                top = max(top, high)
+        height += top - bottom if top is not None else 0.0
+        area += (right - left) * height
+    return area >= page_area * 0.4
+
+
+def _pdf_text(data: bytes, *, use_ocr: bool = False, ocr_pages: list[int] | None = None) -> str:
     from pypdf import PdfReader
     from pypdf.errors import DependencyError, PyPdfError
 
@@ -54,7 +167,26 @@ def _pdf_text(data: bytes) -> str:
             if not reader.decrypt(""):
                 raise ResumeImportError("This PDF is password-protected. Save a copy without a password, "
                                         "then import that.")
-        return "\n".join(_without_running_lines([_page_text(page) for page in reader.pages[:MAX_PAGES]]))
+        pages = list(reader.pages[:MAX_PAGES])
+        text = [_page_text(page) for page in pages]
+        if use_ocr:
+            scanned = [i for i, (page, value) in enumerate(zip(pages, text))
+                       if not value.strip() or _has_scan_image(page)]
+            if scanned:
+                from .resume_ocr import OCRError, recognize_pages
+
+                try:
+                    recognized = recognize_pages(data, scanned, max_chars=MAX_CHARS)
+                except OCRError as exc:
+                    raise ResumeImportError(str(exc)) from exc
+                for i in scanned:
+                    # Keep sparse selectable headings/stamps verbatim, and add OCR lines only once.
+                    known = {line.strip().casefold() for line in text[i].splitlines() if line.strip()}
+                    new = [line for line in recognized[i].splitlines() if line.strip().casefold() not in known]
+                    text[i] = "\n".join([text[i], *new]).strip()
+                if ocr_pages is not None:
+                    ocr_pages.extend(i + 1 for i in scanned)
+        return "\n".join(_without_running_lines(text))
     except ResumeImportError:
         raise
     # PyPdfError is pypdf's own base error; DependencyError (a missing optional package) is not one.
@@ -330,8 +462,14 @@ def _tidy(text: str) -> str:
     return tidy_lines(text.translate(_LIGATURES))[:MAX_CHARS]
 
 
-def extract_text(data: bytes) -> str:
-    """The text of a resume file, or ``ResumeImportError`` with what to do instead."""
+@dataclass(frozen=True)
+class ResumeText:
+    text: str
+    ocr_pages: tuple[int, ...] = ()
+
+
+def read_resume(data: bytes, *, use_ocr: bool = False) -> ResumeText:
+    """Read text and its OCR provenance, without saving the file or profile."""
     if not data:
         raise ResumeImportError("The file is empty. Choose your resume as a PDF or Word (.docx) file.")
     if len(data) > MAX_BYTES:
@@ -340,8 +478,17 @@ def extract_text(data: bytes) -> str:
     if kind is None:
         raise ResumeImportError("Choose a PDF or Word (.docx) file. Older .doc files, images and other formats "
                                 "can't be read; save the resume as PDF or .docx first.")
-    text = _tidy(_pdf_text(data) if kind == PDF else _docx_text(data))
+    ocr_pages: list[int] = []
+    text = _tidy(_pdf_text(data, use_ocr=use_ocr, ocr_pages=ocr_pages) if kind == PDF else _docx_text(data))
     if len(text) < MIN_CHARS:
+        if ocr_pages:
+            raise ResumeImportError("OCR could not find enough readable text. Try a clearer scan, a PDF with "
+                                    "selectable text, or fill in the profile form instead.")
         raise ResumeImportError("No text could be found in this file. A scanned or image-only resume can't be "
-                                "read; fill in the profile form instead.")
-    return text
+                                "read without OCR; select 'Use OCR for scanned pages', or fill in the profile form instead.")
+    return ResumeText(text, tuple(ocr_pages))
+
+
+def extract_text(data: bytes, *, use_ocr: bool = False) -> str:
+    """The text of a resume file, or ``ResumeImportError`` with what to do instead."""
+    return read_resume(data, use_ocr=use_ocr).text

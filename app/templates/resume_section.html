@@ -16,6 +16,16 @@
         <p class="notice">Your profile or job changed. Review and accept a fresh proposal before printing.</p>
       {% else %}
         <a class="btn-secondary" href="/jobs/{{ job.id }}/resume/print">Print / save PDF</a>
+        <a class="btn-secondary" href="/jobs/{{ job.id }}/resume/docx">Download Word (.docx)</a>
+        <form method="post" action="/jobs/{{ job.id }}/resume/layout" class="resume-layout-picker" data-guard>
+          <input type="hidden" name="package_token" value="{{ layout_token }}">
+          <label for="workspace-resume-layout">Resume layout</label>
+          <select id="workspace-resume-layout" name="layout" aria-describedby="workspace-layout-hint">
+            {% for choice in layout_choices %}<option value="{{ choice.key }}"{% if choice.key == selected_layout %} selected{% endif %}>{{ choice.label }}</option>{% endfor %}
+          </select>
+          <button type="submit" class="btn-secondary">Apply layout</button>
+          <p class="hint" id="workspace-layout-hint">Changing the layout requires package review again.</p>
+        </form>
       {% endif %}
     {% endif %}
     {% if resume_state.proposal and resume_state.proposal != resume_state.accepted %}

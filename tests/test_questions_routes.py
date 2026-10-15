@@ -442,7 +442,7 @@ def test_snapshot_pages_show_the_frozen_package(client, sample_profile):
     printed = client.get(f"/jobs/{job_id}/snapshots/1/resume")
     assert printed.status_code == 200
     assert "Resume as submitted" in printed.text and "data-print-resume" in printed.text
-    assert 'class="resume-document"' in printed.text and "Jordan Example" in printed.text
+    assert 'class="resume-document resume-layout-classic"' in printed.text and "Jordan Example" in printed.text
     assert BULLET in printed.text and "resume.css" in printed.text
     assert f'href="/jobs/{job_id}/snapshots/1"' in printed.text
     # The live print page still works and shares the same shell.

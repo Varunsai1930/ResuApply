@@ -14,7 +14,7 @@ from ..models import Job
 from ..schemas.tracking import TrackingStatus
 from ..services import board as board_service
 from ..services import sample as sample_service
-from ..services import checklist, greenhouse, outbound, package, question_rows, tracking
+from ..services import checklist, greenhouse, outbound, package, question_rows, resume_layouts, tracking
 from ..services import jobs as job_service
 from ..services import workspace as guide_service
 from ..services.profile import get_candidate
@@ -159,6 +159,9 @@ def _render_workspace(request: Request, session: Session, job: Job, msg: str = "
             "settings": settings,
             "sharing": sharing,
             "resume_state": presentation_state(session, settings, job, candidate),
+            "selected_layout": resume_layouts.layout_key(application),
+            "layout_choices": resume_layouts.LAYOUTS,
+            "layout_token": package.package_token(job, application, candidate),
             "resume_error": forms.get("resume_error"),
             "resume_notice": forms.get("resume_notice"),
             "question_rows": question_rows.rows(session, job, application, candidate) if candidate else [],

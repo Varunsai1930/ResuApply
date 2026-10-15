@@ -15,10 +15,11 @@ from ..ai.client import AIError, OpenRouterClient
 from ..ai.resume import tailor_resume
 from ..db import get_ai_client, get_session
 from ..models import Application
-from ..services import outbound, resume as resume_service
+from ..services import outbound, package, resume_docx, resume_layouts, resume as resume_service
 from ..services.profile import get_candidate, skill_keys
 from ..templating import templates
 from .jobs import _job_or_404, _render_workspace
+from .resume_download import docx_response
 
 router = APIRouter(prefix="/jobs/{job_id}/resume")
 
@@ -119,6 +120,8 @@ def review(request: Request, job_id: int, session: Session = Depends(get_session
         "job": job, "candidate": candidate, "record": record, "resume_state": current,
         "rendered": rendered, "selection": _selection(candidate.profile, record.resume) if rendered else [],
         "proposal_token": resume_service.proposal_token(record),
+        "selected_layout": resume_layouts.layout_key(job.application),
+        "layout_choices": resume_layouts.LAYOUTS,
         "sharing": outbound.state(session, request.app.state.settings, candidate) if candidate else None,
         "settings": request.app.state.settings, "active": "jobs",
     })
@@ -159,4 +162,42 @@ def print_resume(request: Request, job_id: int, session: Session = Depends(get_s
         return _failure(request, session, job, str(exc))
     return templates.TemplateResponse(request, "resume_print.html", {
         "job": job, "record": current.accepted, "rendered": rendered,
+        "selected_layout": resume_layouts.layout_key(job.application),
+        "layout_choices": resume_layouts.LAYOUTS,
+        "layout_token": package.package_token(job, job.application, candidate),
     })
+
+
+@router.post("/layout")
+def choose_layout(request: Request, job_id: int, layout: str = Form(""), package_token: str = Form(""),
+                  session: Session = Depends(get_session)):
+    job = _job_or_404(session, job_id)
+    try:
+        resume_layouts.get_layout(layout)
+    except ValueError:
+        return _failure(request, session, job, "Choose one of the available resume layouts.", 422)
+    try:
+        changed = package.set_resume_layout(session, job, get_candidate(session), layout, package_token)
+    except package.PackageError as exc:
+        return _failure(request, session, job, str(exc))
+    return RedirectResponse(f"/jobs/{job.id}/resume/print?msg={'layout_changed' if changed else 'layout_unchanged'}",
+                            status_code=303)
+
+
+@router.get("/docx")
+def download_docx(request: Request, job_id: int, session: Session = Depends(get_session)):
+    job = _job_or_404(session, job_id)
+    candidate = get_candidate(session)
+    current = presentation_state(session, request.app.state.settings, job, candidate)
+    if current.accepted is None:
+        return _failure(request, session, job, "Review and accept a resume before downloading it.", 400)
+    if current.accepted_stale or candidate is None:
+        return _failure(request, session, job,
+                        "Your accepted resume is out of date. Prepare a fresh proposal, review it and accept it "
+                        "before downloading.")
+    try:
+        rendered = resume_service.render_context(candidate.profile, current.accepted.resume)
+        content = resume_docx.export_resume(rendered, layout=resume_layouts.layout_key(job.application))
+    except (resume_service.ResumeError, resume_docx.ResumeDocxError) as exc:
+        return _failure(request, session, job, str(exc), 422)
+    return docx_response(content, rendered["contact"]["name"], job.company)

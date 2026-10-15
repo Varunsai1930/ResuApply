@@ -313,7 +313,7 @@ def test_record_applied_stores_a_snapshot_and_sets_the_status(session, job, app_
     assert [a["question"] for a in snapshot.answers] == [EMAIL_Q, AUTH_Q, WHY_Q, GENDER_Q]
     assert set(snapshot.answers[0]) == {"question", "required", "category", "label", "text"}
     html = snapshot.resume_html
-    assert html.lstrip().startswith('<main class="resume-document"') and html.rstrip().endswith("</main>")
+    assert html.lstrip().startswith('<main class="resume-document resume-layout-classic"') and html.rstrip().endswith("</main>")
     assert "jordan@example.com" in html and "Sample Analytics" in html
     assert "csrf" not in html.lower() and "<html" not in html and "href=" not in html
     assert app_.review_state == "approved"
