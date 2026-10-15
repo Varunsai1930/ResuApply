@@ -41,7 +41,7 @@ def _timeout(deadline: float, limit: float) -> float:
     return min(limit, remaining)
 
 
-def _run(command: list[str], *, deadline: float, limit: float, stdout=subprocess.DEVNULL):
+def _run(command: list[str], *, deadline: float, limit: float, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL):
     environment = os.environ.copy()
     environment.pop("OPENROUTER_API_KEY", None)
     environment["OMP_THREAD_LIMIT"] = "1"
@@ -49,7 +49,7 @@ def _run(command: list[str], *, deadline: float, limit: float, stdout=subprocess
     try:
         # run() kills and waits on TimeoutExpired, and also on interrupted communicate().
         return subprocess.run(command, stdin=subprocess.DEVNULL, stdout=stdout,
-                              stderr=subprocess.DEVNULL, env=environment,
+                              stderr=stderr, env=environment,
                               creationflags=flags, timeout=_timeout(deadline, limit), check=False)
     except subprocess.TimeoutExpired as exc:
         raise OCRError(_TIMEOUT) from exc
@@ -73,7 +73,9 @@ def recognize_pages(data: bytes, pages: list[int], *, max_chars: int) -> dict[in
             source.write_bytes(data)
             languages = folder / "languages.txt"
             with languages.open("wb") as output:
-                checked = _run([engine, "--list-langs"], deadline=deadline, limit=5, stdout=output)
+                # Tesseract before 4.1 prints this list to stderr rather than stdout.
+                checked = _run([engine, "--list-langs"], deadline=deadline, limit=5, stdout=output,
+                               stderr=subprocess.STDOUT)
             with languages.open("rb") as output:
                 available = output.read(64 * 1024).decode("utf-8", errors="replace").splitlines()
             if checked.returncode or "eng" not in [line.strip() for line in available]:

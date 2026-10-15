@@ -216,7 +216,7 @@ def test_missing_engine_and_busy_imports_have_plain_messages(monkeypatch):
         resume_ocr._SLOT.release()
 
 
-def fake_workers(monkeypatch, *, fail="", language="eng", text=TEXT):
+def fake_workers(monkeypatch, *, fail="", language="eng", text=TEXT, languages_on_stderr=False):
     calls = []
     monkeypatch.setattr(resume_ocr.shutil, "which", lambda name: "fake-tesseract")
 
@@ -224,7 +224,9 @@ def fake_workers(monkeypatch, *, fail="", language="eng", text=TEXT):
         calls.append((command, kwargs))
         assert kwargs["timeout"] <= resume_ocr.TOTAL_SECONDS
         if command[1] == "--list-langs":
-            kwargs["stdout"].write(f"Languages:\n{language}\n".encode())
+            # Older Tesseract writes the list to stderr; it only reaches the file when merged into stdout.
+            if not languages_on_stderr or kwargs.get("stderr") is subprocess.STDOUT:
+                kwargs["stdout"].write(f"Languages:\n{language}\n".encode())
         elif "--render" in command:
             if fail == "render-timeout":
                 raise subprocess.TimeoutExpired(command, kwargs["timeout"])
@@ -254,7 +256,10 @@ def test_workers_have_deadlines_and_cleanup_without_inheriting_ai_key(monkeypatc
     assert result == {0: "A" * 100, 1: ""}
     assert len(calls) == 3
     assert all("OPENROUTER_API_KEY" not in kwargs["env"] for _, kwargs in calls)
-    assert all(kwargs["stdin"] == subprocess.DEVNULL and kwargs["stderr"] == subprocess.DEVNULL for _, kwargs in calls)
+    assert all(kwargs["stdin"] == subprocess.DEVNULL for _, kwargs in calls)
+    # Only the language list (read from its own bounded file) keeps stderr; worker output is discarded.
+    assert calls[0][1]["stderr"] == subprocess.STDOUT
+    assert all(kwargs["stderr"] == subprocess.DEVNULL for _, kwargs in calls[1:])
     temporary = Path(calls[1][0][-1]).parent
     assert not temporary.exists()
 
@@ -271,6 +276,11 @@ def test_worker_failures_cleanup_and_release_slot(monkeypatch, failure, expected
     assert not Path(calls[1][0][-1]).parent.exists()
     assert resume_ocr._SLOT.acquire(blocking=False)
     resume_ocr._SLOT.release()
+
+
+def test_language_list_printed_to_stderr_by_older_tesseract_is_read(monkeypatch):
+    fake_workers(monkeypatch, languages_on_stderr=True)
+    assert resume_ocr.recognize_pages(scanned_pdf(), [0], max_chars=1000) == {0: TEXT}
 
 
 def test_missing_english_language_data_is_reported_before_rendering(monkeypatch):
