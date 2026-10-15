@@ -259,6 +259,7 @@ def test_workers_have_deadlines_and_cleanup_without_inheriting_ai_key(monkeypatc
     assert all(kwargs["stdin"] == subprocess.DEVNULL for _, kwargs in calls)
     # Only the language list (read from its own bounded file) keeps stderr; worker output is discarded.
     assert calls[0][1]["stderr"] == subprocess.STDOUT
+    assert calls[1][0][:2] == [sys.executable, "-P"]  # the renderer's folder never shadows library imports
     assert all(kwargs["stderr"] == subprocess.DEVNULL for _, kwargs in calls[1:])
     temporary = Path(calls[1][0][-1]).parent
     assert not temporary.exists()

@@ -84,7 +84,9 @@ def recognize_pages(data: bytes, pages: list[int], *, max_chars: int) -> dict[in
             result, remaining = {}, max_chars
             for page in pages:
                 image = folder / "page.png"
-                rendered = _run([sys.executable, str(Path(__file__).resolve()), "--render",
+                # -P: don't put this package's folder first on the child's sys.path, where its
+                # modules (profile.py, text.py, ...) would shadow same-named library imports.
+                rendered = _run([sys.executable, "-P", str(Path(__file__).resolve()), "--render",
                                  str(source), str(page), str(image)], deadline=deadline, limit=RENDER_SECONDS)
                 if rendered.returncode == 73:
                     raise OCRError("A scanned page has invalid or unusually large dimensions. Save the resume "
