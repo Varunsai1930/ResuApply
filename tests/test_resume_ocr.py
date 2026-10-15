@@ -88,6 +88,24 @@ def test_selectable_text_with_a_small_logo_or_headshot_bypasses_ocr(monkeypatch)
     assert result.ocr_pages == () and header in result.text and "Built Python services" in result.text
 
 
+def test_dense_selectable_text_beside_a_logo_is_not_too_complex_for_ocr(monkeypatch):
+    from pypdf.generic import DecodedStreamObject, NameObject
+
+    data, _ = scan_with_selectable_header(small_image=True)
+    writer = PdfWriter()
+    writer.append(PdfReader(io.BytesIO(data)))
+    page = writer.pages[0]
+    stream = DecodedStreamObject()
+    # Builders that position every glyph emit thousands of text operators on a single page.
+    stream.set_data(page.get_contents().get_data() + b"\n" + b"BT 72 60 Td ( ) Tj ET\n" * 4000)
+    page[NameObject("/Contents")] = writer._add_object(stream)
+    output = io.BytesIO()
+    writer.write(output)
+    monkeypatch.setattr(resume_ocr, "recognize_pages", lambda *args, **kwargs: pytest.fail("Small image is not a scanned page"))
+    result = resume_import.read_resume(output.getvalue(), use_ocr=True)
+    assert result.ocr_pages == () and "Built Python services" in result.text
+
+
 def test_a_large_raster_clipped_to_a_small_headshot_bypasses_ocr(monkeypatch):
     from pypdf.generic import DecodedStreamObject, NameObject
 

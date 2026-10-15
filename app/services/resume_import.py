@@ -45,6 +45,11 @@ def file_kind(data: bytes) -> str | None:
     return None
 
 
+# The operators _has_scan_image interprets; only these count towards its operation budget.
+_GEOMETRY_OPERATORS = frozenset((b"q", b"Q", b"cm", b"re", b"W", b"W*", b"n", b"S", b"s", b"f", b"F", b"f*",
+                                 b"B", b"B*", b"b", b"b*", b"Do", b"INLINE IMAGE"))
+
+
 def _has_scan_image(page) -> bool:
     """Whether painted images cover a substantial part of the page, without decoding images.
 
@@ -102,6 +107,8 @@ def _has_scan_image(page) -> bool:
         saved = []
         path_bounds = None
         for arguments, operator in operations:
+            if operator not in _GEOMETRY_OPERATORS:
+                continue  # text and colour operators can't move or clip an image; don't spend the budget on them
             operations_left -= 1
             if operations_left < 0:
                 raise ResumeImportError("This PDF's image layout is too complex for OCR. Save a simpler PDF, "
