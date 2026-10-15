@@ -62,6 +62,8 @@ MESSAGES = {
     "sample_removed": "Sample data removed. Your own jobs, if any, are unchanged.",
     "sharing_approved": "Saved what may be sent to the AI model.",
     "sharing_withdrawn": "Approval withdrawn. You'll be asked again before candidate content is sent.",
+    "layout_changed": "Resume layout changed. Review and approve the package again before you submit it.",
+    "layout_unchanged": "That layout was already selected, so nothing changed.",
 }
 
 

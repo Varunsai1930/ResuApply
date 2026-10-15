@@ -161,3 +161,14 @@ def test_normalized_attachment_filename_remains_a_valid_docx_filename(name):
     assert parsed.get_filename().endswith(".docx")
     assert header.count('"') == 2
     assert "filename*=UTF-8''" in header
+
+
+def test_layout_change_is_confirmed_on_the_print_view(client, sample_profile):
+    job_id = accepted_job(client, sample_profile)
+    changed = choose(client, job_id, "modern")
+    assert changed.status_code == 303
+    page = client.get(changed.headers["location"])
+    assert 'role="status"' in page.text and "Resume layout changed." in page.text
+    same = client.get(choose(client, job_id, "modern").headers["location"])
+    assert "That layout was already selected" in same.text
+    assert 'role="status"' not in client.get(f"/jobs/{job_id}/resume/print?msg=unknown").text

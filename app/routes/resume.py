@@ -146,7 +146,7 @@ def accept(request: Request, job_id: int, proposal_token: str = Form(""), sessio
 
 
 @router.get("/print", response_class=HTMLResponse)
-def print_resume(request: Request, job_id: int, session: Session = Depends(get_session)):
+def print_resume(request: Request, job_id: int, msg: str = "", session: Session = Depends(get_session)):
     job = _job_or_404(session, job_id)
     candidate = get_candidate(session)
     current = presentation_state(session, request.app.state.settings, job, candidate)
@@ -161,7 +161,7 @@ def print_resume(request: Request, job_id: int, session: Session = Depends(get_s
     except resume_service.ResumeError as exc:
         return _failure(request, session, job, str(exc))
     return templates.TemplateResponse(request, "resume_print.html", {
-        "job": job, "record": current.accepted, "rendered": rendered,
+        "job": job, "record": current.accepted, "rendered": rendered, "msg": msg,
         "selected_layout": resume_layouts.layout_key(job.application),
         "layout_choices": resume_layouts.LAYOUTS,
         "layout_token": package.package_token(job, job.application, candidate),

@@ -22,6 +22,7 @@
 .resume-print-controls button:hover { background: #162b47; }
 .resume-print-controls button:focus-visible { outline: 2px solid #1f3a5f; outline-offset: 2px; }
 .resume-print-controls a.resume-print-download { grid-column: 2; justify-self: start; border: 1px solid #c0c5cc; border-radius: 4px; padding: 9px 15px; color: #1f3a5f; font-size: 14px; }
+.resume-print-controls p.resume-print-flash { grid-column: 1 / -1; margin-top: 12px; border-left: 3px solid #1f3a5f; padding: 8px 12px; background: #fff; color: #17191c; }
 .resume-layout-picker { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; margin-top: 14px; }
 .resume-layout-picker label { font-weight: 600; }
 .resume-layout-picker select { max-width: 100%; padding: 8px 30px 8px 10px; border: 1px solid #c0c5cc; border-radius: 4px; background: #fff; color: #17191c; font: inherit; }

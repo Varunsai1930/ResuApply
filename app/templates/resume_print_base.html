@@ -16,6 +16,7 @@
     <button type="button" data-print-resume>Print / save PDF</button>
     {% block download_extra %}{% endblock %}
     {% block layout_controls %}{% endblock %}
+    {% if msg and MESSAGES.get(msg) %}<p class="resume-print-flash" role="status">{{ MESSAGES[msg] }}</p>{% endif %}
   </div>
 {% block document %}{% endblock %}
 </body>
