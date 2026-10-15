@@ -106,6 +106,23 @@ def test_dense_selectable_text_beside_a_logo_is_not_too_complex_for_ocr(monkeypa
     assert result.ocr_pages == () and "Built Python services" in result.text
 
 
+def test_malformed_drawing_operands_keep_a_text_page_when_ocr_is_requested(monkeypatch):
+    from pypdf.generic import DecodedStreamObject, NameObject
+
+    data, header = scan_with_selectable_header(small_image=True)
+    writer = PdfWriter()
+    writer.append(PdfReader(io.BytesIO(data)))
+    page = writer.pages[0]
+    stream = DecodedStreamObject()
+    stream.set_data(b"0 0 10 re n\n" + page.get_contents().get_data())  # `re` needs four operands
+    page[NameObject("/Contents")] = writer._add_object(stream)
+    output = io.BytesIO()
+    writer.write(output)
+    monkeypatch.setattr(resume_ocr, "recognize_pages", lambda *args, **kwargs: pytest.fail("Text page is not a scan"))
+    result = resume_import.read_resume(output.getvalue(), use_ocr=True)
+    assert result.ocr_pages == () and header in result.text
+
+
 def test_a_large_raster_clipped_to_a_small_headshot_bypasses_ocr(monkeypatch):
     from pypdf.generic import DecodedStreamObject, NameObject
 

@@ -163,6 +163,18 @@ def _has_scan_image(page) -> bool:
     return area >= page_area * 0.4
 
 
+def _scan_image_or_text_only(page) -> bool:
+    """``_has_scan_image`` for a page that has selectable text: unreadable drawing operands keep its text.
+
+    Plain import already read this page, so asking for OCR must not turn a malformed image matrix
+    into a refusal of the whole file.
+    """
+    try:
+        return _has_scan_image(page)
+    except (ValueError, TypeError, KeyError, AttributeError, IndexError):
+        return False
+
+
 def _pdf_text(data: bytes, *, use_ocr: bool = False, ocr_pages: list[int] | None = None) -> str:
     from pypdf import PdfReader
     from pypdf.errors import DependencyError, PyPdfError
@@ -178,7 +190,7 @@ def _pdf_text(data: bytes, *, use_ocr: bool = False, ocr_pages: list[int] | None
         text = [_page_text(page) for page in pages]
         if use_ocr:
             scanned = [i for i, (page, value) in enumerate(zip(pages, text))
-                       if not value.strip() or _has_scan_image(page)]
+                       if not value.strip() or _scan_image_or_text_only(page)]
             if scanned:
                 from .resume_ocr import OCRError, recognize_pages
 
