@@ -50,6 +50,9 @@ NOT_GREENHOUSE = ("Autofill works only with a standard Greenhouse-hosted form: t
                   "inside, are yours to fill in. Add the posting link with Edit details if you have it.")
 
 
+LINK_KEYS = ("linkedin", "github", "portfolio")
+
+
 class AutofillError(Exception):
     """A user-facing error. Nothing was filled."""
 
@@ -133,8 +136,7 @@ def fill_data(job: Job, application: Application, candidate: Candidate | None) -
     resolved = package.resolved_package(job, application, candidate)
     contact = (resolved.get("resume") or {}).get("contact") or {}
     links = contact.get("links") or {}
-    values = {key: str(links.get(key) if key in ("linkedin", "github", "portfolio") else contact.get(key) or "")
-              for key in CONTACT_KEYS}
+    values = {key: str((links if key in LINK_KEYS else contact).get(key) or "") for key in CONTACT_KEYS}
     answers = tuple(PackageAnswer(question=q["question"], category=q["category"], text=q["text"] or "",
                                   resolved=q["resolved"] is True, skipped=q["skipped"] is True)
                     for q in resolved["questions"])

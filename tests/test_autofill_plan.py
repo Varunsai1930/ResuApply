@@ -154,3 +154,17 @@ def test_page_descriptions_are_bounded_and_typed():
     assert field.tag == "input" and field.type == "text" and len(field.label) == 2000
     assert field.labels == 0 and field.value == "" and field.max_length is None and field.visible is False
     assert FormField.from_page({"tag": "input"}) is None and FormField.from_page("x") is None
+
+
+def test_missing_or_empty_contact_details_stay_empty(monkeypatch):
+    from types import SimpleNamespace
+
+    from app.services import autofill, package, resume_attachment
+
+    resolved = {"resume": {"contact": {"name": "Jordan Example", "email": None, "links": {"linkedin": None}}},
+                "questions": []}
+    monkeypatch.setattr(package, "resolved_package", lambda *args: resolved)
+    monkeypatch.setattr(resume_attachment, "current", lambda *args, **kwargs: None)
+    data = autofill.fill_data(SimpleNamespace(), SimpleNamespace(approval=None), None)
+    assert data.contact["name"] == "Jordan Example"
+    assert all(data.contact[key] == "" for key in ("email", "phone", "linkedin", "github", "portfolio"))
