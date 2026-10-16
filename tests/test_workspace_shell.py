@@ -1,4 +1,4 @@
-"""Workspace controls remain reachable outside the collapsible sidebar."""
+"""The top bar: one header on every page holds the brand, the sections and the page-wide controls."""
 
 from __future__ import annotations
 
@@ -10,36 +10,27 @@ import pytest
 PAGES = ("/jobs", "/welcome", "/profile", "/answers", "/jobs/new")
 
 
-def topbar(page: str) -> str:
-    return re.search(r'<div class="workspace-bar">(.*?)<main\b', page, re.S).group(1)
+def header(page: str) -> str:
+    return re.search(r'<header class="site-header">(.*?)</header>', page, re.S).group(1)
 
 
 @pytest.mark.parametrize("path", PAGES)
-def test_sidebar_control_names_its_target_and_has_a_usable_fallback(client, path):
+def test_the_top_bar_holds_brand_sections_and_controls(client, path):
     page = client.get(path).text
-    assert len(re.findall(r'\bid="workspace-sidebar"', page)) == 1
-    buttons = re.findall(r"<button\b([^>]*\bdata-sidebar-toggle[^>]*)>(.*?)</button>", page, re.S)
-    assert len(buttons) == 1
-    attrs, content = buttons[0]
-    assert 'type="button"' in attrs
-    assert 'aria-controls="workspace-sidebar"' in attrs
-    assert 'aria-expanded="true"' in attrs
-    assert re.search(r"\bhidden(?:\s|$)", attrs)  # shown only when its script is ready
-    label = re.search(r'aria-label="([^"]+)"', attrs)
-    accessible_name = label.group(1) if label else re.sub(r"<[^>]+>", "", content).strip()
-    assert "sidebar" in accessible_name.lower()
-    assert "data-sidebar-toggle" in topbar(page)  # available even while the sidebar is closed
+    bar = header(page)
+    assert re.search(r'<a class="brand" href="/jobs"', bar)
+    assert '<nav aria-label="Main">' in bar
+    assert 'href="/welcome"' in bar and "Getting started" in bar  # outside the main sections
+    assert "Local workspace" in bar and "data-theme-toggle" in bar
+    assert page.index('<header class="site-header">') < page.index('<main id="main"')
 
 
 @pytest.mark.parametrize("path", PAGES)
-def test_workspace_breadcrumb_returns_to_jobs(client, path):
-    links = re.findall(r'<a\b[^>]*href="/jobs"[^>]*>(.*?)</a>', topbar(client.get(path).text), re.S)
-    assert [re.sub(r"<[^>]+>", "", content).strip() for content in links] == ["Workspace"]
+def test_there_is_no_sidebar_to_collapse(client, path):
+    page = client.get(path).text
+    assert "data-sidebar-toggle" not in page and "workspace-sidebar" not in page
+    assert "workspace.js" not in page
 
 
-def test_sidebar_script_is_loaded_before_drawing_and_is_served(client):
-    page = client.get("/jobs").text
-    script = re.search(r'<script src="(/static/workspace\.js\?v=\d+)"></script>', page)
-    assert script and script.start() < page.index("<body>")
-    response = client.get(script.group(1))
-    assert response.status_code == 200 and "javascript" in response.headers["content-type"]
+def test_the_old_sidebar_script_is_gone(client):
+    assert client.get("/static/workspace.js").status_code == 404

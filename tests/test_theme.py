@@ -34,7 +34,7 @@ def test_every_page_has_the_toggle_and_loads_the_script_before_drawing(client):
         button = buttons[0]
         assert "hidden" in button and 'aria-pressed="false"' in button  # shown by the script
         assert '<span class="visually-hidden">Dark mode</span>' in page
-        topbar = re.search(r'<div class="workspace-bar">(.*?)<main\b', page, re.S).group(1)
+        topbar = re.search(r'<header class="site-header">(.*?)</header>', page, re.S).group(1)
         assert "Local workspace" in topbar and "data-theme-toggle" in topbar
 
 
