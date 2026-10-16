@@ -155,6 +155,7 @@ def _render_workspace(request: Request, session: Session, job: Job, msg: str = "
             "check_error": forms.get("check_error"),
             "ai_error": forms.get("ai_error"),
             "ai_notice": forms.get("ai_notice"),
+            "ai_running": request.app.state.ai_tasks.running(job.id),
             "results": results,
             "result_groups": groups,
             "counts": checklist.summary(results),

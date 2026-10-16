@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+{% import "macros.html" as m with context %}
+{% block title %}{{ task.label }} · {{ job.title }} at {{ job.company }}{% endblock %}
+{# Reloads itself, without JavaScript, until the request has finished; a reload then shows the result. #}
+{% block extra_head %}<meta http-equiv="refresh" content="{{ refresh }}">{% endblock %}
+{% block content %}
+{% set seconds = task.elapsed_seconds() %}
+<p class="crumbs"><a href="/jobs/{{ job.id }}">{{ m.icon('arrow-left', 16) }} {{ job.title }} at {{ job.company }}</a><span>AI request</span></p>
+<section class="card ai-task" aria-labelledby="ai-task-title">
+  <p class="eyebrow">{{ m.icon('sparkles', 16) }} Working with the AI model</p>
+  <h1 id="ai-task-title">{{ task.label }}…</h1>
+  <div class="ai-task-bar" role="progressbar" aria-label="{{ task.label }}" aria-valuetext="Running for {{ seconds }} second{{ 's' if seconds != 1 }}"><span></span></div>
+  <p role="status">{{ m.icon('clock', 16) }} Running for {{ seconds }} second{{ 's' if seconds != 1 }}. The model can take up to 90 seconds, longer if its first answer needs a correction.</p>
+  <p class="hint">This page checks again every {{ refresh }} seconds and shows the result when it's ready. You can also reload it, or leave it: the request keeps running, and your saved work changes only if the result passes every check.</p>
+  <p><a class="btn-secondary" href="{{ task.back }}">Back to the job</a></p>
+</section>
+{% endblock %}

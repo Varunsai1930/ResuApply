@@ -53,6 +53,9 @@
     {% if not candidate %}
     <p class="notice">Requirement checks and tailoring will use your profile. <a href="/profile/edit">Create your profile</a> first.</p>
     {% endif %}
+    {% for task in ai_running %}
+    <p class="flash ai-running" role="status">{% set seconds = task.elapsed_seconds() %}{{ task.label }} with AI, running for {{ seconds }} second{{ 's' if seconds != 1 }}. <a href="{{ task.page }}">See its progress</a></p>
+    {% endfor %}
 
     <section class="card step-card" aria-labelledby="step-heading">
       <div class="step-card-text">

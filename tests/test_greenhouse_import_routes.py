@@ -183,6 +183,7 @@ def test_an_existing_database_gains_the_import_column_and_questions_keep_their_s
         job_service.create(session, job_service.clean_input(**DEMO_JOB))
     with engine.begin() as conn:
         conn.execute(text("ALTER TABLE jobs DROP COLUMN posting_import"))
+        conn.execute(text("DROP TABLE alembic_version"))  # made before migrations
     init_db(engine)
     assert "posting_import" in {c["name"] for c in inspect(engine).get_columns("jobs")}
     with engine.connect() as conn:

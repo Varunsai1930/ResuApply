@@ -68,6 +68,7 @@ def test_additive_layout_upgrade_preserves_existing_package_and_is_idempotent(tm
             before = conn.execute(text("SELECT accepted_package FROM applications")).scalar_one()
             # Emulate a pre-layout database without touching the accepted package.
             conn.execute(text("ALTER TABLE applications DROP COLUMN resume_layout"))
+            conn.execute(text("DROP TABLE alembic_version"))  # made before migrations
         init_db(engine)
         init_db(engine)
         column = next(c for c in inspect(engine).get_columns("applications") if c["name"] == "resume_layout")

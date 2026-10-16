@@ -1216,3 +1216,16 @@ details.card:not(.job-description)[open] summary::after { content: " −"; }
 }
 @keyframes enter-fade { from { opacity: 0; } }
 @keyframes enter-rise { from { opacity: 0; transform: translateY(12px); } }
+
+/* AI request progress page: an indeterminate bar, still for people who prefer less motion. */
+.ai-task { max-width: 720px; }
+.ai-task h1 { margin-bottom: 16px; }
+.ai-task .hint { margin-bottom: 20px; }
+.ai-task p[role="status"] { display: flex; align-items: center; gap: 8px; }
+.ai-task-bar { position: relative; height: 6px; margin: 0 0 18px; overflow: hidden; border-radius: 3px; background: var(--accent-wash); }
+.ai-task-bar span { position: absolute; inset: 0 auto 0 0; width: 35%; border-radius: 3px; background: var(--progress); animation: ai-task-slide 1.6s ease-in-out infinite; }
+@keyframes ai-task-slide { from { left: -35%; } to { left: 100%; } }
+@media (prefers-reduced-motion: reduce) { .ai-task-bar span { animation: none; width: 100%; opacity: 0.5; } }
+/* A request still running for this job, shown in the workspace. */
+.flash.ai-running { background: var(--accent-wash); border-color: var(--accent-line); }
+.flash.ai-running::before { background: var(--accent); }

@@ -9,7 +9,7 @@ from fastapi.responses import RedirectResponse
 from sqlalchemy.orm import Session
 
 from ..ai import cover_letter as letter_ai
-from ..ai import operations
+from ..ai import operations, tasks
 from ..ai.client import AIError, OpenRouterClient
 from ..db import get_ai_client, get_session
 from ..models import Job
@@ -52,13 +52,21 @@ def _act(request: Request, session: Session, job: Job, action, msg: str, status_
 def draft(request: Request, job_id: int, force: int = Form(0), session: Session = Depends(get_session),
           client: OpenRouterClient = Depends(get_ai_client)):
     job = _job_or_404(session, job_id)
-    candidate = get_candidate(session)
-    if candidate is None:
+    if get_candidate(session) is None:
         return _failed(request, session, job, NO_PROFILE, 400)
-    if not request.app.state.settings.ai_configured:
+    settings = request.app.state.settings
+    if not settings.ai_configured:
         return _failed(request, session, job, "AI is off. Write the cover letter yourself.", 400)
+
+    work = tasks.with_profile(lambda worker_session, worker_job, candidate: letter_ai.draft_cover_letter(
+        worker_session, client, settings, worker_job, candidate, force=bool(force)))
+    task = tasks.start(request, letter_ai.DRAFT_COVER_LETTER, job, work, _drafted)
+    return tasks.respond(request, session, job, task)
+
+
+def _drafted(request: Request, session: Session, job: Job, task: tasks.Task):
     try:
-        letter_ai.draft_cover_letter(session, client, request.app.state.settings, job, candidate, force=bool(force))
+        task.result()
     except operations.ApprovalNeeded:
         return RedirectResponse(f"/profile/sharing?next={quote(f'/jobs/{job.id}?step=questions#cover-letter')}",
                                 status_code=303)

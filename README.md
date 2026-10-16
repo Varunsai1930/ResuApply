@@ -108,7 +108,9 @@ Every setting is optional and is read from the environment or `.env`:
 
 The bind address is always `127.0.0.1` and cannot be configured. The app also rejects requests whose `Host` isn't `127.0.0.1` or `localhost`, and form posts coming from other websites.
 
-Tables are created on startup, and columns added by a later milestone are added to an existing database automatically (nothing is renamed or dropped). To start over, stop the app and delete `data/resuapply.db`. The database, `.env`, uploads and generated files are git-ignored.
+The database schema is managed by [Alembic](https://alembic.sqlalchemy.org) migrations in `app/migrations`, and every start runs `upgrade head`: a new database gets every table, and an existing one gets the migrations it hasn't had yet, all in one transaction, so a failed upgrade changes nothing. Before upgrading a database that already has data, the app saves a copy next to it as `resuapply.db.before-<revision>.bak`. A database made before migrations were introduced is adopted by the first (baseline) migration, which adds any tables, columns and indexes it lacks, such as the resume layout and cover letter columns, and changes nothing that is already there. To start over, stop the app and delete `data/resuapply.db`. The database, its backup copies, `.env`, uploads and generated files are git-ignored.
+
+When a change to `app/models.py` needs a schema change, add a migration with `.venv/bin/alembic revision --autogenerate -m "What changed"`, review the generated file (it uses plain types such as `sa.JSON`, never the app's models), and run the tests: `tests/test_migrations.py` fails while the models and the migrations disagree.
 
 ### Optional OCR for scanned resumes
 
@@ -150,6 +152,7 @@ On Windows, use `.\.venv\Scripts\python.exe -m pip install -r requirements-autof
 The model is a setting, and the app never switches it on its own. Free models can change availability, limits or tool-calling support at any time; if the configured one stops working, the app reports the provider's error, keeps your work and the manual workflow keeps going. Changing `OPENROUTER_MODEL` is always your decision.
 
 - Each request offers one tool that only returns data in a fixed schema. The result is validated locally; malformed or invalid output gets one corrective retry, then an error is shown. Requests time out after 90 seconds.
+- **Requests run in the background.** Choosing an AI action starts the request and opens its progress page, which reloads itself every 2 seconds and shows the result when it's ready; it needs no JavaScript, and reloading it works too. A cached result or a refusal shows at once. You can keep working meanwhile: the job's workspace shows a request that is still running, with a link back to its progress. Only one request per action and job runs at a time, so asking again shows the running one. The freshness checks run again before the result is saved, so an edit you make meanwhile is never overwritten: the request is refused and nothing is saved. Requests live in the app's memory; if the app stops, a running request ends without saving anything. `GET /jobs/<job>/ai/<request>/status` returns the same progress as JSON.
 - Validated results are stored and reused while the inputs, model and prompt revision are unchanged. The app records the model, prompt revision, input revisions, time and token usage. Logs never contain your key, prompts, answers or any profile or job text.
 - **Extracting requirements** sends only the job's title, company, location and description.
 - **Suggesting evidence** sends a reduced copy of your career history: never your contact details, links, work authorization, preferences, availability, GPA, job locations or skills you said you lack. With a `free` model you see an editable preview at **Profile → What the AI model may see** and approve it first; you can leave out or reword any item. The approval is reused until a profile change alters what would be sent. Redaction is best effort.
@@ -168,6 +171,8 @@ To try the AI screens without a key, run the app against a simple local stand-in
 ```bash
 RESUAPPLY_DATA_DIR=data/demo .venv/bin/python -m scripts.fake_ai_server
 ```
+
+Add `--delay 8` to make each of its answers take 8 seconds, to see a request's progress page.
 
 ### Prepare and export a resume
 
@@ -238,12 +243,14 @@ Profile saves reject overlapping edits against an older revision. Dates support 
 
 ```text
 app/
-  main.py         FastAPI app factory (startup creates tables)
+  main.py         FastAPI app factory (startup migrates the database)
   config.py       Settings from the environment / .env
-  db.py           SQLAlchemy engine, sessions, Pydantic-validated JSON columns
-  models.py       candidates, jobs, applications, answer_bank
+  db.py           SQLAlchemy engine, sessions, Pydantic-validated JSON columns, startup migration
+  models.py       candidates, jobs, applications, answer_bank, ai_runs, outbound_approvals
+  migrations/     Alembic environment and migrations (versions/0001_baseline.py is the starting schema)
   schemas/        Pydantic shapes for profile, resume and tracking JSON
-  ai/             OpenRouter client, prompts, requirements, evidence, resume tailoring and answer drafts
+  ai/             OpenRouter client, prompts, requirements, evidence, resume tailoring, answer and cover letter
+                  drafts, and the background runner for AI requests (tasks.py)
   services/       Rules ported from ResuSkill (profile, requirements, checklist, claims),
                   outbound context, resume proposals/acceptance, questions and answers, package approval and snapshots,
                   form parsing, jobs, tracking, resume import, Greenhouse job import and autofill
@@ -263,7 +270,7 @@ tests/            pytest: rules, mocked AI, HTTP integration and restart persist
 
 ## Stack
 
-Python 3.12 · FastAPI · Jinja2 · SQLAlchemy · SQLite · Pydantic · HTTPX → OpenRouter (model configurable) and Greenhouse's public job board (job import, on request) · pypdf and python-docx for import/export · pypdfium2, Pillow and optional Tesseract for local OCR. Optional Playwright (pinned in `requirements-autofill.txt`) for Greenhouse autofill.
+Python 3.12 · FastAPI · Jinja2 · SQLAlchemy · SQLite with Alembic migrations · Pydantic · HTTPX → OpenRouter (model configurable) and Greenhouse's public job board (job import, on request) · pypdf and python-docx for import/export · pypdfium2, Pillow and optional Tesseract for local OCR. Optional Playwright (pinned in `requirements-autofill.txt`) for Greenhouse autofill.
 
 ## License
 
