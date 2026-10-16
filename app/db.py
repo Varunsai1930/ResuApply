@@ -163,7 +163,8 @@ def head_revision() -> str:
 def init_db(engine: Engine) -> None:
     """Bring the database to the current schema by running Alembic's ``upgrade head``.
 
-    A new database gets every table. A database from before migrations (no version table) is
+    A new, empty database gets every table from the models and is stamped with the latest revision
+    (the migrations are checked to build the same schema). A database from before migrations (no version table) is
     adopted by the baseline revision, which adds what the older additive upgrade would have
     added and changes nothing that is already there. Before migrating a database that already
     has tables, a copy is kept next to it. Runs in one transaction, so a failure changes nothing.
@@ -183,8 +184,14 @@ def init_db(engine: Engine) -> None:
     migrator = migration_engine(engine.url.render_as_string(hide_password=False))
     try:
         with migrator.connect() as connection:
-            if existing:
-                _backup(connection, Path(database), current, head)
+            if not existing:
+                # An empty database gets the models' tables and is marked as at the latest revision.
+                # tests/test_migrations.py checks that the migrations build exactly these tables.
+                with connection.begin():
+                    Base.metadata.create_all(connection)
+                    command.stamp(_alembic_config(connection), "head")
+                return
+            _backup(connection, Path(database), current, head)
             with connection.begin():
                 broken = _broken_references(connection)
                 command.upgrade(_alembic_config(connection), "head")

@@ -97,6 +97,20 @@ def test_a_new_database_is_created_at_the_latest_revision_and_matches_the_models
     assert not list(settings.resolved_data_dir.glob("*.bak"))
 
 
+def test_the_migrations_alone_build_exactly_the_models_schema(settings):
+    """New databases are created from the models and stamped, so check the migrations build the same."""
+    settings.resolved_data_dir.mkdir(parents=True)
+    migrator = db_module.migration_engine(settings.database_url)
+    try:
+        with migrator.connect() as conn:
+            with conn.begin():
+                command.upgrade(db_module._alembic_config(conn), "head")
+            assert MigrationContext.configure(conn).get_current_revision() == head_revision()
+            assert compare_metadata(MigrationContext.configure(conn, opts={"compare_type": True}), Base.metadata) == []
+    finally:
+        migrator.dispose()
+
+
 def test_an_old_database_is_adopted_on_startup_and_keeps_its_data(settings):
     kept = _old_database(settings)
     with _start(settings) as client:
