@@ -200,13 +200,16 @@ def _broken_references(connection) -> int:
 def _backup(connection, database: Path, current: str | None, head: str) -> Path:
     """Copy the database before an upgrade, as ``resuapply.db.before-<revision>.bak``.
 
-    An existing copy for the same upgrade is kept: it is the older one, made before any attempt.
+    An existing copy is never overwritten or trusted to hold this database: it may be from another
+    one (a restored or copied-in file). The new copy then gets the time in its name as well.
     """
     target = database.with_name(f"{database.name}.before-{head}.bak")
-    if not target.exists():
-        source = connection.connection.driver_connection
-        with closing(sqlite3.connect(target)) as copy:
-            source.backup(copy)
+    if target.exists():
+        stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S%fZ")
+        target = database.with_name(f"{database.name}.before-{head}.{stamp}.bak")
+    source = connection.connection.driver_connection
+    with closing(sqlite3.connect(target)) as copy:
+        source.backup(copy)
     logger.info("database upgrade from=%s to=%s backup=%s", current or "unversioned", head, target.name)
     return target
 

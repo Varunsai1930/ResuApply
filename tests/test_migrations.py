@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import copy
 import sqlite3
+from contextlib import closing
 
 import pytest
 from alembic import command
@@ -217,3 +218,16 @@ def test_the_baseline_cannot_be_downgraded(settings):
         assert "applications" in inspect(engine).get_table_names()
     finally:
         engine.dispose()
+
+
+def test_an_existing_backup_from_another_database_is_kept_and_this_one_is_copied_too(settings):
+    kept = _old_database(settings)
+    stale = settings.database_path.with_name(f"resuapply.db.before-{head_revision()}.bak")
+    stale.write_bytes(b"a copy of some other database")
+    with _start(settings) as client:
+        assert _version(client.app.state.engine) == head_revision()
+    assert stale.read_bytes() == b"a copy of some other database"  # never overwritten
+    fresh = [p for p in settings.resolved_data_dir.glob("*.bak") if p != stale]
+    assert len(fresh) == 1 and fresh[0].name.startswith(f"resuapply.db.before-{head_revision()}.")
+    with closing(sqlite3.connect(fresh[0])) as copy_db:
+        assert copy_db.execute("SELECT accepted_package FROM applications").fetchone()[0] == kept["package"]
