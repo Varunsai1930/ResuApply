@@ -21,6 +21,15 @@
   <a class="btn-secondary" href="/jobs/{{ job.id }}/snapshots/{{ snapshot.id }}/resume.docx">Download Word (.docx)</a>
 </section>
 
+{% if snapshot.cover_letter is not none %}
+<section class="card" aria-labelledby="snap-letter-title">
+  <h2 id="snap-letter-title">Cover letter as submitted</h2>
+  <div class="answer-text">{{ snapshot.cover_letter }}</div>
+  <a class="btn-secondary" href="/jobs/{{ job.id }}/snapshots/{{ snapshot.id }}/cover-letter">Open the cover letter as submitted</a>
+  <a class="btn-secondary" href="/jobs/{{ job.id }}/snapshots/{{ snapshot.id }}/cover-letter.docx">Download Word (.docx)</a>
+</section>
+
+{% endif %}
 <section class="card" aria-labelledby="snap-answers-title">
   <h2 id="snap-answers-title">Answers as submitted</h2>
   {% if snapshot.answers %}

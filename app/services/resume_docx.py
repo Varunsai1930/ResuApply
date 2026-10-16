@@ -235,17 +235,15 @@ def _entry(document, heading: str, metadata: list[tuple[str, bool]], bullets: li
         _bullet(document, text, num_id)
 
 
-def export_resume(rendered: dict, layout: str = "classic") -> bytes:
-    """Render trusted ``resume.render_context`` facts without expanding selection."""
+def _layout_key(layout: str) -> str:
     try:
-        key = get_layout(layout).key
+        return get_layout(layout).key
     except (TypeError, ValueError) as exc:
         raise ResumeDocxError("Choose a valid resume layout before exporting.") from exc
-    rendered = _mapping(rendered, "content")
-    contact = _mapping(rendered.get("contact"), "contact")
-    document = Document()
-    _configure(document, key)
-    num_id = _bullet_numbering(document)
+
+
+def _header(document, contact: dict, key: str) -> None:
+    """The name, contact line and links, as the printed resume and cover letter show them."""
     title_paragraph = document.add_paragraph(_field(contact, "name"), "Title")
     _remove_borders(title_paragraph._p.get_or_add_pPr())
     details = [_field(contact, name) for name in ("email", "phone", "location")]
@@ -258,6 +256,42 @@ def export_resume(rendered: dict, layout: str = "classic") -> bytes:
             _link(document, value)
     if key == "modern" and len(document.paragraphs) > 1:
         _rule(document.paragraphs[-1]._p.get_or_add_pPr(), "1F4E79", size="12")
+
+
+def _saved(document) -> bytes:
+    result = BytesIO()
+    document.save(result)
+    return result.getvalue()
+
+
+def export_cover_letter(letter: dict, layout: str = "classic") -> bytes:
+    """A ``cover_letter.document`` as an editable Word letter in the resume's layout."""
+    key = _layout_key(layout)
+    letter = _mapping(letter, "cover letter")
+    document = Document()
+    _configure(document, key)
+    _header(document, _mapping(letter.get("contact"), "contact"), key)
+    greeting = document.add_paragraph(_text(letter.get("greeting"), "greeting"))
+    greeting.paragraph_format.space_before = Pt(18)
+    for value in _items(letter.get("paragraphs"), "paragraphs"):
+        paragraph = document.add_paragraph(_text(value, "paragraph"))
+        paragraph.paragraph_format.space_before = Pt(6)
+    closing = document.add_paragraph(_text(letter.get("closing"), "closing"))
+    closing.paragraph_format.space_before = Pt(12)
+    closing.paragraph_format.keep_with_next = True
+    document.add_paragraph(_text(letter.get("name"), "name"))
+    return _saved(document)
+
+
+def export_resume(rendered: dict, layout: str = "classic") -> bytes:
+    """Render trusted ``resume.render_context`` facts without expanding selection."""
+    key = _layout_key(layout)
+    rendered = _mapping(rendered, "content")
+    contact = _mapping(rendered.get("contact"), "contact")
+    document = Document()
+    _configure(document, key)
+    num_id = _bullet_numbering(document)
+    _header(document, contact, key)
 
     summary = rendered.get("summary")
     if summary is not None:
@@ -313,6 +347,4 @@ def export_resume(rendered: dict, layout: str = "classic") -> bytes:
         if date:
             value += f" ({date})"
         _bullet(document, value, num_id)
-    result = BytesIO()
-    document.save(result)
-    return result.getvalue()
+    return _saved(document)

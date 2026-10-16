@@ -12,7 +12,7 @@ Create profile → Add job → Review requirements
 → Save resume as PDF → Submit manually → Track outcome
 ```
 
-**V2 adds PDF/DOCX profile import with optional OCR, advanced resume layouts, DOCX resume export, Greenhouse job import and limited Greenhouse autofill.** The user always clicks the employer's Submit button. OCR, layouts and Word export were added to the scope at the user's request.
+**V2 adds PDF/DOCX profile import with optional OCR, advanced resume layouts, DOCX resume export, Greenhouse job import and limited Greenhouse autofill.** The user always clicks the employer's Submit button. OCR, layouts, Word export and optional source-checked cover letters were added to the scope at the user's request.
 
 Matching is checklist-based throughout. These stay out of both releases: numeric scores, automatic job discovery, other application platforms, email tracking and cloud accounts.
 

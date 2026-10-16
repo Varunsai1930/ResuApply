@@ -6,7 +6,7 @@
     <h2 id="review-title">Review</h2>
     {{ m.review_badge(review) }}
   </div>
-  <p class="hint">Approving records that the accepted resume and the questions entered here are ready. It does not mark the job Applied, and it does not cover any other questions on the employer's form. You submit the application yourself on the employer's site.</p>
+  <p class="hint">Approving records that the accepted resume, the questions entered here and the cover letter, if you added one, are ready. It does not mark the job Applied, and it does not cover any other questions on the employer's form. You submit the application yourself on the employer's site.</p>
 
   {% if package_error %}
   <div class="notice warn" role="alert" tabindex="-1" data-focus>
@@ -16,7 +16,7 @@
   {% endif %}
 
   {% if review == ReviewState.APPROVED %}
-    <p><strong>Package approved</strong>{% if approval %} on {{ approval.approved_at | local_datetime }} (profile revision {{ approval.profile_revision }}, job revision {{ approval.job_revision }}){% endif %}. Any change to the resume, questions or answers clears the approval.</p>
+    <p><strong>Package approved</strong>{% if approval %} on {{ approval.approved_at | local_datetime }} (profile revision {{ approval.profile_revision }}, job revision {{ approval.job_revision }}){% endif %}. Any change to the resume, questions, answers or cover letter clears the approval.</p>
     {% if approval and approval.warnings %}
       <p class="sub-label">Noted when you approved</p>
       <ul class="plain-list">{% for w in approval.warnings %}<li>{{ w }}</li>{% endfor %}</ul>
@@ -67,6 +67,15 @@
       · <a href="/jobs/{{ job.id }}?step=resume#resume">Prepare one in step 2</a>
     {% endif %}
   </p>
+  <p>
+    {% if application.cover_letter %}
+      {{ m.status_line(Meaning(Status.NEEDS_YOU, "the AI-drafted cover letter is no longer supported by your profile") if cover_letter.unsupported else Meaning(Status.DONE, "Cover letter included")) }}
+      · <a href="/jobs/{{ job.id }}/cover-letter/print">Open the cover letter to print</a>
+    {% else %}
+      {{ m.status_line(Meaning(Status.INFO, "No cover letter (optional)")) }}
+      · <a href="/jobs/{{ job.id }}?step=questions#cover-letter">Add one in step 3</a>
+    {% endif %}
+  </p>
   {% if question_rows %}
   <div class="table-scroll" tabindex="0">
     <table class="approving">
@@ -85,6 +94,6 @@
     </table>
   </div>
   {% else %}
-    <p class="hint">No questions added. Approval covers the resume only; add any questions the employer's form asks in <a href="/jobs/{{ job.id }}?step=questions#questions">step 3</a>.</p>
+    <p class="hint">No questions added. Approval covers the resume{% if application.cover_letter %} and cover letter{% endif %} only; add any questions the employer's form asks in <a href="/jobs/{{ job.id }}?step=questions#questions">step 3</a>.</p>
   {% endif %}
 </section>

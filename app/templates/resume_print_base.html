@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>{{ name }} · Resume</title>
+  <title>{{ name }} · {% block title_suffix %}Resume{% endblock %}</title>
   <link rel="icon" href="{{ asset('favicon.svg') }}" type="image/svg+xml">
   <link rel="stylesheet" href="{{ asset('resume.css') }}">
   <script src="{{ asset('resume.js') }}" defer></script>

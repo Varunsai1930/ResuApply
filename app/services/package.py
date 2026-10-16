@@ -3,7 +3,8 @@
 Ported from ResuSkill's ``resuskill_core.package`` (``resolved``, ``check``, ``approve``,
 ``review_state``) and ``track`` (``snapshot``), adapted to the database.
 
-- The *package* is the accepted resume plus every question with its resolved answer.
+- The *package* is the accepted resume plus every question with its resolved answer, and the
+  accepted cover letter when there is one.
   ``resolved_package`` is its JSON view; its hash is what approval records.
 - Review state is computed: Draft (not approved, or content edited since), Stale (the profile
   or job changed since approval) or Approved. Approval never changes the tracking status.
@@ -31,6 +32,7 @@ from ..schemas.package import Approval, SubmittedSnapshot
 from ..schemas.tracking import ReviewState, TrackingStatus
 from ..templating import templates
 from . import answers as answer_service
+from . import cover_letter as letter_service
 from . import questions as q_rules
 from . import resume as resume_service
 from . import resume_layouts, tracking, transactions
@@ -103,10 +105,14 @@ def resolved_package(job: Job, application: Application, candidate: Candidate | 
     Pending AI drafts are shown as missing, so storing or discarding a draft doesn't change it.
     """
     context = _resume_context(job, application, candidate)
-    return _jsonable({
+    package = {
         "resume": context,
         "questions": [_answer_entry(item) for item in _resolved_answers(job, application, candidate)],
-    })
+    }
+    # Only a package with a letter carries the key, so approvals made before cover letters keep their hash.
+    if application.cover_letter is not None:
+        package["cover_letter"] = application.cover_letter.text
+    return _jsonable(package)
 
 
 def package_token(job: Job, application: Application, candidate: Candidate | None) -> str:
@@ -179,6 +185,13 @@ def check(job: Job, application: Application, candidate: Candidate | None) -> tu
             if problems:
                 blockers.append(f'"{_short(item.question.text)}": the AI-drafted answer is no longer supported by '
                                 f"your profile ({'; '.join(problems)}). Edit it, or draft and accept it again.")
+    if candidate is not None:
+        problems = letter_service.letter_problems(job, application, candidate.profile)
+        if problems:
+            blockers.append(f"The AI-drafted cover letter is no longer supported by your profile ({'; '.join(problems)}). "
+                            "Edit it, remove it, or draft and accept a new one.")
+    if application.cover_letter_draft is not None:
+        warnings.append("A cover letter draft is waiting for your review.")
     pending = [f'"{_short(a.question.text)}"' for a in items
                if a.draft is not None and a.question.category == q_rules.OPEN and not a.skipped]
     if pending:
@@ -429,6 +442,7 @@ def record_applied(session: Session, job: Job, candidate: Candidate | None, toke
             answers=[{k: entry[k] for k in ("question", "required", "category", "label", "text")}
                      for entry in resolved_package(job, application, candidate)["questions"]],
             profile=candidate.profile.model_copy(deep=True),
+            cover_letter=application.cover_letter.text if application.cover_letter is not None else None,
         )
         # The status change is validated first; the snapshot and the status are committed together.
         tracking.apply_status(application, TrackingStatus.APPLIED.value, on=on, note=note, today=today,

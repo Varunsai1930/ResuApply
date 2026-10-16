@@ -9,8 +9,8 @@ from fastapi.responses import Response
 DOCX_TYPE = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
 
 
-def docx_response(content: bytes, name: str, company: str) -> Response:
-    title = " - ".join(part for part in (name, company, "resume") if part)
+def docx_response(content: bytes, name: str, company: str, kind: str = "resume") -> Response:
+    title = " - ".join(part for part in (name, company, kind) if part)
     title = re.sub(r'[\\/<>:"|?*\x00-\x1f\x7f]', " ", title).strip(" .")[:160] or "resume"
     filename = title + ".docx"
     fallback = unicodedata.normalize("NFKD", title).encode("ascii", "ignore").decode()

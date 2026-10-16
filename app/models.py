@@ -16,7 +16,8 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from .db import Base, PydanticJSON, UTCDateTime, utcnow
 from .schemas.package import (
-    Answer, AnswerDraft, Approval, Question, SubmittedSnapshot, stored_approval, stored_snapshots,
+    Answer, AnswerDraft, Approval, CoverLetter, CoverLetterDraft, Question, SubmittedSnapshot, stored_approval,
+    stored_snapshots,
 )
 from .schemas.posting_import import PostingImport
 from .schemas.profile import Profile, stored_profile
@@ -101,6 +102,9 @@ class Application(Base):
     answers: Mapped[list[Answer]] = mapped_column(PydanticJSON(list[Answer]), default=list)
     # AI proposals for open questions; not answers until the user accepts them.
     answer_drafts: Mapped[list[AnswerDraft]] = mapped_column(PydanticJSON(list[AnswerDraft]), default=list, server_default="[]")
+    # The accepted cover letter is package content; its AI draft is a proposal, like answer drafts.
+    cover_letter: Mapped[CoverLetter | None] = mapped_column(PydanticJSON(CoverLetter), nullable=True)
+    cover_letter_draft: Mapped[CoverLetterDraft | None] = mapped_column(PydanticJSON(CoverLetterDraft), nullable=True)
     approval: Mapped[Approval | None] = mapped_column(PydanticJSON(Approval, read_upgrade=stored_approval), nullable=True)
     # The approval rules version (services.package.APPROVAL_RULES) an approval passed, and which
     # approval that was (services.package.approval_key). Plain columns, not part of the approval

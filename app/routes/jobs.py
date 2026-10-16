@@ -15,6 +15,7 @@ from ..schemas.tracking import TrackingStatus
 from ..services import board as board_service
 from ..services import sample as sample_service
 from ..services import checklist, greenhouse, outbound, package, question_rows, resume_layouts, tracking
+from ..services import cover_letter as cover_letter_service
 from ..services import jobs as job_service
 from ..services import workspace as guide_service
 from ..services.profile import get_candidate
@@ -101,6 +102,7 @@ FORM_STEPS = {
     "resume_error": guide_service.Step.RESUME,
     "resume_notice": guide_service.Step.RESUME,
     "question_error": guide_service.Step.QUESTIONS,
+    "cover_letter_error": guide_service.Step.QUESTIONS,
     "question_form": guide_service.Step.QUESTIONS,
     "questions_notice": guide_service.Step.QUESTIONS,
     "package_error": guide_service.Step.REVIEW,
@@ -164,6 +166,8 @@ def _render_workspace(request: Request, session: Session, job: Job, msg: str = "
             "layout_choices": resume_layouts.LAYOUTS,
             "layout_token": package.package_token(job, application, candidate),
             "resume_error": forms.get("resume_error"),
+            "cover_letter": cover_letter_service.state(job, application, candidate),
+            "cover_letter_error": forms.get("cover_letter_error"),
             "resume_notice": forms.get("resume_notice"),
             "question_rows": question_rows.rows(session, job, application, candidate) if candidate else [],
             "draft_count": question_rows.draft_count(job, application, candidate) if candidate else 0,

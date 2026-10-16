@@ -1,13 +1,5 @@
   <main class="resume-document resume-layout-{{ selected_layout|default('classic') }}" aria-label="Accepted resume">
-    <header class="resume-header">
-      <h1>{{ rendered.contact.name }}</h1>
-      <p class="resume-contact">
-        {% if rendered.contact.email %}<span>{{ rendered.contact.email }}</span>{% endif %}
-        {% if rendered.contact.phone %}<span>{{ rendered.contact.phone }}</span>{% endif %}
-        {% if rendered.contact.location %}<span>{{ rendered.contact.location }}</span>{% endif %}
-      </p>
-      {% for label, value in rendered.contact.links.items() %}{% if value %}<p class="resume-link">{{ value }}</p>{% endif %}{% endfor %}
-    </header>
+{% with contact = rendered.contact %}{% include "_document_header.html" %}{% endwith %}
     {% if rendered.summary %}<section class="resume-block"><h2>Summary</h2><p>{{ rendered.summary.text }}</p></section>{% endif %}
     {% for title, entries in [('Experience', rendered.experience), ('Projects', rendered.projects)] %}
       {% if entries %}<section class="resume-block">

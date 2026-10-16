@@ -50,6 +50,11 @@
 .resume-document ul { margin: 5px 0 0; padding-left: 18px; }
 .resume-document li { margin: 4px 0; white-space: pre-wrap; }
 
+/* A cover letter uses the resume's header and layout, with letter spacing for its body. */
+.cover-letter-document .letter-body { margin-top: 26px; }
+.cover-letter-document .letter-body p { margin: 0 0 11px; white-space: pre-line; }
+.cover-letter-document .letter-body .letter-closing { margin-top: 22px; }
+
 /* All choices keep the same content and one reading column. No external fonts are
    needed, so the print view remains useful offline and on another computer. */
 .resume-layout-modern { font-family: Calibri, "Segoe UI", Arial, sans-serif; font-size: 10.5pt; line-height: 1.45; }

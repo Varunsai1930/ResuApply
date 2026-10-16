@@ -1,0 +1,86 @@
+{# The Cover letter section of the Job Workspace (Questions step). Included with the workspace's context. #}
+{% import "macros.html" as m with context %}
+{% set state = cover_letter %}
+{% set err = cover_letter_error %}
+<section class="card" id="cover-letter" aria-labelledby="cover-letter-title">
+  <div class="section-head">
+    <h2 id="cover-letter-title">Cover letter <span class="muted">(optional)</span></h2>
+  </div>
+  <p class="hint">Write the body yourself, or review an AI draft built only from your profile. Every fact in a draft must come from the profile items it cites. Your name, contact details, greeting and sign-off are added from your profile and this job. An accepted letter is part of the package you approve.</p>
+
+  {% if err %}
+  <div class="notice warn" role="alert" tabindex="-1" data-focus>
+    <p>{{ err.message }}</p>
+    {% if err.details %}<ul>{% for d in err.details %}<li>{{ d }}</li>{% endfor %}</ul>{% endif %}
+  </div>
+  {% endif %}
+
+  {% if not candidate %}
+    <p class="notice"><a href="/profile/edit">Create your profile</a> before preparing a cover letter.</p>
+  {% else %}
+    {% if state.letter %}
+      <p class="sub-label">Your cover letter <span class="muted">({{ 'an AI draft you accepted' if state.letter.origin == 'ai_draft' else 'written by you' }}, {{ state.letter.at | local_datetime }})</span></p>
+      {% if state.unsupported %}
+        <p class="notice small">Your profile changed and no longer supports this AI-drafted letter ({{ state.unsupported | join('; ') }}). Edit it, remove it, or draft and accept a new one before approving.</p>
+      {% endif %}
+      <div class="answer-text">{{ state.letter.text }}</div>
+      {% if state.letter_cited %}
+        <details><summary>Built from these parts of your profile ({{ state.letter_cited | length }})</summary>
+          <ul class="evidence">{% for sid, text in state.letter_cited %}<li><span class="id-badge">{{ sid }}</span> <span class="evidence-text">{{ text }}</span></li>{% endfor %}</ul>
+        </details>
+      {% endif %}
+      <div class="form-actions">
+        <a class="btn-secondary" href="/jobs/{{ job.id }}/cover-letter/print">Print / save PDF</a>
+        <a class="btn-secondary" href="/jobs/{{ job.id }}/cover-letter/docx">Download Word (.docx)</a>
+        <form method="post" action="/jobs/{{ job.id }}/cover-letter/remove" class="inline-form">
+          <button type="submit" class="btn-small danger">Remove cover letter</button>
+        </form>
+      </div>
+    {% endif %}
+
+    {% if state.draft %}
+      <p class="sub-label">AI draft <span class="muted">({{ 'your letter above stays until you accept this' if state.letter else "not your letter until you accept it" }})</span></p>
+      <div class="answer-text">{{ state.draft.text }}</div>
+      {% if state.draft_cited %}<p class="hint">Built from these parts of your profile:</p>
+        <ul class="evidence">{% for sid, text in state.draft_cited %}<li><span class="id-badge">{{ sid }}</span> <span class="evidence-text">{{ text }}</span></li>{% endfor %}</ul>
+      {% endif %}
+      {% if state.draft_outdated %}<p class="hint">Drafted before your latest profile or job edit. Accepting checks it against the current profile again.</p>{% endif %}
+      <div class="form-actions">
+        <form method="post" action="/jobs/{{ job.id }}/cover-letter/draft/accept" class="inline-form">
+          <input type="hidden" name="draft_token" value="{{ state.draft_token }}">
+          <button type="submit" class="btn-small">{{ 'Accept replacement' if state.letter else 'Accept draft' }}</button>
+        </form>
+        <form method="post" action="/jobs/{{ job.id }}/cover-letter/draft/discard" class="inline-form">
+          <button type="submit" class="btn-small danger">Discard draft</button>
+        </form>
+      </div>
+    {% endif %}
+
+    {% if settings.ai_configured %}
+    <div class="ai-actions">
+      {% if sharing and not sharing.ready %}
+        <a class="btn-secondary" href="/profile/sharing?next=/jobs/{{ job.id }}%3Fstep%3Dquestions">Review what's shared, then draft a letter</a>
+      {% else %}
+        <form method="post" action="/jobs/{{ job.id }}/cover-letter/draft" class="inline-form" data-ai>
+          {% if state.draft or state.letter %}<input type="hidden" name="force" value="1">{% endif %}
+          <button type="submit" class="btn-secondary" data-busy-label="Drafting… this can take up to 90 seconds">{{ 'Draft again with AI' if state.draft or state.letter else 'Draft a cover letter with AI' }}</button>
+        </form>
+        <a class="btn-link" href="/profile/sharing?next=/jobs/{{ job.id }}%3Fstep%3Dquestions">What's shared?</a>
+      {% endif %}
+    </div>
+    {% endif %}
+
+    {% set own = err.text if (err and err.text is not none) else (state.letter.text if state.letter else '') %}
+    <details class="add-question"{% if (err and err.text is not none) or (not state.letter and not state.draft and not settings.ai_configured) %} open{% endif %}>
+      <summary>{{ 'Edit the letter yourself' if state.letter else 'Write the letter yourself' }}</summary>
+      <form method="post" action="/jobs/{{ job.id }}/cover-letter" class="stack" data-guard>
+        <div class="field">
+          <label for="cover-letter-text">Letter body</label>
+          <textarea id="cover-letter-text" name="text" rows="12" aria-describedby="cover-letter-hint"{% if err and err.text is not none %} class="invalid" aria-invalid="true"{% endif %}>{{ m.textarea_value(own) }}</textarea>
+          <small id="cover-letter-hint" class="hint">Only the paragraphs; leave a blank line between them. Text you write is yours and isn't checked against the profile, so check it yourself.</small>
+        </div>
+        <div><button type="submit" class="btn-secondary">Save my letter</button></div>
+      </form>
+    </details>
+  {% endif %}
+</section>

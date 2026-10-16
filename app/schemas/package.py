@@ -71,6 +71,32 @@ class AnswerDraft(_Model):
     created_at: datetime
 
 
+class CoverLetter(_Model):
+    """The accepted cover letter body: an accepted AI draft (with its sources) or the user's own text.
+
+    Only the body is stored. The greeting, contact header and sign-off come from the profile and
+    the job when the letter is shown, so they can't drift from the facts.
+    """
+
+    text: str
+    origin: Literal["ai_draft", "user"]
+    sources: list[str] = Field(default_factory=list)  # profile source IDs backing an accepted AI draft
+    at: datetime
+
+
+class CoverLetterDraft(_Model):
+    """An AI proposal for the cover letter body; not the letter until the user accepts it."""
+
+    text: str
+    sources: list[str] = Field(min_length=1)
+    model: str
+    prompt_revision: str
+    outbound_hash: str | None = None
+    profile_revision: int
+    job_revision: int
+    created_at: datetime
+
+
 class Approval(_Model):
     content_hash: str  # hash of the resolved package (resume + questions + answers)
     approved_at: datetime
@@ -146,3 +172,6 @@ class SubmittedSnapshot(_Model):
     resume_html: str  # the rendered A4 resume document, exactly as it printed
     answers: list[dict[str, Any]]  # question, required, category, label, text
     profile: Profile
+    # The accepted cover letter body. Left out of the stored JSON when there is none, so snapshots
+    # without a letter keep the shape earlier versions of the app read.
+    cover_letter: str | None = Field(default=None, exclude_if=lambda value: value is None)

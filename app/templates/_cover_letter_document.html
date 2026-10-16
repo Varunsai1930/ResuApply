@@ -1,0 +1,8 @@
+  <main class="resume-document cover-letter-document resume-layout-{{ selected_layout|default('classic') }}" aria-label="Cover letter">
+{% with contact = letter.contact %}{% include "_document_header.html" %}{% endwith %}
+    <div class="letter-body">
+      <p>{{ letter.greeting }}</p>
+      {% for paragraph in letter.paragraphs %}<p>{{ paragraph }}</p>
+      {% endfor %}<p class="letter-closing">{{ letter.closing }}<br>{{ letter.name }}</p>
+    </div>
+  </main>

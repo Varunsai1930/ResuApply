@@ -8,6 +8,7 @@ Nothing leaves your machine. The stand-in is deliberately simple and not a model
 - suggest_evidence suggests bullets that share a longer word with the requirement.
 - tailor_resume selects the shared entries and keeps their original bullet text.
 - return_answers drafts each open question by quoting the first shared bullet that fits its limit.
+- return_cover_letter names the role, then quotes the shared summary and the first two bullets.
 Use a separate data folder (RESUAPPLY_DATA_DIR) if you don't want test data in data/.
 """
 
@@ -85,12 +86,22 @@ def _answer(user: str) -> dict:
     return {"answers": answers}
 
 
+def _letter(user: str) -> dict:
+    posting = json.loads(user.split("<job_posting>", 1)[1].split("</job_posting>", 1)[0])
+    context = json.loads(user.split("<candidate_content>", 1)[1].split("</candidate_content>", 1)[0])
+    bullets = [b for s in ("experience", "projects") for e in context[s] for b in e["bullets"]][:2]
+    quoted = ([("summary", context["summary"]["text"])] if context.get("summary") else []) + \
+        [(b["id"], b["text"]) for b in bullets]
+    opening = f"I am applying for the {posting['title']} role at {posting['company']}."
+    return {"text": "\n\n".join([opening, *(text for _, text in quoted)]), "sources": [i for i, _ in quoted]}
+
+
 def _handle(request: httpx.Request) -> httpx.Response:
     body = json.loads(request.content)
     tool = body["tools"][0]["function"]["name"]
     user = body["messages"][1]["content"]
     handlers = {"return_requirements": _parse_job, "return_evidence_suggestions": _suggest, "return_resume": _tailor,
-                "return_answers": _answer}
+                "return_answers": _answer, "return_cover_letter": _letter}
     args = handlers[tool](user)
     return httpx.Response(200, json={"choices": [{"message": {"tool_calls": [
         {"id": "fake", "type": "function", "function": {"name": tool, "arguments": json.dumps(args)}}]}}],

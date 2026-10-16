@@ -1,0 +1,9 @@
+{% extends "resume_print_base.html" %}
+{% set name = letter.name %}
+{% block title_suffix %}Cover letter{% endblock %}
+{% block back_href %}{{ back_href }}{% endblock %}
+{% block back_label %}{{ back_label }}{% endblock %}
+{% block heading %}{{ heading }}{% endblock %}
+{% block note %}{{ note }}{% endblock %}
+{% block download_extra %}<a class="resume-print-download" href="{{ docx_href }}">Download Word (.docx)</a>{% endblock %}
+{% block document %}{% include "_cover_letter_document.html" %}{% endblock %}

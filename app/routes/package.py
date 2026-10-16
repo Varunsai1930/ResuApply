@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 
 from ..db import get_session
 from ..models import Job
+from ..services import cover_letter as letter_service
 from ..services import package, resume_docx, resume_layouts
 from ..services.profile import get_candidate
 from ..templating import templates
@@ -62,3 +63,41 @@ def snapshot_docx(job_id: int, snapshot_id: int, session: Session = Depends(get_
     except (ValueError, resume_docx.ResumeDocxError) as exc:
         raise HTTPException(422, "This saved resume cannot be exported as a Word document.") from exc
     return docx_response(content, snapshot.resume["contact"]["name"], snapshot.job.get("company", ""))
+
+
+def _snapshot_letter(job: Job, snapshot_id: int):
+    """A submitted snapshot's frozen cover letter, ready to print or export, and the snapshot's layout."""
+    snapshot = _snapshot_or_404(job, snapshot_id)
+    if snapshot.cover_letter is None:
+        raise HTTPException(404, "This submitted package has no cover letter.")
+    try:
+        layout = resume_layouts.get_layout(snapshot.resume.get("_layout", "classic")).key
+        contact = snapshot.resume["contact"]
+    except (ValueError, KeyError, TypeError, AttributeError) as exc:
+        raise HTTPException(422, "This saved cover letter cannot be shown.") from exc
+    return snapshot, letter_service.document(contact, snapshot.job.get("company", ""), snapshot.cover_letter), layout
+
+
+@router.get("/snapshots/{snapshot_id}/cover-letter")
+def snapshot_cover_letter(request: Request, job_id: int, snapshot_id: int, session: Session = Depends(get_session)):
+    job = _job_or_404(session, job_id)
+    snapshot, letter, layout = _snapshot_letter(job, snapshot_id)
+    return templates.TemplateResponse(request, "cover_letter_print.html", {
+        "job": job, "letter": letter, "selected_layout": layout,
+        "back_href": f"/jobs/{job.id}/snapshots/{snapshot.id}", "back_label": "← Submitted package",
+        "heading": "Cover letter as submitted",
+        "note": f"Frozen when you recorded Applied on {snapshot.submitted_on.isoformat()}. Choose Print, then Save "
+                "as PDF. Use A4 paper and disable the browser's headers and footers.",
+        "docx_href": f"/jobs/{job.id}/snapshots/{snapshot.id}/cover-letter.docx",
+    })
+
+
+@router.get("/snapshots/{snapshot_id}/cover-letter.docx")
+def snapshot_cover_letter_docx(job_id: int, snapshot_id: int, session: Session = Depends(get_session)):
+    job = _job_or_404(session, job_id)
+    snapshot, letter, layout = _snapshot_letter(job, snapshot_id)
+    try:
+        content = resume_docx.export_cover_letter(letter, layout=layout)
+    except resume_docx.ResumeDocxError as exc:
+        raise HTTPException(422, "This saved cover letter cannot be exported as a Word document.") from exc
+    return docx_response(content, letter["name"], snapshot.job.get("company", ""), kind="cover letter")

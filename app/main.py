@@ -20,7 +20,7 @@ from . import __version__
 from .config import ALLOWED_HOSTS, Settings, get_settings
 from .ai.client import OpenRouterClient
 from .db import init_db, make_engine, make_session_factory
-from .routes import answers, jobs, package, profile, questions, requirements, resume, sharing, welcome
+from .routes import answers, cover_letter, jobs, package, profile, questions, requirements, resume, sharing, welcome
 from .input_cleaning import ControlCharacterMiddleware
 from .security import HeadAsGetMiddleware, NoFramingMiddleware, SameOriginMiddleware
 from .services.answers import upgrade_stored_questions
@@ -72,6 +72,7 @@ def create_app(settings: Settings | None = None, ai_transport: httpx.AsyncBaseTr
     app.include_router(requirements.router)
     app.include_router(resume.router)
     app.include_router(questions.router)
+    app.include_router(cover_letter.router)
     app.include_router(package.router)
     app.include_router(answers.router)
     app.include_router(welcome.router)
