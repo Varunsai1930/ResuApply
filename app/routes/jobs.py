@@ -185,7 +185,7 @@ def _render_workspace(request: Request, session: Session, job: Job, msg: str = "
             "package_error": forms.get("package_error"),
             "package_token": package.package_token(job, application, candidate),
             "snapshots": list(reversed(application.submitted_snapshots)),
-            "autofill": autofill_service.readiness(job, application, candidate),
+            "autofill": autofill_service.readiness(job, application, candidate, state=review),
             "autofill_run": request.app.state.autofill.for_job(job.id),
             "autofill_other": request.app.state.autofill.run,
             "autofill_error": forms.get("autofill_error"),

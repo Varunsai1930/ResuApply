@@ -119,9 +119,12 @@ class Readiness:
         return not self.problems
 
 
-def readiness(job: Job, application: Application, candidate: Candidate | None) -> Readiness:
-    approved = package.review_state(job, application, candidate) is ReviewState.APPROVED
-    current = resume_attachment.current(job, application, candidate)
+def readiness(job: Job, application: Application, candidate: Candidate | None,
+              state: ReviewState | None = None) -> Readiness:
+    """What autofill still needs. ``state`` is the package's review state when the caller already has it."""
+    state = state or package.review_state(job, application, candidate)
+    approved = state is ReviewState.APPROVED
+    current = resume_attachment.current(job, application, candidate, state=state)
     return Readiness(
         installed=installed(),
         posting_url=job.url if posting_ref(job.url) is not None else None,
@@ -131,8 +134,12 @@ def readiness(job: Job, application: Application, candidate: Candidate | None) -
     )
 
 
-def fill_data(job: Job, application: Application, candidate: Candidate | None) -> FillData:
-    """The approved package's contact details, resolved answers and attached PDF, as autofill may use them."""
+def fill_data(job: Job, application: Application, candidate: Candidate | None,
+              attachment: object | None = None) -> FillData:
+    """The approved package's contact details, resolved answers and attached PDF, as autofill may use them.
+
+    ``attachment`` is the current attachment when the caller already looked it up.
+    """
     resolved = package.resolved_package(job, application, candidate)
     contact = (resolved.get("resume") or {}).get("contact") or {}
     links = contact.get("links") or {}
@@ -140,7 +147,7 @@ def fill_data(job: Job, application: Application, candidate: Candidate | None) -
     answers = tuple(PackageAnswer(question=q["question"], category=q["category"], text=q["text"] or "",
                                   resolved=q["resolved"] is True, skipped=q["skipped"] is True)
                     for q in resolved["questions"])
-    attachment = resume_attachment.current(job, application, candidate)
+    attachment = attachment if attachment is not None else resume_attachment.current(job, application, candidate)
     return FillData(
         contact=values, answers=answers,
         resume_file=attachment.filename if attachment else None, resume_size=attachment.size if attachment else 0,
@@ -194,11 +201,15 @@ class Autofill:
     def for_job(self, job_id: int) -> Run | None:
         return self.run if self.run is not None and self.run.job_id == job_id else None
 
-    def _check(self, job: Job, application: Application, candidate: Candidate | None) -> FillData:
-        problems = readiness(job, application, candidate).problems
-        if problems:
-            raise AutofillError(" ".join(problems))
-        return fill_data(job, application, candidate)
+    def _check(self, job: Job, application: Application, candidate: Candidate | None) -> tuple[FillData, object]:
+        """The data to fill and the current attachment, or AutofillError with what is missing.
+
+        The package's review state is worked out once here and reused for every check that needs it.
+        """
+        ready = readiness(job, application, candidate)
+        if ready.problems:
+            raise AutofillError(" ".join(ready.problems))
+        return fill_data(job, application, candidate, attachment=ready.attachment), ready.attachment
 
     def _start_run(self, job: Job, ref: PostingRef, inspection: Inspection, data: FillData) -> Run:
         run = Run(job_id=job.id, job_label=f"{job.title} at {job.company}", url=job.url, ref=ref)
@@ -220,11 +231,11 @@ class Autofill:
             application = job.application
             if self.run is not None and self.run.job_id != job.id:
                 raise AutofillError(f"The browser is open for another job ({self.run.job_label}). Close it first.")
-            data = self._check(job, application, candidate)
+            data, attachment = self._check(job, application, candidate)
             if token != package.package_token(job, application, candidate):
                 raise AutofillError("The package changed since you reviewed it, so the form wasn't opened. Review "
                                     "the package as it is now, then try again.")
-            self._load_resume(job, application, candidate)  # a missing or changed file is refused before opening
+            self._load_resume(job, attachment)  # a missing or changed file is refused before opening
             ref = posting_ref(job.url)
             try:
                 inspection = self.browser.open(job.url)
@@ -236,7 +247,7 @@ class Autofill:
         """Read the open form again, after the user dealt with whatever it asked of them."""
         with self._hold():
             run = self._run_for(job)
-            data = self._check(job, job.application, candidate)
+            data, _ = self._check(job, job.application, candidate)
             try:
                 inspection = self.browser.inspect()
             except BrowserError as exc:
@@ -255,11 +266,11 @@ class Autofill:
             if run.phase == "handed_over":
                 raise AutofillError("The browser is yours for now: " + run.notice + " Choose Check the form again "
                                     "when you want ResuApply to read it.")
-            data = self._check(job, application, candidate)
+            data, attachment = self._check(job, application, candidate)
             if posting_ref(job.url) != run.ref:
                 raise AutofillError("The job's link changed since the form was opened. Close the browser and open "
                                     "the form again.")
-            pdf = self._load_resume(job, application, candidate)
+            pdf = self._load_resume(job, attachment)
             try:
                 inspection = self.browser.inspect()
             except BrowserError as exc:
@@ -341,8 +352,7 @@ class Autofill:
             raise AutofillError("No browser is open for this job. Choose Open the form in a browser first.")
         return run
 
-    def _load_resume(self, job: Job, application: Application, candidate: Candidate | None) -> bytes:
-        attachment = resume_attachment.current(job, application, candidate)
+    def _load_resume(self, job: Job, attachment) -> bytes:
         if attachment is None:
             raise AutofillError("Attach the resume PDF you saved from this package.")
         try:

@@ -128,12 +128,16 @@ def attach(session: Session, data_dir: Path, job: Job, candidate: Candidate | No
     return attachment
 
 
-def current(job: Job, application: Application, candidate: Candidate | None) -> ResumeAttachment | None:
-    """The attached PDF while it belongs to the package as it is now: Approved, with the hash it was attached to."""
+def current(job: Job, application: Application, candidate: Candidate | None,
+            state: ReviewState | None = None) -> ResumeAttachment | None:
+    """The attached PDF while it belongs to the package as it is now: Approved, with the hash it was attached to.
+
+    ``state`` is the package's review state when the caller already has it (it is costly to work out).
+    """
     attachment = application.resume_attachment
     if attachment is None or application.approval is None:
         return None
-    if package.review_state(job, application, candidate) is not ReviewState.APPROVED:
+    if (state or package.review_state(job, application, candidate)) is not ReviewState.APPROVED:
         return None
     return attachment if attachment.package_hash == application.approval.content_hash else None
 

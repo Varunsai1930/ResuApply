@@ -168,3 +168,22 @@ def test_missing_or_empty_contact_details_stay_empty(monkeypatch):
     data = autofill.fill_data(SimpleNamespace(), SimpleNamespace(approval=None), None)
     assert data.contact["name"] == "Jordan Example"
     assert all(data.contact[key] == "" for key in ("email", "phone", "linkedin", "github", "portfolio"))
+
+
+def test_the_review_state_is_worked_out_once(monkeypatch):
+    from types import SimpleNamespace
+
+    from app.schemas.tracking import ReviewState
+    from app.services import autofill, package, resume_attachment
+
+    calls = []
+    monkeypatch.setattr(package, "review_state", lambda *args: calls.append(1) or ReviewState.APPROVED)
+    attachment = SimpleNamespace(package_hash="h")
+    application = SimpleNamespace(resume_attachment=attachment, approval=SimpleNamespace(content_hash="h"))
+    job = SimpleNamespace(url="https://job-boards.greenhouse.io/examplerobotics/jobs/4012345")
+
+    ready = autofill.readiness(job, application, None, state=ReviewState.APPROVED)  # the page already has it
+    assert calls == [] and ready.approved and ready.attachment is attachment
+    assert resume_attachment.current(job, application, None, state=ReviewState.APPROVED) is attachment and calls == []
+    autofill.readiness(job, application, None)
+    assert calls == [1]  # worked out once, for both the approval and the attachment
