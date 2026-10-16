@@ -405,3 +405,21 @@ def test_the_browser_layer_has_no_way_to_click_or_press_keys():
                and node.attr == "submit"]
     assert submits == ["self._executor"]
     assert {"fill", "set_input_files", "input_value"} <= used
+
+
+def test_a_browser_error_mid_step_is_reported_not_a_server_error(world):
+    from playwright.sync_api import Error
+
+    world.attach()
+    world.open()
+    token = world.plan_token()
+    browser = world.app.state.autofill.browser
+
+    def destroyed(*_):
+        raise Error("Execution context was destroyed, most likely because of a navigation")
+
+    browser._fill = destroyed
+    response = world.client.post(f"/jobs/{world.job_id}/autofill/fill", data={"plan_token": token},
+                                 follow_redirects=False)
+    assert response.status_code == 409 and "The page changed or closed while ResuApply was working" in response.text
+    world.assert_not_submitted()

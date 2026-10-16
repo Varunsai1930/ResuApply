@@ -27,6 +27,8 @@ from .autofill_plan import MAX_FIELDS, FormField
 SETUP_MESSAGE = ("Autofill needs Playwright, an optional add-on that isn't installed. Install it with "
                  "`pip install -r requirements-autofill.txt`, run `python -m playwright install chromium`, and "
                  "restart ResuApply. Everything else works without it.")
+PAGE_CHANGED = ("The page changed or closed while ResuApply was working on it, so that step stopped. Choose "
+                "Check the form again, or fill it in yourself.")
 LOAD_SECONDS = 30
 ACTION_SECONDS = 10
 SETTLE_SECONDS = 5
@@ -223,6 +225,14 @@ class FormBrowser:
         except FutureTimeout:
             raise BrowserError("The browser stopped responding. Close it with Close the browser and try "
                                "again.") from None
+        except BrowserError:
+            raise
+        except Exception as exc:
+            # Any other Playwright failure (a page that navigated or closed mid-step, a crashed browser) is
+            # reported like the rest, never as a server error.
+            if type(exc).__module__.startswith("playwright"):
+                raise BrowserError(PAGE_CHANGED) from None
+            raise
 
     def open(self, url: str) -> Inspection:
         """Open the page in the visible browser (starting it if needed) and read its form."""
