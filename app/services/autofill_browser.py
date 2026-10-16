@@ -32,7 +32,12 @@ PAGE_CHANGED = ("The page changed or closed while ResuApply was working on it, s
 LOAD_SECONDS = 30
 ACTION_SECONDS = 10
 SETTLE_SECONDS = 5
-CALL_SECONDS = 120  # the longest a web request waits for the browser thread
+CALL_SECONDS = 120  # the longest a web request waits for the browser thread, beyond a fill's own steps
+
+
+def fill_seconds(steps: int) -> float:
+    """How long a fill may take: each step can use its action timeout to fill and again to read back."""
+    return CALL_SECONDS + steps * 2 * ACTION_SECONDS
 
 # Installed in every page of the browser before the page's own scripts. Inactive until a fill starts.
 GUARD = """
@@ -217,11 +222,11 @@ class FormBrowser:
 
     # ------------------------------------------------------------ called from web requests
 
-    def _call(self, function, *args):
+    def _call(self, function, *args, timeout: float = CALL_SECONDS):
         if self._executor is None:
             self._executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix="resuapply-browser")
         try:
-            return self._executor.submit(function, *args).result(timeout=CALL_SECONDS)
+            return self._executor.submit(function, *args).result(timeout=timeout)
         except FutureTimeout:
             raise BrowserError("The browser stopped responding. Close it with Close the browser and try "
                                "again.") from None
@@ -247,7 +252,9 @@ class FormBrowser:
 
     def fill(self, steps: list[FillStep], still_expected: Callable[[str], bool]) -> FillResult:
         """Fill the steps in order and read each value back; stop if the page leaves ``still_expected`` URLs."""
-        return self._call(self._fill, steps, still_expected)
+        # A long form legitimately takes longer than one call: wait for every step rather than leave the
+        # browser thread filling while the page reports it as stuck.
+        return self._call(self._fill, steps, still_expected, timeout=fill_seconds(len(steps)))
 
     def close(self) -> None:
         """Close the browser and stop Playwright. Safe to call when nothing is open."""

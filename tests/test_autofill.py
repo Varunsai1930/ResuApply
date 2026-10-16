@@ -435,3 +435,18 @@ def test_same_page_url_changes_while_filling_are_not_a_navigation(world):
     assert report["Email"] == ("filled", "jordan@example.com") and report[WHY] == ("filled", WHY_ANSWER)
     assert "?step=" in world.page("() => location.href")  # the page did rewrite its URL meanwhile
     world.assert_not_submitted()
+
+
+def test_a_fill_waits_as_long_as_its_steps_can_take():
+    seen = {}
+    browser = autofill_browser.FormBrowser()
+
+    def call(function, *args, timeout=autofill_browser.CALL_SECONDS):
+        seen["timeout"] = timeout
+
+    browser._call = call
+    steps = [autofill_browser.FillStep(f"id:q{i}", value="x") for i in range(30)]
+    browser.fill(steps, lambda url: True)
+    # 30 slow fields (10 s to fill and 10 s to read back each) can't be cut off at the 120-second default.
+    assert seen["timeout"] == autofill_browser.CALL_SECONDS + 30 * 2 * autofill_browser.ACTION_SECONDS
+    assert seen["timeout"] > 30 * 2 * autofill_browser.ACTION_SECONDS
