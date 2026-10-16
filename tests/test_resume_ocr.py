@@ -242,7 +242,7 @@ def fake_workers(monkeypatch, *, fail="", language="eng", text=TEXT, languages_o
                 raise subprocess.TimeoutExpired(command, kwargs["timeout"])
             if fail == "ocr-error":
                 return subprocess.CompletedProcess(command, 1)
-            Path(command[2]).with_suffix(".txt").write_text(text, encoding="utf-8")
+            Path(command[2]).with_suffix(".txt").write_text(text, encoding="utf-8", newline="")  # as Tesseract writes it: \n
         return subprocess.CompletedProcess(command, 0)
 
     monkeypatch.setattr(resume_ocr.subprocess, "run", run)
