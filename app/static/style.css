@@ -743,6 +743,7 @@ input.guessed { background: var(--accent-wash); border-color: var(--progress); }
 .inline-form { display: inline; margin: 0; }
 .counts { display: flex; gap: 8px; flex-wrap: wrap; margin: 18px 0 6px; }
 .counts .badge { font-size: 0.75rem; padding: 4px 10px; }
+.counts .coverage { align-self: center; margin-right: 4px; font-size: 0.9rem; }
 
 .group-title {
   display: flex; align-items: baseline; gap: 8px;
@@ -1008,6 +1009,7 @@ details.card[open] summary::after { content: " −"; }
 .job-card-progress[data-step="4"] > span { width: 70%; }
 .job-card-progress[data-step="5"] > span { width: 90%; }
 .job-card-step { font-size: 0.68rem; }
+.job-card-coverage { font-size: 0.72rem; font-weight: 600; color: var(--ink-2); }
 .job-card-foot { display: flex; align-items: center; justify-content: space-between; margin-top: 0; font-size: 0.67rem; }
 .job-card-foot > span { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; }
 .job-card-foot .badge { font-size: 0.67rem; }
@@ -1177,7 +1179,7 @@ input[type="file"]::file-selector-button { font: inherit; margin-right: 12px; bo
   .job-card { border-radius: var(--radius); padding: 18px; }
   .job-card-title { font-size: 1rem; }
   .job-card-company, .job-card > .st { font-size: 0.81rem; }
-  .job-card-location, .job-card-step, .job-card-foot, .job-card-foot .badge { font-size: 0.74rem; }
+  .job-card-location, .job-card-step, .job-card-coverage, .job-card-foot, .job-card-foot .badge { font-size: 0.74rem; }
   .board-column-head h2 { font-size: 0.82rem; }
   .job-form-aside { grid-template-columns: minmax(0, 1fr); gap: 0; }
   .card, .profile-form > .card, .step-card { padding: 22px; border-radius: var(--radius); }

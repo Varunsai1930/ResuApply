@@ -6,12 +6,12 @@ guided workspace (``workspace.next_action``); a job past Saved shows where it st
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import date
 
 from ..models import Candidate, Job
 from ..schemas.tracking import ReviewState, TrackingStatus
-from . import tracking
+from . import checklist, tracking
 from .search import SEARCH_LIMIT, clean_query  # noqa: F401  (part of the board's interface)
 from .search import matches as _matches
 from .status import Meaning, Status
@@ -35,6 +35,7 @@ class Card:
     job: Job
     meaning: Meaning  # the status, and the text the card shows after it
     step: Step | None = None  # the step of the next action, for a job still being prepared
+    coverage: checklist.Coverage | None = None  # Met requirements, for a job that has any
 
 
 @dataclass(frozen=True)
@@ -84,6 +85,11 @@ def _days(n: int) -> str:
 
 
 def card(job: Job, candidate: Candidate | None, today: date) -> Card:
+    covered = checklist.coverage(checklist.evaluate(job, candidate.profile if candidate else None))
+    return replace(_card(job, candidate, today), coverage=covered)
+
+
+def _card(job: Job, candidate: Candidate | None, today: date) -> Card:
     application = job.application
     status = application.status
     if status is TrackingStatus.SAVED:

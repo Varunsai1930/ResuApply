@@ -66,6 +66,18 @@ def test_a_saved_card_shows_the_next_action_and_its_step(client, sample_profile)
     assert 'class="st st-needs_you"' in saved and "Package:" in saved
 
 
+def test_cards_show_requirement_coverage_once_requirements_exist(client, sample_profile):
+    job_id = job_with_requirements(client, sample_profile)
+    bare = new_job(client, title="No Requirements Intern")
+    cards = {c.job.id: c for c in built(client).columns[0].cards}
+    assert cards[job_id].coverage.text == "3 of 4 required items met"
+    assert cards[bare].coverage is None
+    saved = board_column(client.get("/jobs").text, "saved")
+    assert saved.count('class="job-card-coverage"') == 1 and "3 of 4 required items met" in saved
+    workspace = client.get(f"/jobs/{job_id}?step=requirements").text
+    assert '<strong class="coverage">3 of 4 required items met</strong>' in workspace
+
+
 def test_without_a_profile_the_card_asks_for_one(client):
     new_job(client)
     card = built(client).columns[0].cards[0]

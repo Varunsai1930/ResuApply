@@ -345,6 +345,29 @@ def evaluate(job: Job, profile: Profile | None) -> list[CheckResult]:
     return results
 
 
+@dataclass(frozen=True)
+class Coverage:
+    """How many requirements are Met: a count with its denominator, never a score."""
+
+    met: int
+    total: int
+    required: bool  # counted over the required items; False when the job marks none as required
+
+    @property
+    def text(self) -> str:
+        noun = "required item" if self.required else "item"
+        return f"{self.met} of {self.total} {noun}{'s' if self.total != 1 else ''} met"
+
+
+def coverage(results: list[CheckResult]) -> Coverage | None:
+    """Met out of the required items, or out of every item when none is marked required."""
+    if not results:
+        return None
+    required = [r for r in results if r.importance == "required"]
+    counted = required or results
+    return Coverage(sum(1 for r in counted if r.status == MET), len(counted), bool(required))
+
+
 def summary(results: list[CheckResult]) -> dict[str, int]:
     counts = {s: 0 for s in STATUSES}
     for r in results:

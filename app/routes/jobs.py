@@ -154,6 +154,7 @@ def _render_workspace(request: Request, session: Session, job: Job, msg: str = "
             "results": results,
             "result_groups": groups,
             "counts": checklist.summary(results),
+            "coverage": checklist.coverage(results),
             "suggestions": suggestions,
             "source_groups": _source_groups(candidate),
             "settings": settings,

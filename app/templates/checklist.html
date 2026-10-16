@@ -169,6 +169,7 @@
     <p class="muted">No requirements yet. {% if settings.ai_configured %}Extract them with AI or enter{% else %}Enter{% endif %} them yourself, each with the words from the description that state it.</p>
   {% else %}
     <p class="counts">
+      {% if coverage %}<strong class="coverage">{{ coverage.text }}</strong>{% endif %}
       <span class="badge check-met">Met {{ counts.met }}</span>
       <span class="badge check-unmet">Unmet {{ counts.unmet }}</span>
       <span class="badge check-unknown">Unknown {{ counts.unknown }}</span>

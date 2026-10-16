@@ -135,6 +135,22 @@ def test_expected_statuses(session):
     }
 
 
+def test_coverage_counts_met_required_items_without_scoring(session):
+    results = list(evaluate(session, seed(session)).values())
+    covered = checklist.coverage(results)
+    assert (covered.met, covered.total, covered.required) == (3, 4, True)  # r4 needs evidence, so it isn't counted met
+    assert covered.text == "3 of 4 required items met"
+
+
+def test_coverage_falls_back_to_every_item_when_none_is_required(session):
+    optional = [r | {"importance": "preferred"} for r in copy.deepcopy(DEMO_REQUIREMENTS)]
+    covered = checklist.coverage(list(evaluate(session, seed(session, requirements=optional)).values()))
+    assert (covered.met, covered.total, covered.required) == (4, 7, False)
+    assert covered.text == "4 of 7 items met"
+    assert checklist.coverage(list(evaluate(session, seed(session, requirements=optional[:1])).values())).text == "1 of 1 item met"
+    assert checklist.coverage([]) is None
+
+
 def test_every_result_shows_its_basis_and_excerpt(session):
     results = evaluate(session, seed(session))
     for result in results.values():
