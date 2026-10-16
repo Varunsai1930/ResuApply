@@ -231,3 +231,20 @@ def test_an_existing_backup_from_another_database_is_kept_and_this_one_is_copied
     assert len(fresh) == 1 and fresh[0].name.startswith(f"resuapply.db.before-{head_revision()}.")
     with closing(sqlite3.connect(fresh[0])) as copy_db:
         assert copy_db.execute("SELECT accepted_package FROM applications").fetchone()[0] == kept["package"]
+
+
+def test_an_up_to_date_database_starts_while_another_connection_holds_the_write_lock(settings):
+    import time
+
+    settings.resolved_data_dir.mkdir(parents=True)
+    engine = make_engine(settings.database_url)
+    try:
+        init_db(engine)
+        with closing(sqlite3.connect(settings.database_path, isolation_level=None)) as writer:
+            writer.execute("BEGIN IMMEDIATE")  # e.g. another ResuApply or a long write
+            began = time.monotonic()
+            init_db(engine)  # reads the revision and stops; it never waits for the lock
+            assert time.monotonic() - began < 2
+            writer.execute("ROLLBACK")
+    finally:
+        engine.dispose()

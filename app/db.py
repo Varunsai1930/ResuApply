@@ -173,14 +173,17 @@ def init_db(engine: Engine) -> None:
     database = engine.url.database
     if not database or database == ":memory:":
         raise ValueError("ResuApply's database must be a file")
+    head = head_revision()
+    # A plain read, without the migration engine's write lock: an up-to-date database needs nothing more.
+    with engine.connect() as probe:
+        current = MigrationContext.configure(probe).get_current_revision()
+        existing = bool(inspect(probe).get_table_names())
+    if current == head:
+        return
     migrator = migration_engine(engine.url.render_as_string(hide_password=False))
     try:
         with migrator.connect() as connection:
-            current = MigrationContext.configure(connection).get_current_revision()
-            head = head_revision()
-            existing = bool(inspect(connection).get_table_names())
-            connection.rollback()
-            if current != head and existing:
+            if existing:
                 _backup(connection, Path(database), current, head)
             with connection.begin():
                 broken = _broken_references(connection)
