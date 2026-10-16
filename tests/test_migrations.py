@@ -223,9 +223,11 @@ def test_the_baseline_cannot_be_downgraded(settings):
         init_db(engine)
         migrator = db_module.migration_engine(settings.database_url)
         try:
-            with migrator.connect() as conn, conn.begin():
+            with migrator.connect() as conn:
+                # Later revisions step down first; the baseline then refuses, and the whole transaction rolls back.
                 with pytest.raises(RuntimeError, match="can't be undone"):
-                    command.downgrade(db_module._alembic_config(conn), "base")
+                    with conn.begin():
+                        command.downgrade(db_module._alembic_config(conn), "base")
         finally:
             migrator.dispose()
         assert _version(engine) == head_revision()
@@ -262,3 +264,25 @@ def test_an_up_to_date_database_starts_while_another_connection_holds_the_write_
             writer.execute("ROLLBACK")
     finally:
         engine.dispose()
+
+
+def test_a_database_at_the_baseline_gains_the_resume_attachment_column(settings):
+    settings.resolved_data_dir.mkdir(parents=True)
+    engine = make_engine(settings.database_url)
+    try:
+        init_db(engine)
+        with Session(engine) as session:
+            profile.save(session, copy.deepcopy(SAMPLE_PROFILE))
+            jobs.create(session, jobs.clean_input(**DEMO_JOB))
+        with engine.begin() as conn:  # as revision 0001 left it, before Greenhouse autofill
+            conn.execute(text("ALTER TABLE applications DROP COLUMN resume_attachment"))
+            conn.execute(text("UPDATE alembic_version SET version_num = '0001'"))
+        init_db(engine)
+        assert _version(engine) == head_revision() == "0002"
+        assert "resume_attachment" in _columns(engine, "applications")
+        with engine.connect() as conn:
+            assert conn.execute(text("SELECT resume_attachment FROM applications")).scalar_one() is None
+            assert conn.execute(text("SELECT count(*) FROM jobs")).scalar_one() == 1
+    finally:
+        engine.dispose()
+    assert settings.database_path.with_name("resuapply.db.before-0002.bak").exists()

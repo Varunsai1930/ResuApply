@@ -69,6 +69,11 @@ MESSAGES = {
     "cover_letter_removed": "Cover letter removed from the package.",
     "layout_changed": "Resume layout changed. Review and approve the package again before you submit it.",
     "layout_unchanged": "That layout was already selected, so nothing changed.",
+    "resume_attached": "Resume PDF attached to the approved package. Autofill will upload this file.",
+    "resume_removed": "Resume PDF removed.",
+    "autofill_opened": "The form is open in the browser. Check what ResuApply plans to fill below.",
+    "autofill_filled": "Done filling. Review every field in the browser, then submit there yourself.",
+    "autofill_closed": "The autofill browser is closed.",
 }
 
 

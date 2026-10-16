@@ -36,6 +36,8 @@ class Settings(BaseSettings):
     # "free": the provider may not keep data private, so the outbound preview is required.
     # "trusted": a provider and model whose data terms the user accepts; the preview is optional.
     openrouter_model_trust: Literal["free", "trusted"] = Field(default="free", validation_alias=AliasChoices("OPENROUTER_MODEL_TRUST"))
+    # Greenhouse autofill (optional, needs Playwright): a Chrome or Chromium to open instead of Playwright's own.
+    autofill_browser: Path | None = None
 
     @property
     def ai_configured(self) -> bool:

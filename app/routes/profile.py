@@ -25,7 +25,7 @@ from ..services.citations import Usage, citations
 from ..services.profile_gaps import asks_for_facts, gaps
 from ..services.profile_form import is_form_shaped, parse_form
 from ..templating import templates
-from .forms import read_form
+from .forms import read_form, upload_too_large
 
 router = APIRouter(prefix="/profile")
 
@@ -270,16 +270,6 @@ def import_form(request: Request, session: Session = Depends(get_session)):
     return _render_import(request, profile_service.get_candidate(session))
 
 
-# Room for the multipart framing around the file: an upload whose Content-Length passes the file
-# limit by more than this is refused before its body is read.
-_UPLOAD_FRAMING = 64 * 1024
-
-
-def _too_large(request: Request) -> bool:
-    length = request.headers.get("content-length", "")
-    return length.isascii() and length.isdigit() and int(length) > resume_import.MAX_BYTES + _UPLOAD_FRAMING
-
-
 @router.post("/import", response_class=HTMLResponse)
 async def import_resume(request: Request, session: Session = Depends(get_session)):
     """Read a resume file into the profile form. Nothing is saved: the form and its review step come next.
@@ -292,7 +282,7 @@ async def import_resume(request: Request, session: Session = Depends(get_session
     if candidate is not None and candidate.sample:
         return _render_import(request, candidate, status_code=409,
                               error="Remove the sample data first, then import your own resume.")
-    if _too_large(request):
+    if upload_too_large(request, resume_import.MAX_BYTES):
         return _render_import(request, candidate, status_code=413, error=resume_import.TOO_LARGE)
     async with request.form(max_files=1, max_fields=10) as form:
         file = form.get("file")

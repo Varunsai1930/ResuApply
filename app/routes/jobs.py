@@ -15,6 +15,7 @@ from ..schemas.tracking import TrackingStatus
 from ..services import board as board_service
 from ..services import sample as sample_service
 from ..services import checklist, greenhouse, outbound, package, question_rows, resume_layouts, tracking
+from ..services import autofill as autofill_service
 from ..services import cover_letter as cover_letter_service
 from ..services import jobs as job_service
 from ..services import workspace as guide_service
@@ -109,6 +110,7 @@ FORM_STEPS = {
     "status_form": guide_service.Step.TRACK,
     "note_form": guide_service.Step.TRACK,
     "follow_up_error": guide_service.Step.TRACK,
+    "autofill_error": guide_service.Step.TRACK,
 }
 
 
@@ -184,6 +186,10 @@ def _render_workspace(request: Request, session: Session, job: Job, msg: str = "
             "package_error": forms.get("package_error"),
             "package_token": package.package_token(job, application, candidate),
             "snapshots": list(reversed(application.submitted_snapshots)),
+            "autofill": autofill_service.readiness(job, application, candidate, state=review),
+            "autofill_run": request.app.state.autofill.for_job(job.id),
+            "autofill_other": request.app.state.autofill.run,
+            "autofill_error": forms.get("autofill_error"),
             "has_proposal": operations.cached_proposal(session, job, settings.openrouter_model) is not None,
             "guide": guide,
             "step": step or guide.next.step,

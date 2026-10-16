@@ -1,0 +1,17 @@
+<!doctype html>
+<!-- A fictional Greenhouse-like form that already holds values (a browser's own autofill, or the user's typing). -->
+<html lang="en">
+<head><meta charset="utf-8"><title>Application</title></head>
+<body>
+<form id="application-form" action="/examplerobotics/jobs/4012345/applications" method="post">
+  <label for="first_name">First Name*</label><input id="first_name" name="first_name" type="text" value="Jordy">
+  <label for="last_name">Last Name*</label><input id="last_name" name="last_name" type="text">
+  <label for="email">Email*</label><input id="email" name="email" type="email" value="jordan@example.com">
+  <label for="phone">Phone</label><input id="phone" name="phone" type="tel" value="555 0199">
+  <label for="resume">Resume/CV*</label><input id="resume" name="resume" type="file">
+  <button type="submit">Submit application</button>
+</form>
+<script>window.fixture = { submits: 0, clicks: 0 };
+document.getElementById("application-form").addEventListener("submit", () => { window.fixture.submits++; });</script>
+</body>
+</html>

@@ -1,0 +1,54 @@
+<!doctype html>
+<!-- The standard fixture form, plus a page script that rewrites the URL (History API and #fragment) as fields change. Local fixture; no real employer. -->
+<html lang="en">
+<head><meta charset="utf-8"><title>Job Application for Robotics Software Intern at Example Robotics</title>
+<style>.visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }</style>
+</head>
+<body>
+<h1>Robotics Software Intern</h1>
+<form id="application-form" action="/examplerobotics/jobs/4012345/applications" method="post">
+  <div class="field"><label for="first_name">First Name<span aria-hidden="true">*</span></label><input id="first_name" name="first_name" type="text" required></div>
+  <div class="field"><label for="last_name">Last Name<span aria-hidden="true">*</span></label><input id="last_name" name="last_name" type="text" required></div>
+  <div class="field"><label for="email">Email<span aria-hidden="true">*</span></label><input id="email" name="email" type="email" required></div>
+  <div class="field"><label for="phone">Phone</label><input id="phone" name="phone" type="tel"></div>
+  <div class="field">
+    <label for="resume">Resume/CV<span aria-hidden="true">*</span></label>
+    <input id="resume" name="resume" type="file" class="visually-hidden" accept=".pdf,.doc,.docx">
+    <button type="button" onclick="document.getElementById('resume').click()">Attach</button>
+    <span id="resume-name"></span>
+  </div>
+  <div class="field"><label for="cover_letter">Cover Letter</label><input id="cover_letter" name="cover_letter" type="file" class="visually-hidden"></div>
+  <div class="field"><label for="question_101">LinkedIn Profile</label><input id="question_101" name="question_101" type="text"></div>
+  <div class="field"><label for="question_102">Website</label><input id="question_102" name="question_102" type="text"></div>
+  <div class="field"><label for="question_103">Why do you want to work at Example Robotics?<span aria-hidden="true">*</span></label><textarea id="question_103" name="question_103" maxlength="2000" required></textarea></div>
+  <div class="field"><label for="question_104">Current company</label><input id="question_104" name="question_104" type="text"></div>
+  <div class="field"><label for="question_105">How did you hear about us?</label><input id="question_105" name="question_105" type="text"></div>
+  <div class="field"><label for="question_106">Are you legally authorized to work in the United States?<span aria-hidden="true">*</span></label>
+    <select id="question_106" name="question_106"><option value=""></option><option>Yes</option><option>No</option></select></div>
+  <div class="field"><label for="question_107">Location (City)</label><input id="question_107" name="question_107" type="text" role="combobox" aria-autocomplete="list" aria-expanded="false"></div>
+  <div class="field"><label for="question_108">Earliest start date</label><input id="question_108" name="question_108" type="date"></div>
+  <div class="field"><label for="hp_field">Leave this empty</label><input id="hp_field" name="hp_field" type="text" style="display:none"></div>
+  <fieldset id="eeoc_fields"><legend>Voluntary Self-Identification</legend>
+    <label for="gender">Gender</label><select id="gender" name="gender"><option value=""></option><option>Decline to self-identify</option></select>
+    <label for="eeoc_other">Anything else you'd like to share</label><input id="eeoc_other" name="eeoc_other" type="text">
+  </fieldset>
+  <div class="field"><input id="gdpr_consent" name="gdpr_consent" type="checkbox"><label for="gdpr_consent">I agree to the privacy policy</label></div>
+  <iframe title="reCAPTCHA" src="https://www.google.com/recaptcha/api2/anchor?k=fixture&amp;size=invisible" width="256" height="60"></iframe>
+  <button type="submit" id="submit_app">Submit application</button>
+</form>
+<script>
+  window.fixture = { submits: 0, clicks: 0 };
+  document.getElementById("application-form").addEventListener("submit", () => { window.fixture.submits++; });
+  document.getElementById("submit_app").addEventListener("click", () => { window.fixture.clicks++; });
+  document.getElementById("resume").addEventListener("change", (e) => {
+    document.getElementById("resume-name").textContent = [...e.target.files].map((f) => f.name).join(", ");
+  });
+  let changes = 0;
+  document.getElementById("application-form").addEventListener("input", () => {
+    changes++;
+    history.replaceState(null, "", location.pathname + "?step=" + changes);
+    location.hash = "field-" + changes;
+  });
+</script>
+</body>
+</html>

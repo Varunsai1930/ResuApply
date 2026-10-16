@@ -13,7 +13,7 @@ from urllib.parse import urlsplit
 import pytest
 
 from app.ai import client as ai_client
-from app.services import greenhouse, resume_import, resume_ocr
+from app.services import greenhouse, resume_attachment, resume_import, resume_ocr
 
 ROOT = Path(__file__).resolve().parent.parent
 README = (ROOT / "README.md").read_text()
@@ -41,6 +41,7 @@ def test_every_host_the_app_contacts_is_documented():
     f"{resume_import.MAX_PAGES} pages",
     f"{resume_import.MAX_CHARS:,} character",
     f"{resume_ocr.TOTAL_SECONDS:.0f} second",
+    f"up to {resume_attachment.MAX_PAGES} pages and {resume_attachment.MAX_BYTES // (1024 * 1024)} MB",
 ])
 def test_documented_limits_match_the_code(phrase):
     assert _mentions(README, phrase), f"README doesn't state the limit {phrase!r}"
@@ -52,3 +53,12 @@ def test_local_links_point_to_existing_files(name, text):
         if urlsplit(target).scheme:
             continue
         assert (ROOT / target).exists(), f"{name} links to missing file {target}"
+
+
+def test_the_optional_playwright_pin_is_the_one_documented_and_used_in_ci():
+    pins = re.findall(r"^playwright==([\d.]+)$", (ROOT / "requirements-autofill.txt").read_text(), re.MULTILINE)
+    assert len(pins) == 1
+    assert "requirements-autofill.txt" in README and "python -m playwright install chromium" in README
+    for text in (README, (ROOT / ".github" / "workflows" / "windows-validation.yml").read_text()):
+        assert set(re.findall(r"playwright==([\d.]+)", text)) <= {pins[0]}
+    assert "playwright" not in (ROOT / "requirements.txt").read_text().lower()  # the app runs without it

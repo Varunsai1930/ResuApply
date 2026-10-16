@@ -8,7 +8,8 @@ from sqlalchemy.orm import Session
 
 from ..db import get_session
 from ..services import jobs as job_service
-from ..services import sample
+from ..services import resume_attachment, sample
+from ..services.autofill import AutofillError
 from ..services.profile import get_candidate
 from ..templating import templates
 
@@ -54,6 +55,13 @@ def confirm_remove(request: Request, session: Session = Depends(get_session)):
 
 
 @router.post("/sample/remove")
-def remove_sample(session: Session = Depends(get_session)):
-    sample.remove(session)
+def remove_sample(request: Request, session: Session = Depends(get_session)):
+    removed = sample.remove(session)
+    job_ids = [job.id for job in removed.jobs]
+    resume_attachment.remove_files(request.app.state.settings.resolved_data_dir, job_ids)
+    if request.app.state.autofill.run is not None and request.app.state.autofill.run.job_id in job_ids:
+        try:
+            request.app.state.autofill.close()
+        except AutofillError:  # busy with a step; it ends with the app or the next Close the browser
+            pass
     return RedirectResponse("/welcome?msg=sample_removed", status_code=303)

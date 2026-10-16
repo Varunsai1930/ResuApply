@@ -1,0 +1,116 @@
+{# Greenhouse autofill on the Submit and track step: attach the package's resume PDF, open the form, fill, read back. Included with the workspace's context. #}
+{% import "macros.html" as m with context %}
+{% set run = autofill_run %}
+{% set plan_labels = {'fill': 'Will fill', 'attach': 'Will attach', 'occupied': 'Holds a value: kept unless you tick Replace', 'same': 'Already filled', 'leave': 'Left for you'} %}
+<section class="card autofill" id="autofill" aria-labelledby="autofill-title">
+  <div class="section-head">
+    <h2 id="autofill-title">Fill the Greenhouse form</h2>
+    <span class="chip">Optional</span>
+  </div>
+  <p class="hint">ResuApply can open the employer's Greenhouse form in a browser window on this computer and fill in what your approved package covers: contact details, links, the resume PDF and your approved answers to non-sensitive questions. It never clicks Submit. You check the form, answer what it leaves for you and submit it yourself.</p>
+  {% if autofill_error %}<p class="notice warn" role="alert" tabindex="-1" data-focus>{{ autofill_error }}</p>{% endif %}
+
+  {% if not autofill.installed or autofill.posting_url is none %}
+    <p class="notice">{{ autofill.problems[0] }}</p>
+  {% else %}
+    <ul class="gap-list autofill-ready">
+      <li>{{ m.status_icon(Status.DONE) }}<span>Standard Greenhouse form: <a href="{{ autofill.posting_url }}" target="_blank" rel="noopener noreferrer nofollow">{{ autofill.posting_url }}</a></span></li>
+      <li>{{ m.status_icon(Status.DONE if autofill.approved else Status.BLOCKED) }}<span>{% if autofill.approved %}Package approved{% else %}Approve the current package in <a href="/jobs/{{ job.id }}?step=review#review">step 4</a> first. Autofill uses only what you approved.{% endif %}</span></li>
+      <li>{{ m.status_icon(Status.DONE if autofill.attachment else (Status.NEEDS_YOU if autofill.approved else Status.BLOCKED)) }}
+        <div class="autofill-attachment">
+          {% if autofill.attachment %}
+            <span>Resume PDF: <strong>{{ autofill.attachment.filename }}</strong> <span class="muted">({{ autofill.attachment.pages }} page{{ 's' if autofill.attachment.pages != 1 }}, {{ '{:,}'.format(autofill.attachment.size) }} bytes, attached {{ autofill.attachment.attached_at | local_datetime }})</span></span>
+            <form method="post" action="/jobs/{{ job.id }}/autofill/resume/remove" class="inline-form">
+              <button type="submit" class="btn-link">Remove</button>
+            </form>
+          {% elif autofill.approved %}
+            <span>Attach the resume PDF you saved from this package: open the <a href="/jobs/{{ job.id }}/resume/print">accepted resume</a>, choose Print / save PDF, then choose that file here.{% if autofill.outdated_attachment %} The PDF attached earlier belongs to an older version of the package.{% endif %}</span>
+            <form method="post" action="/jobs/{{ job.id }}/autofill/resume" enctype="multipart/form-data" class="autofill-upload">
+              <input type="hidden" name="package_token" value="{{ package_token }}">
+              <label class="visually-hidden" for="autofill-file">Resume PDF</label>
+              <input id="autofill-file" type="file" name="file" accept="application/pdf,.pdf" required>
+              <button type="submit" class="btn-secondary">Attach PDF</button>
+            </form>
+          {% else %}
+            <span>Then attach the resume PDF you saved from the approved package.</span>
+          {% endif %}
+        </div>
+      </li>
+    </ul>
+
+    {% if autofill_other and not run %}
+      <div class="notice">
+        <p>The autofill browser is open for another job ({{ autofill_other.job_label }}). Close it to open this form.</p>
+        <form method="post" action="/jobs/{{ job.id }}/autofill/close" class="inline-form"><button type="submit" class="btn-secondary">Close the browser</button></form>
+      </div>
+    {% elif not run %}
+      {% if autofill.ready %}
+      <form method="post" action="/jobs/{{ job.id }}/autofill/open" class="form-actions">
+        <input type="hidden" name="package_token" value="{{ package_token }}">
+        <button type="submit" class="btn-primary">Open the form in a browser</button>
+        <small class="hint">A browser window opens on this computer with the form. ResuApply reads it and shows what it would fill; nothing is filled yet.</small>
+      </form>
+      {% endif %}
+    {% else %}
+      {% if run.notice %}
+      <div class="notice warn" role="status">
+        <p><strong>The browser is yours.</strong> {{ run.notice }}</p>
+        <p>Choose Check the form again once you're done there, if you want ResuApply to read it again.</p>
+      </div>
+      {% endif %}
+
+      {% if run.report is not none %}
+        <h3>What was filled</h3>
+        <div class="table-scroll">
+        <table class="approving autofill-report">
+          <thead><tr><th scope="col">Field</th><th scope="col">Result</th><th scope="col">Details</th></tr></thead>
+          <tbody>
+          {% for row in run.report %}
+            <tr class="autofill-{{ row.outcome }}"><th scope="row">{{ row.label }}</th><td>{{ row.outcome_label }}</td><td class="answer-cell">{{ row.detail }}</td></tr>
+          {% endfor %}
+          </tbody>
+        </table>
+        </div>
+        <p class="notice">Check every field in the browser window, including the ones ResuApply filled, answer the ones left for you and click Submit on the employer's form yourself. ResuApply never submits. Afterwards, record Applied under Tracking below.</p>
+      {% elif run.plan %}
+        <h3>What ResuApply will fill</h3>
+        <form method="post" action="/jobs/{{ job.id }}/autofill/fill" id="autofill-fill">
+          <input type="hidden" name="plan_token" value="{{ run.token }}">
+          <div class="table-scroll">
+          <table class="approving autofill-plan">
+            <thead><tr><th scope="col">Field</th><th scope="col">Plan</th><th scope="col">Value</th></tr></thead>
+            <tbody>
+            {% for item in run.plan %}
+              <tr class="autofill-{{ item.action }}">
+                <th scope="row">{{ item.label }}</th>
+                <td>{{ plan_labels[item.action] }}{% if item.action == 'leave' %}<br><span class="muted">{{ item.reason }}</span>{% endif %}</td>
+                <td class="answer-cell">
+                  {%- if item.action == 'occupied' -%}
+                    <label class="check"><input type="checkbox" name="replace" value="{{ item.key }}"> Replace “{{ item.existing }}” with “{{ item.value }}”</label>
+                  {%- elif item.action != 'leave' -%}{{ item.value }}<br><span class="muted">{{ item.source }}</span>
+                  {%- endif -%}
+                </td>
+              </tr>
+            {% endfor %}
+            </tbody>
+          </table>
+          </div>
+          {% if run.fillable %}
+          <div class="form-actions">
+            <button type="submit" class="btn-primary">Fill the verified fields</button>
+            <small class="hint">Fills only the rows above marked Will fill, Will attach, or ticked for replacing, then reads each value back. It never submits.</small>
+          </div>
+          {% else %}
+          <p class="hint">Nothing on this form matches your approved package, so there is nothing to fill. Fill it in yourself in the browser.</p>
+          {% endif %}
+        </form>
+      {% endif %}
+
+      <div class="form-actions">
+        <form method="post" action="/jobs/{{ job.id }}/autofill/inspect" class="inline-form"><button type="submit" class="btn-secondary">Check the form again</button></form>
+        <form method="post" action="/jobs/{{ job.id }}/autofill/close" class="inline-form"><button type="submit" class="btn-secondary">Close the browser</button></form>
+      </div>
+    {% endif %}
+  {% endif %}
+  <p class="hint">Only standard forms on boards.greenhouse.io and job-boards.greenhouse.io are supported. Choices, drop-downs, tick boxes, consent, sensitive questions and fields ResuApply can't match exactly are always left for you. The AI model plays no part in filling.</p>
+</section>

@@ -2,7 +2,7 @@
 
 A local job application copilot web app. It turns your verified profile and a pasted job description into an evidence checklist, a tailored resume, reviewed answers and an application record, **without inventing anything**.
 
-> **Status:** Milestones 1 (Foundation), 2 (Assessment), 3a (Tailoring) and 3b (Complete V1) are built: profile, jobs, tracker, requirements, evidence, source-backed resume proposals, A4 print export, questions and answers, the answer bank, package approval and submitted snapshots. AI features have passed mocked-provider and browser checks; live OpenRouter validation remains pending until a key is configured. PDF/DOCX profile import (read locally, by layout rules, with optional local OCR), Classic/Modern/Compact resume layouts, editable DOCX resume export and Greenhouse job import (fetched only when you choose Import) are built. Greenhouse autofill is not started; see [PLAN.md](PLAN.md). The same workflow is already available as an agent skill for Claude Code and Codex: [ResuSkill](https://github.com/Varunsai1930/ResuSkill).
+> **Status:** Milestones 1 (Foundation), 2 (Assessment), 3a (Tailoring) and 3b (Complete V1) are built: profile, jobs, tracker, requirements, evidence, source-backed resume proposals, A4 print export, questions and answers, the answer bank, package approval and submitted snapshots. AI features have passed mocked-provider and browser checks; live OpenRouter validation remains pending until a key is configured. PDF/DOCX profile import (read locally, by layout rules, with optional local OCR), Classic/Modern/Compact resume layouts, editable DOCX resume export and Greenhouse job import (fetched only when you choose Import) are built. Limited Greenhouse autofill (optional, with Playwright) is built and tested against local Greenhouse-like forms; a manual check on a live hosted form remains pending. See [PLAN.md](PLAN.md). The same workflow is already available as an agent skill for Claude Code and Codex: [ResuSkill](https://github.com/Varunsai1930/ResuSkill).
 
 ```text
 Create profile → Add job → Review requirements
@@ -104,6 +104,7 @@ Every setting is optional and is read from the environment or `.env`:
 | `OPENROUTER_API_KEY` | *(empty)* | Your [OpenRouter](https://openrouter.ai) key. Without it the AI buttons are hidden and everything else works |
 | `OPENROUTER_MODEL` | `nvidia/nemotron-3.5-lightning:free` | Any OpenRouter model ID that supports tool calling |
 | `OPENROUTER_MODEL_TRUST` | `free` | `free`: you approve what is sent before the first AI request that includes your career history. `trusted`: that review is optional |
+| `RESUAPPLY_AUTOFILL_BROWSER` | *(empty)* | Optional Greenhouse autofill: path to a Chrome or Chromium to open instead of Playwright's own |
 
 The bind address is always `127.0.0.1` and cannot be configured. The app also rejects requests whose `Host` isn't `127.0.0.1` or `localhost`, and form posts coming from other websites.
 
@@ -118,6 +119,33 @@ Install **Tesseract with English (`eng`) language data**, and make its `tesserac
 On **Profile → Import resume**, tick **Use OCR for scanned pages** before importing a scanned PDF. OCR runs locally and uses no API key. Normal selectable-text pages keep their existing extraction; pages with a scanned body use OCR even when their contact header is selectable. Review all recognized text, especially names, dates and numbers, before saving. Without Tesseract, ordinary text PDF and DOCX import still work, and requesting OCR displays a setup message.
 
 Imports keep the existing 10 MB, first-30-pages and 100,000-character limits. OCR has a 60-second total deadline, bounded page images and one active OCR import at a time. Failed, interrupted or unreadable OCR imports leave the saved profile unchanged.
+
+### Optional Greenhouse autofill
+
+Autofill opens a job's Greenhouse application form in a visible browser window and fills in what your approved package covers. It needs [Playwright](https://playwright.dev/python/), an optional add-on pinned in `requirements-autofill.txt` (`requirements-dev.txt` includes it for the tests):
+
+```bash
+.venv/bin/pip install -r requirements-autofill.txt
+.venv/bin/python -m playwright install chromium
+```
+
+On Windows, use `.\.venv\Scripts\python.exe -m pip install -r requirements-autofill.txt` and `.\.venv\Scripts\python.exe -m playwright install chromium`. Restart the app afterwards. Without Playwright the app starts and everything else works; the autofill card shows these setup steps instead. Autofill needs a desktop session that can show windows.
+
+**Using it.** On a job's **Submit and track** step, the **Fill the Greenhouse form** card lists what autofill needs:
+
+1. The job's link is a posting on `boards.greenhouse.io` or `job-boards.greenhouse.io` (an imported job has one; otherwise add it with **Edit details**).
+2. The package is **Approved** and current.
+3. The resume PDF you saved from that package is attached: open the accepted resume, choose **Print / save PDF**, then **Attach PDF**. It must be a readable PDF of up to 10 pages and 10 MB, without a password, showing your name as the approved resume does. It is kept in `data/attachments/` and belongs to the package you approved: when the package changes, attach it again.
+
+**Open the form in a browser** opens the form and reads it; nothing is filled yet. The card lists every field with what ResuApply would do and why. **Fill the verified fields** fills only those, reads each value back and shows the result: **Filled and read back**, **Attached and checked**, **Doesn't match** (with what the form shows, for example when the page reformats a phone number or rejects the file), **Kept the existing value**, **Already filled** or **Left for you**. Then check every field in the browser, answer the rest and click Submit there yourself. Record Applied under **Tracking** afterwards; autofill never changes the status. **Close the browser** closes it; stopping the app closes it too.
+
+**What it fills.** Only text, email, phone and link fields and text boxes with exactly one label, when the label is a contact field from your approved resume (name, email, phone, location, LinkedIn, GitHub, website) or is word for word a question in your approved package with an accepted, non-sensitive answer; plus the resume upload. A first- or last-name field is filled only from your own answer to that question, since your full name is never split. A value with line breaks never goes into a one-line field, and one longer than the field allows is left out.
+
+**What it leaves for you.** Sensitive questions (work authorization, sponsorship, self-identification, demographics, salary and the like, including anything in a self-identification section), consent and declaration boxes, drop-downs, search fields, tick boxes, choices, dates, other uploads such as a cover letter, unlabelled fields, fields sharing a label, questions you skipped and anything not in your package. A field that already holds a different value is kept unless you tick **Replace** for it, and only if it still holds what the card showed.
+
+**When it stops.** If the page shows a CAPTCHA or a sign-in, moves to another site, or its fields change after it was read, ResuApply fills nothing more and says the browser is yours; **Check the form again** reads it afresh when you want to continue. It never clicks a button or sends key presses, and while it fills it stops any submission the page itself attempts and tells you. The browser starts without saved cookies or sign-ins. The AI model plays no part: autofill uses only your reviewed data and fixed rules.
+
+**Limits.** Only standard Greenhouse-hosted forms are supported; an employer's own careers page, a Greenhouse form embedded in another site and other platforms are filled in by hand. Because employers add their own questions and widgets, support is defined by the fields ResuApply can verify, not a promise to fill every form.
 
 ### AI model
 
@@ -205,6 +233,7 @@ Labels you will see on a question: **From profile**, **AI draft**, **User answer
 - **Answer bank:** the **Answers** page, with similar-question suggestions that only fill the answer box.
 - **Review and approval:** Draft, Approved or Stale, listed blockers and warnings, and an explicit **Approve package** step that never sets Applied.
 - **Submitted packages:** the approved package frozen when you record Applied, viewable (including its resume) after any later profile or job edit.
+- **Greenhouse autofill (optional):** opens a standard Greenhouse-hosted form in a visible browser, fills verified contact fields, links, the attached resume PDF and approved non-sensitive answers, reads them back and leaves the rest, and the Submit button, to you.
 
 Evidence confirmations apply to the source content you reviewed. If a linked source changes, the checklist asks you to review and reconfirm it before it counts as supporting evidence again. Evidence saved before content checks were added also needs one explicit reconfirmation; existing links remain available to review or remove. Unrelated contact edits keep unchanged evidence valid.
 
@@ -224,7 +253,7 @@ app/
                   drafts, and the background runner for AI requests (tasks.py)
   services/       Rules ported from ResuSkill (profile, requirements, checklist, claims),
                   outbound context, resume proposals/acceptance, questions and answers, package approval and snapshots,
-                  form parsing, jobs, tracking, resume import, Greenhouse job import
+                  form parsing, jobs, tracking, resume import, Greenhouse job import and autofill
   routes/         Profile, jobs, resume, questions, package/snapshot and answer bank pages
   templates/      Jinja2 pages
   static/         CSS and a small amount of JavaScript
@@ -241,7 +270,7 @@ tests/            pytest: rules, mocked AI, HTTP integration and restart persist
 
 ## Stack
 
-Python 3.12 · FastAPI · Jinja2 · SQLAlchemy · SQLite with Alembic migrations · Pydantic · HTTPX → OpenRouter (model configurable) and Greenhouse's public job board (job import, on request) · pypdf and python-docx for import/export · pypdfium2, Pillow and optional Tesseract for local OCR. No application browser-automation dependency before autofill.
+Python 3.12 · FastAPI · Jinja2 · SQLAlchemy · SQLite with Alembic migrations · Pydantic · HTTPX → OpenRouter (model configurable) and Greenhouse's public job board (job import, on request) · pypdf and python-docx for import/export · pypdfium2, Pillow and optional Tesseract for local OCR. Optional Playwright (pinned in `requirements-autofill.txt`) for Greenhouse autofill.
 
 ## License
 

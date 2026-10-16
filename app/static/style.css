@@ -592,6 +592,14 @@ table.simple { border: 1px solid var(--rule); border-radius: var(--radius-sm); }
 .approving thead th { font-size: 0.72rem; color: var(--ink-3); text-transform: uppercase; letter-spacing: 0.06em; }
 .approving tbody th { font-weight: 550; min-width: 12em; font-size: 0.9rem; color: var(--ink); text-transform: none; letter-spacing: 0; }
 .approving .answer-cell { white-space: pre-wrap; overflow-wrap: anywhere; min-width: 14em; }
+.autofill-ready li > span:not(.st-icon) { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.autofill-ready li { flex-wrap: nowrap; }
+.autofill-attachment { display: flex; flex-direction: column; gap: 8px; flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.autofill-upload { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+.autofill-upload input[type=file] { max-width: 100%; }
+.autofill-report .autofill-mismatch td:nth-child(2), .autofill-report .autofill-failed td:nth-child(2) { color: var(--unmet); font-weight: 600; }
+.autofill-report .autofill-filled td:nth-child(2), .autofill-report .autofill-attached td:nth-child(2) { color: var(--met); font-weight: 600; }
+.autofill-plan .autofill-leave th, .autofill-report .autofill-left th { color: var(--ink-2); font-weight: 450; }
 
 .plain-list { margin: 0; padding-left: 18px; color: var(--ink-2); }
 .plain-list li + li { margin-top: 4px; }
