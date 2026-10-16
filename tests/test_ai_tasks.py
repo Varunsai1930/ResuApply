@@ -286,3 +286,32 @@ def test_a_request_for_a_deleted_job_saves_nothing(ai_app_client, fake_ai, sampl
                                            lambda *args: None)
     wait([task.future], timeout=10)
     assert task.state == "failed" and "deleted" in task.message()
+
+
+def test_shutdown_is_bounded_cancels_waiting_requests_and_never_holds_the_process(client, sample_profile):
+    import time
+
+    from app.ai.tasks import AITasks
+
+    job_id = requirements_setup(client, sample_profile, requirements=False)
+    registry = AITasks(client.app.state.session_factory, workers=1)
+    running_started, release = threading.Event(), threading.Event()
+
+    def blocking(*_):
+        running_started.set()
+        release.wait(10)
+
+    running = registry.start("check", job_id, blocking, lambda *args: None)
+    assert running_started.wait(10)
+    waiting = registry.start("other", job_id, lambda *_: pytest.fail("a waiting request ran"), lambda *args: None)
+
+    began = time.monotonic()
+    registry.shutdown(timeout=0.2)
+    assert time.monotonic() - began < 2  # the running request is left, not waited for
+    assert waiting.future.cancelled() and not running.done
+    assert all(t.daemon for t in threading.enumerate() if t.name.startswith("resuapply-ai-"))
+    with pytest.raises(RuntimeError, match="stopping"):
+        registry.start("third", job_id, blocking, lambda *args: None)
+    release.set()
+    wait([running.future], timeout=10)
+    assert running.state == "done"

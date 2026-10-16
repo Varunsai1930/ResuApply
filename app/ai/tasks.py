@@ -23,7 +23,7 @@ import logging
 import secrets
 import threading
 from collections.abc import Callable
-from concurrent.futures import Future, ThreadPoolExecutor, wait
+from concurrent.futures import Future, wait
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from typing import Any
@@ -53,6 +53,7 @@ WAIT_SECONDS = 1.0
 REFRESH_SECONDS = 2  # the progress page reloads itself this often
 KEEP_FINISHED = timedelta(hours=1)  # a finished request's outcome stays viewable this long
 WORKERS = 4
+SHUTDOWN_SECONDS = 5.0  # how long app shutdown waits for running requests before leaving them
 
 # What the progress page calls each request, and where its step is in the job's workspace.
 LABELS = {
@@ -140,11 +141,17 @@ class Task:
 
 
 class AITasks:
-    """The app's AI requests: a small thread pool and what each request is doing."""
+    """The app's AI requests: at most ``workers`` running at once, and what each request is doing.
+
+    Each request gets a daemon thread that waits for a free slot. Daemon threads never hold the
+    process open: stopping the app waits ``SHUTDOWN_SECONDS`` for running requests, then leaves
+    them. A request cut off that way saves nothing, since every save is one transaction at its end.
+    """
 
     def __init__(self, session_factory: sessionmaker[Session], workers: int = WORKERS):
         self._session_factory = session_factory
-        self._executor = ThreadPoolExecutor(max_workers=workers, thread_name_prefix="resuapply-ai")
+        self._slots = threading.BoundedSemaphore(workers)
+        self._closed = threading.Event()
         self._tasks: dict[str, Task] = {}
         self._lock = threading.Lock()
 
@@ -156,10 +163,26 @@ class AITasks:
                             if t.operation == operation and t.job_id == job_id and not t.done), None)
             if running is not None:
                 return running
+            if self._closed.is_set():
+                raise RuntimeError("The app is stopping; no new AI request can start.")
             task = Task(secrets.token_hex(8), operation, job_id, finish)
-            task.future = self._executor.submit(self._run, task, work)
             self._tasks[task.id] = task
+        threading.Thread(target=self._thread, args=(task, work), daemon=True,
+                         name=f"resuapply-ai-{task.id}").start()
         return task
+
+    def _thread(self, task: Task, work: Work) -> None:
+        with self._slots:
+            # A request still waiting for a slot when the app stops never starts.
+            if self._closed.is_set() or not task.future.set_running_or_notify_cancel():
+                task.future.cancel()
+                return
+            try:
+                result = self._run(task, work)
+            except BaseException as exc:  # noqa: BLE001  (handed to the page, which reports it)
+                task.future.set_exception(exc)
+            else:
+                task.future.set_result(result)
 
     def _run(self, task: Task, work: Work):
         try:
@@ -190,9 +213,17 @@ class AITasks:
         return sorted((t for t in list(self._tasks.values()) if t.job_id == job_id and not t.done),
                       key=lambda t: t.started_at)
 
-    def shutdown(self) -> None:
-        # A request already sent finishes on its own (each has a deadline); queued ones never start.
-        self._executor.shutdown(wait=False, cancel_futures=True)
+    def shutdown(self, timeout: float | None = None) -> None:
+        """Start nothing new, then wait a little for running requests before the app closes the model client.
+
+        Requests still running after that end when the client is closed or the process exits, saving nothing.
+        """
+        self._closed.set()
+        with self._lock:
+            pending = [t.future for t in self._tasks.values() if not t.done]
+        for future in pending:
+            future.cancel()  # only those that haven't started
+        wait(pending, timeout=SHUTDOWN_SECONDS if timeout is None else timeout)
 
 
 def start(request: Request, operation: str, job: Job, work: Work, finish: Finish) -> Task:
