@@ -423,3 +423,15 @@ def test_a_browser_error_mid_step_is_reported_not_a_server_error(world):
                                  follow_redirects=False)
     assert response.status_code == 409 and "The page changed or closed while ResuApply was working" in response.text
     world.assert_not_submitted()
+
+
+@pytest.mark.pages({POSTING_URL: "history.html"})
+def test_same_page_url_changes_while_filling_are_not_a_navigation(world):
+    world.attach()
+    world.open()
+    assert world.fill().status_code == 303
+    assert world.run.phase == "filled" and world.run.notice == ""
+    report = _report(world)
+    assert report["Email"] == ("filled", "jordan@example.com") and report[WHY] == ("filled", WHY_ANSWER)
+    assert "?step=" in world.page("() => location.href")  # the page did rewrite its URL meanwhile
+    world.assert_not_submitted()

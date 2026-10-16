@@ -303,11 +303,13 @@ class FormBrowser:
         page = self._context.new_page()
         self._navigations = 0
 
-        def navigated(frame):
-            if frame == page.main_frame:
+        def navigating(request):
+            # A request for a new document in the main frame. Same-page changes made through the History API
+            # or the URL's #fragment request nothing, so they don't count as leaving the form.
+            if request.is_navigation_request() and request.frame == page.main_frame:
                 self._navigations += 1
 
-        page.on("framenavigated", navigated)
+        page.on("request", navigating)
         self._page = page
         return page
 
