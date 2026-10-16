@@ -58,11 +58,8 @@ def draft(request: Request, job_id: int, force: int = Form(0), session: Session 
     if not settings.ai_configured:
         return _failed(request, session, job, "AI is off. Write the cover letter yourself.", 400)
 
-    def work(worker_session, worker_job, candidate):
-        if candidate is None:
-            raise letter_service.CoverLetterError(NO_PROFILE)
-        letter_ai.draft_cover_letter(worker_session, client, settings, worker_job, candidate, force=bool(force))
-
+    work = tasks.with_profile(lambda worker_session, worker_job, candidate: letter_ai.draft_cover_letter(
+        worker_session, client, settings, worker_job, candidate, force=bool(force)))
     task = tasks.start(request, letter_ai.DRAFT_COVER_LETTER, job, work, _drafted)
     return tasks.respond(request, session, job, task)
 

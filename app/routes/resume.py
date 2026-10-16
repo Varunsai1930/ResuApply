@@ -83,11 +83,8 @@ def generate(request: Request, job_id: int, force: int = Form(0), session: Sessi
     if not settings.ai_configured:
         return _failure(request, session, job, "AI is off. Use your profile as-is to prepare a resume.", 400)
 
-    def work(worker_session, worker_job, candidate):
-        if candidate is None:
-            raise resume_service.ResumeError("Create your profile before tailoring a resume.")
-        tailor_resume(worker_session, client, settings, worker_job, candidate, force=bool(force))
-
+    work = tasks.with_profile(lambda worker_session, worker_job, candidate: tailor_resume(
+        worker_session, client, settings, worker_job, candidate, force=bool(force)))
     task = tasks.start(request, TAILOR_RESUME, job, work, _generated)
     return tasks.respond(request, session, job, task)
 

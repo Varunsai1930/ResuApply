@@ -157,11 +157,8 @@ def draft(request: Request, job_id: int, force: int = Form(0), session: Session 
     if not settings.ai_configured:
         return _failed(request, session, job, "AI is off. Write your answers yourself.", 400)
 
-    def work(worker_session, worker_job, candidate):
-        if candidate is None:
-            raise AnswerError(NO_PROFILE)
-        answers_ai.draft_answers(worker_session, client, settings, worker_job, candidate, force=bool(force))
-
+    work = tasks.with_profile(lambda worker_session, worker_job, candidate: answers_ai.draft_answers(
+        worker_session, client, settings, worker_job, candidate, force=bool(force)))
     task = tasks.start(request, answers_ai.DRAFT_ANSWERS, job, work, _drafted)
     return tasks.respond(request, session, job, task)
 

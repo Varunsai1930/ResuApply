@@ -140,9 +140,8 @@ def suggest(request: Request, job_id: int, force: int = Form(0), session: Sessio
         return _render_workspace(request, session, job, status_code=400, ai_error="Create your profile first.")
     settings = request.app.state.settings
 
+    @tasks.with_profile
     def work(worker_session, worker_job, candidate):
-        if candidate is None:
-            raise tasks.Gone("Your profile was removed before the request ran. Create your profile first.")
         run = operations.suggest_evidence(worker_session, client, settings, worker_job, candidate, force=bool(force))
         return bool(run.result["suggestions"])
 

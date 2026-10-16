@@ -335,3 +335,19 @@ def test_an_extraction_for_a_job_edited_meanwhile_is_not_shown(ai_app_client, fa
     page = client.get(page_url)
     assert page.status_code == 409 and "The job changed while its requirements were being extracted" in page.text
     assert "proposal" not in client.get(page_url, follow_redirects=False).headers.get("location", "")
+
+
+@pytest.mark.parametrize("label", ["Suggesting evidence", "Tailoring your resume", "Drafting answers",
+                                   "Drafting your cover letter"])
+def test_a_profile_removed_before_the_request_runs_is_refused_the_same_way(
+        ai_app_client, fake_ai, sample_profile, background, monkeypatch, label):
+    from app.ai import tasks as tasks_module
+
+    client = ai_app_client
+    _, _, action, _ = REQUESTS[label](client, sample_profile)
+    monkeypatch.setattr(tasks_module, "get_candidate", lambda session: None)  # removed while it waited
+    page_url = client.post(action, follow_redirects=False).headers["location"]
+    finished(client, page_url)
+    page = client.get(page_url)
+    assert page.status_code == 409 and "Your profile was removed before the request ran" in page.text
+    assert fake_ai.requests == []

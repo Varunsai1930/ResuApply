@@ -230,6 +230,18 @@ class AITasks:
         wait(pending, timeout=SHUTDOWN_SECONDS if timeout is None else timeout)
 
 
+PROFILE_GONE = "Your profile was removed before the request ran. Create your profile, then start it again."
+
+
+def with_profile(run: Callable[[Session, Job, Candidate], Any]) -> Work:
+    """Work that needs the candidate's profile: refused the same way everywhere if it was removed meanwhile."""
+    def work(session: Session, job: Job, candidate: Candidate | None):
+        if candidate is None:
+            raise Gone(PROFILE_GONE)
+        return run(session, job, candidate)
+    return work
+
+
 def start(request: Request, operation: str, job: Job, work: Work, finish: Finish) -> Task:
     return request.app.state.ai_tasks.start(operation, job.id, work, finish)
 
