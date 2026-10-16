@@ -51,6 +51,8 @@ An `answer_bank` table holds reusable approved answers to non-sensitive question
 
 Nested education, experience, projects, requirements and package content are stored as validated JSON. Identifiers, relationships, statuses and timestamps use ordinary columns.
 
+The schema is managed by Alembic migrations (`app/migrations`), and startup runs `upgrade head` in one transaction after saving a copy of an existing database (`resuapply.db.before-<revision>.bak`). The baseline revision `0001` is the schema as of the redesigned interface; it also adopts databases kept by the earlier additive startup upgrade (no version table) by adding the tables, columns and indexes they lack, without changing existing ones. Later schema changes are new revisions, and a test fails when the models and the migrations disagree. The startup passes that rewrite stored questions and approvals run after the migration.
+
 - The user can edit every profile field; the model cannot update the canonical profile.
 - Every experience, project and education entry, and every bullet, has a stable ID that survives edits. Deleted IDs are never reused.
 - Contact details, education, employment dates, skills, skills the user confirmed they lack, preferences, availability and links are stored explicitly.
@@ -271,6 +273,6 @@ Required scenarios:
 - No numeric scores, no `score_job()`, no Playwright setup before V2, no ambiguous "Approve Submission" controls.
 - Document the actual tested setup commands, OpenRouter configuration, model limitations and the V1/V2 support boundary.
 - Version control ignores the database, uploaded resumes, generated files, secrets and browser state.
-- Start with a fresh database; no migration of existing application data is needed. V1 data is preserved when V2 is introduced.
+- V1 data is preserved when V2 is introduced: schema changes are Alembic migrations that run at startup, and existing databases are upgraded in place after a backup copy is saved.
 - Defaults: one active profile, localhost access, Classic resume layout, manual tracking and explicit user review. OCR is opt-in.
 - Free-model availability is outside the app's control. If the configured endpoint becomes unavailable, the manual workflow keeps working and the failure is reported; replacing the model is an explicit configuration change.

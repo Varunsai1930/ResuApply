@@ -107,6 +107,7 @@ def test_existing_database_gains_the_approval_rules_column(tmp_path):
         jobs.create(session, jobs.clean_input(**DEMO_JOB))
     with engine.begin() as conn:
         conn.execute(text("ALTER TABLE applications DROP COLUMN approval_rules"))
+        conn.execute(text("DROP TABLE alembic_version"))  # made before migrations
     init_db(engine)
     assert "approval_rules" in {c["name"] for c in inspect(engine).get_columns("applications")}
     with engine.connect() as conn:

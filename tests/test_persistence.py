@@ -20,6 +20,7 @@ def test_database_lives_in_the_data_folder_with_all_tables(settings):
     engine = make_engine(settings.database_url)
     assert set(inspect(engine).get_table_names()) == {
         "candidates", "jobs", "applications", "answer_bank", "ai_runs", "outbound_approvals",
+        "alembic_version",  # the schema revision Alembic migrated the database to
     }
     engine.dispose()
 

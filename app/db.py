@@ -2,20 +2,31 @@
 
 Synchronous SQLAlchemy 2.x on SQLite. Nested content is stored as JSON and validated
 with Pydantic on the way in and out; identifiers, relationships, statuses and timestamps
-use ordinary columns.
+use ordinary columns. The schema is managed by Alembic migrations in ``app/migrations``.
 """
 
 from __future__ import annotations
 
+import logging
+import sqlite3
 from collections.abc import Callable, Iterator
+from contextlib import closing
 from datetime import datetime, timezone
+from pathlib import Path
 from typing import Any
 
+from alembic import command
+from alembic.config import Config
+from alembic.runtime.migration import MigrationContext
+from alembic.script import ScriptDirectory
 from fastapi import Request
 from pydantic import TypeAdapter
-from sqlalchemy import JSON, DateTime, Engine, create_engine, event, inspect, text
+from sqlalchemy import JSON, DateTime, Engine, create_engine, event, inspect
 from sqlalchemy.orm import DeclarativeBase, Session, sessionmaker
+from sqlalchemy.pool import NullPool
 from sqlalchemy.types import TypeDecorator
+
+logger = logging.getLogger("resuapply.db")
 
 
 # SQLite stores integers in 8 bytes. A larger number in a URL or form can't be any row's ID, and
@@ -114,37 +125,90 @@ def make_session_factory(engine: Engine) -> sessionmaker[Session]:
     return sessionmaker(bind=engine, expire_on_commit=False)
 
 
+MIGRATIONS_DIR = Path(__file__).resolve().parent / "migrations"
+
+
+def migration_engine(database_url: str) -> Engine:
+    """An engine for schema migrations, separate from the app's.
+
+    Python's sqlite3 module only opens a transaction before INSERT, UPDATE or DELETE, so DDL
+    would commit statement by statement; here SQLAlchemy issues BEGIN itself and a failed
+    migration rolls back completely. Foreign keys stay off (SQLite's default) so a table that a
+    migration rebuilds can be dropped without cascading deletes into the tables that refer to it.
+    """
+    engine = create_engine(database_url, poolclass=NullPool)
+
+    @event.listens_for(engine, "connect")
+    def _autocommit_driver(dbapi_connection, _record):
+        dbapi_connection.isolation_level = None
+
+    @event.listens_for(engine, "begin")
+    def _begin(conn):
+        conn.exec_driver_sql("BEGIN IMMEDIATE")
+
+    return engine
+
+
+def _alembic_config(connection=None) -> Config:
+    config = Config()
+    config.set_main_option("script_location", str(MIGRATIONS_DIR))
+    config.attributes["connection"] = connection
+    return config
+
+
+def head_revision() -> str:
+    return ScriptDirectory.from_config(_alembic_config()).get_current_head()
+
+
 def init_db(engine: Engine) -> None:
-    """Create missing tables and add missing columns. No migration tool is used yet."""
+    """Bring the database to the current schema by running Alembic's ``upgrade head``.
+
+    A new database gets every table. A database from before migrations (no version table) is
+    adopted by the baseline revision, which adds what the older additive upgrade would have
+    added and changes nothing that is already there. Before migrating a database that already
+    has tables, a copy is kept next to it. Runs in one transaction, so a failure changes nothing.
+    """
     from . import models  # noqa: F401  (registers the tables on Base.metadata)
 
-    Base.metadata.create_all(engine)
-    _add_missing_columns(engine)
+    database = engine.url.database
+    if not database or database == ":memory:":
+        raise ValueError("ResuApply's database must be a file")
+    migrator = migration_engine(engine.url.render_as_string(hide_password=False))
+    try:
+        with migrator.connect() as connection:
+            current = MigrationContext.configure(connection).get_current_revision()
+            head = head_revision()
+            existing = bool(inspect(connection).get_table_names())
+            connection.rollback()
+            if current != head and existing:
+                _backup(connection, Path(database), current, head)
+            with connection.begin():
+                broken = _broken_references(connection)
+                command.upgrade(_alembic_config(connection), "head")
+                if _broken_references(connection) > broken:
+                    raise RuntimeError("The database upgrade would have broken references between rows. "
+                                       "It was rolled back, so nothing changed.")
+    finally:
+        migrator.dispose()
 
 
-def _add_missing_columns(engine: Engine) -> None:
-    """Additive upgrade for databases made by an earlier milestone.
+def _broken_references(connection) -> int:
+    """Rows whose foreign key points at nothing. Counted before and after, since foreign keys are off."""
+    return len(connection.exec_driver_sql("PRAGMA foreign_key_check").fetchall())
 
-    Only adds nullable columns or columns that declare a server default, so existing rows stay
-    valid. Columns are never renamed, retyped or dropped here.
+
+def _backup(connection, database: Path, current: str | None, head: str) -> Path:
+    """Copy the database before an upgrade, as ``resuapply.db.before-<revision>.bak``.
+
+    An existing copy for the same upgrade is kept: it is the older one, made before any attempt.
     """
-    inspector = inspect(engine)
-    with engine.begin() as conn:
-        for table in Base.metadata.sorted_tables:
-            existing = {c["name"] for c in inspector.get_columns(table.name)}
-            for column in table.columns:
-                if column.name in existing:
-                    continue
-                ddl = column.type.compile(engine.dialect)
-                if column.server_default is not None:
-                    default = column.server_default.arg
-                    if isinstance(default, str) and not default.lstrip("-").isdigit():
-                        default = "'" + default.replace("'", "''") + "'"
-                    conn.execute(text(f'ALTER TABLE "{table.name}" ADD COLUMN "{column.name}" {ddl} NOT NULL DEFAULT {default}'))
-                elif column.nullable:
-                    conn.execute(text(f'ALTER TABLE "{table.name}" ADD COLUMN "{column.name}" {ddl}'))
-                else:
-                    raise RuntimeError(f"Cannot add column {table.name}.{column.name} without a server default")
+    target = database.with_name(f"{database.name}.before-{head}.bak")
+    if not target.exists():
+        source = connection.connection.driver_connection
+        with closing(sqlite3.connect(target)) as copy:
+            source.backup(copy)
+    logger.info("database upgrade from=%s to=%s backup=%s", current or "unversioned", head, target.name)
+    return target
 
 
 def get_ai_client(request: Request):

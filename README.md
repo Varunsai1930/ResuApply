@@ -107,7 +107,9 @@ Every setting is optional and is read from the environment or `.env`:
 
 The bind address is always `127.0.0.1` and cannot be configured. The app also rejects requests whose `Host` isn't `127.0.0.1` or `localhost`, and form posts coming from other websites.
 
-Tables are created on startup, and columns added by a later milestone are added to an existing database automatically (nothing is renamed or dropped). To start over, stop the app and delete `data/resuapply.db`. The database, `.env`, uploads and generated files are git-ignored.
+The database schema is managed by [Alembic](https://alembic.sqlalchemy.org) migrations in `app/migrations`, and every start runs `upgrade head`: a new database gets every table, and an existing one gets the migrations it hasn't had yet, all in one transaction, so a failed upgrade changes nothing. Before upgrading a database that already has data, the app saves a copy next to it as `resuapply.db.before-<revision>.bak`. A database made before migrations were introduced is adopted by the first (baseline) migration, which adds any tables, columns and indexes it lacks, such as the resume layout and cover letter columns, and changes nothing that is already there. To start over, stop the app and delete `data/resuapply.db`. The database, its backup copies, `.env`, uploads and generated files are git-ignored.
+
+When a change to `app/models.py` needs a schema change, add a migration with `.venv/bin/alembic revision --autogenerate -m "What changed"`, review the generated file (it uses plain types such as `sa.JSON`, never the app's models), and run the tests: `tests/test_migrations.py` fails while the models and the migrations disagree.
 
 ### Optional OCR for scanned resumes
 
@@ -209,10 +211,11 @@ Profile saves reject overlapping edits against an older revision. Dates support 
 
 ```text
 app/
-  main.py         FastAPI app factory (startup creates tables)
+  main.py         FastAPI app factory (startup migrates the database)
   config.py       Settings from the environment / .env
-  db.py           SQLAlchemy engine, sessions, Pydantic-validated JSON columns
-  models.py       candidates, jobs, applications, answer_bank
+  db.py           SQLAlchemy engine, sessions, Pydantic-validated JSON columns, startup migration
+  models.py       candidates, jobs, applications, answer_bank, ai_runs, outbound_approvals
+  migrations/     Alembic environment and migrations (versions/0001_baseline.py is the starting schema)
   schemas/        Pydantic shapes for profile, resume and tracking JSON
   ai/             OpenRouter client, prompts, requirements, evidence, resume tailoring and answer drafts
   services/       Rules ported from ResuSkill (profile, requirements, checklist, claims),
@@ -234,7 +237,7 @@ tests/            pytest: rules, mocked AI, HTTP integration and restart persist
 
 ## Stack
 
-Python 3.12 · FastAPI · Jinja2 · SQLAlchemy · SQLite · Pydantic · HTTPX → OpenRouter (model configurable) and Greenhouse's public job board (job import, on request) · pypdf and python-docx for import/export · pypdfium2, Pillow and optional Tesseract for local OCR. No application browser-automation dependency before autofill.
+Python 3.12 · FastAPI · Jinja2 · SQLAlchemy · SQLite with Alembic migrations · Pydantic · HTTPX → OpenRouter (model configurable) and Greenhouse's public job board (job import, on request) · pypdf and python-docx for import/export · pypdfium2, Pillow and optional Tesseract for local OCR. No application browser-automation dependency before autofill.
 
 ## License
 
