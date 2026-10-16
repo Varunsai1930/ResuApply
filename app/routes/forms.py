@@ -18,3 +18,14 @@ MAX_PART_SIZE = 16 * 1024 * 1024  # 16 MB for one field, such as the reviewed pr
 
 async def read_form(request: Request) -> FormData:
     return await request.form(max_fields=MAX_FIELDS, max_part_size=MAX_PART_SIZE)
+
+
+# Room for the multipart framing around an uploaded file: an upload whose Content-Length passes the
+# file limit by more than this is refused before its body is read.
+UPLOAD_FRAMING = 64 * 1024
+
+
+def upload_too_large(request: Request, max_bytes: int) -> bool:
+    """Whether the request's declared size can't hold a file of at most ``max_bytes``."""
+    length = request.headers.get("content-length", "")
+    return length.isascii() and length.isdigit() and int(length) > max_bytes + UPLOAD_FRAMING

@@ -450,3 +450,21 @@ def test_a_fill_waits_as_long_as_its_steps_can_take():
     # 30 slow fields (10 s to fill and 10 s to read back each) can't be cut off at the 120-second default.
     assert seen["timeout"] == autofill_browser.CALL_SECONDS + 30 * 2 * autofill_browser.ACTION_SECONDS
     assert seen["timeout"] > 30 * 2 * autofill_browser.ACTION_SECONDS
+
+
+def test_an_oversized_resume_pdf_is_refused_before_it_is_read(world, monkeypatch):
+    from starlette.requests import Request
+
+    from app.services.resume_import import MAX_BYTES
+
+    read = []
+    original = Request.form
+
+    def form(self, *args, **kwargs):
+        read.append(True)
+        return original(self, *args, **kwargs)
+
+    monkeypatch.setattr(Request, "form", form)
+    response = world.attach(b"%PDF-" + b"x" * (MAX_BYTES + 200_000))
+    assert response.status_code == 413 and "over 10 MB" in response.text
+    assert read == []  # the shared check refused it from its Content-Length

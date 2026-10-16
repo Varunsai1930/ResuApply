@@ -16,12 +16,10 @@ from ..services import autofill as autofill_service
 from ..services import resume_attachment
 from ..services.profile import get_candidate
 from ..services.resume_import import MAX_BYTES
+from .forms import upload_too_large
 from .jobs import _job_or_404, _render_workspace
 
 router = APIRouter(prefix="/jobs/{job_id}/autofill")
-
-_UPLOAD_FRAMING = 64 * 1024  # room for the multipart framing around the file
-
 
 def _done(job_id: int, msg: str) -> RedirectResponse:
     return RedirectResponse(f"/jobs/{job_id}?step=track&msg={msg}#autofill", status_code=303)
@@ -36,8 +34,7 @@ def _refused(request: Request, session: Session, job, message: str, status_code:
 async def attach_resume(request: Request, job_id: int, session: Session = Depends(get_session)):
     """Keep the PDF the user saved from the approved package. Read here, so an oversized upload is refused unread."""
     job = _job_or_404(session, job_id)
-    length = request.headers.get("content-length", "")
-    if length.isascii() and length.isdigit() and int(length) > MAX_BYTES + _UPLOAD_FRAMING:
+    if upload_too_large(request, MAX_BYTES):
         return _refused(request, session, job, f"The file is over {MAX_BYTES // (1024 * 1024)} MB. Attach the resume "
                         "PDF you saved from this package.", 413)
     async with request.form(max_files=1, max_fields=5) as form:
