@@ -10,10 +10,13 @@ Nothing leaves your machine. The stand-in is deliberately simple and not a model
 - return_answers drafts each open question by quoting the first shared bullet that fits its limit.
 - return_cover_letter names the role, then quotes the shared summary and the first two bullets.
 Use a separate data folder (RESUAPPLY_DATA_DIR) if you don't want test data in data/.
+``--delay 8`` makes each answer take 8 seconds, to see an AI request's progress page.
 """
 
 from __future__ import annotations
 
+import argparse
+import asyncio
 import json
 import re
 
@@ -108,10 +111,25 @@ def _handle(request: httpx.Request) -> httpx.Response:
         "usage": {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0}})
 
 
-def main() -> None:
+def _slow(seconds: float):
+    """``_handle``, answering after ``seconds``, to try the progress page of a request that takes a while."""
+    async def handle(request: httpx.Request) -> httpx.Response:
+        await asyncio.sleep(seconds)
+        return _handle(request)
+    return handle
+
+
+def main(argv: list[str] | None = None) -> None:
+    parser = argparse.ArgumentParser(description="Run ResuApply with a local stand-in for the AI model.")
+    parser.add_argument("--delay", type=float, default=0.0, metavar="SECONDS",
+                        help="wait this long before each answer, to see the progress page (default: 0)")
+    delay = parser.parse_args(argv).delay
+    if not 0 <= delay < 90:
+        parser.error("--delay must be at least 0 and under 90 seconds (the app's request deadline)")
     settings = get_settings().model_copy(update={"openrouter_api_key": SecretStr("fake-local-key"), "openrouter_model": "fake/local-stand-in"})
     print(f"ResuApply with a FAKE model at http://{HOST}:{settings.port}  (data: {settings.database_path})")
-    uvicorn.run(create_app(settings, ai_transport=httpx.MockTransport(_handle)), host=HOST, port=settings.port)
+    transport = httpx.MockTransport(_slow(delay) if delay else _handle)
+    uvicorn.run(create_app(settings, ai_transport=transport), host=HOST, port=settings.port)
 
 
 if __name__ == "__main__":

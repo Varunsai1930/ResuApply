@@ -10,9 +10,9 @@ from fastapi.responses import HTMLResponse, RedirectResponse
 from sqlalchemy import update
 from sqlalchemy.orm import Session
 
-from ..ai import operations, prompts
+from ..ai import operations, prompts, tasks
 from ..ai.client import AIError, OpenRouterClient
-from ..ai.resume import tailor_resume
+from ..ai.resume import TAILOR_RESUME, tailor_resume
 from ..db import get_ai_client, get_session
 from ..models import Application
 from ..services import outbound, package, resume_docx, resume_layouts, resume as resume_service
@@ -77,13 +77,21 @@ def propose_profile(request: Request, job_id: int, session: Session = Depends(ge
 def generate(request: Request, job_id: int, force: int = Form(0), session: Session = Depends(get_session),
              client: OpenRouterClient = Depends(get_ai_client)):
     job = _job_or_404(session, job_id)
-    candidate = get_candidate(session)
-    if candidate is None:
+    if get_candidate(session) is None:
         return _failure(request, session, job, "Create your profile before tailoring a resume.", 400)
-    if not request.app.state.settings.ai_configured:
+    settings = request.app.state.settings
+    if not settings.ai_configured:
         return _failure(request, session, job, "AI is off. Use your profile as-is to prepare a resume.", 400)
+
+    work = tasks.with_profile(lambda worker_session, worker_job, candidate: tailor_resume(
+        worker_session, client, settings, worker_job, candidate, force=bool(force)))
+    task = tasks.start(request, TAILOR_RESUME, job, work, _generated)
+    return tasks.respond(request, session, job, task)
+
+
+def _generated(request: Request, session: Session, job, task: tasks.Task):
     try:
-        tailor_resume(session, client, request.app.state.settings, job, candidate, force=bool(force))
+        task.result()
     except operations.ApprovalNeeded:
         return RedirectResponse(f"/profile/sharing?next={quote(f'/jobs/{job.id}?step=resume')}", status_code=303)
     except AIError as exc:

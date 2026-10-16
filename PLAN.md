@@ -35,7 +35,7 @@ ResuApply uses the same rules as ResuSkill: requirement excerpt checks, checklis
   - **Profile:** guided entry and confirmation of candidate facts.
   - **Jobs / Tracker:** saved jobs, review state, tracking status, dates and notes.
   - **Job Workspace:** description, requirement checklist, resume proposals, questions, review and export.
-- AI buttons show progress and block duplicate requests. Saving profiles, jobs, notes and statuses works without an AI key.
+- AI requests run in the background, in a small in-process thread pool (no external queue). A request's progress page reloads itself without JavaScript and shows the result when it is ready; asking again while it runs shows the same request. Saving profiles, jobs, notes and statuses works without an AI key.
 
 ### Profile and storage
 
@@ -50,6 +50,8 @@ Three tables:
 An `answer_bank` table holds reusable approved answers to non-sensitive questions.
 
 Nested education, experience, projects, requirements and package content are stored as validated JSON. Identifiers, relationships, statuses and timestamps use ordinary columns.
+
+The schema is managed by Alembic migrations (`app/migrations`), and startup runs `upgrade head` in one transaction after saving a copy of an existing database (`resuapply.db.before-<revision>.bak`). The baseline revision `0001` is the schema as of the redesigned interface; it also adopts databases kept by the earlier additive startup upgrade (no version table) by adding the tables, columns and indexes they lack, without changing existing ones. Later schema changes are new revisions, and a test fails when the models and the migrations disagree. The startup passes that rewrite stored questions and approvals run after the migration.
 
 - The user can edit every profile field; the model cannot update the canonical profile.
 - Every experience, project and education entry, and every bullet, has a stable ID that survives edits. Deleted IDs are never reused.
@@ -103,6 +105,7 @@ draft_answers(candidate_context, job_context, questions) -> AnswerDrafts
 Plus an optional `suggest_evidence(candidate_context, requirements) -> EvidenceSuggestions`, whose results are only suggestions until the user confirms them.
 
 - 90-second timeout per request. One corrective retry for malformed or invalid output; otherwise an error is shown.
+- **Background requests (`app/ai/tasks.py`).** A form post checks what it can at once (profile, AI configured), starts the request in a worker thread with its own database session and redirects to `/jobs/<job>/ai/<request>`, unless the result is ready within a second (a cached run or a refusal). That page carries an HTML meta refresh and, once the request has finished, turns its outcome into the same redirect or error page the route used to return; a plain reload does the same, and `/jobs/<job>/ai/<request>/status` gives the state as JSON. The worker runs the unchanged operation, so freshness is checked before each model request and again under the writer lock before saving, validation stays all-or-nothing, validated runs stay cached and `operations.exclusive` still blocks a duplicate. The registry is in memory: one running request per operation and job, finished outcomes kept for an hour, and nothing survives a restart (the old page says so; a request that never finished saved nothing).
 - For authentication, quota, timeout or provider errors, existing work is kept and the user can retry manually.
 - Validated results are reused when the task inputs, model and prompt revision are unchanged.
 - The app records the model, prompt revision, input revisions, generation time and available usage metadata. Logs never contain secrets or candidate text.
@@ -271,6 +274,6 @@ Required scenarios:
 - No numeric scores, no `score_job()`, no Playwright setup before V2, no ambiguous "Approve Submission" controls.
 - Document the actual tested setup commands, OpenRouter configuration, model limitations and the V1/V2 support boundary.
 - Version control ignores the database, uploaded resumes, generated files, secrets and browser state.
-- Start with a fresh database; no migration of existing application data is needed. V1 data is preserved when V2 is introduced.
+- V1 data is preserved when V2 is introduced: schema changes are Alembic migrations that run at startup, and existing databases are upgraded in place after a backup copy is saved.
 - Defaults: one active profile, localhost access, Classic resume layout, manual tracking and explicit user review. OCR is opt-in.
 - Free-model availability is outside the app's control. If the configured endpoint becomes unavailable, the manual workflow keeps working and the failure is reported; replacing the model is an explicit configuration change.

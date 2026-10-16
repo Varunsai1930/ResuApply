@@ -19,8 +19,11 @@ from starlette.middleware.trustedhost import TrustedHostMiddleware
 from . import __version__
 from .config import ALLOWED_HOSTS, Settings, get_settings
 from .ai.client import OpenRouterClient
+from .ai.tasks import AITasks
 from .db import init_db, make_engine, make_session_factory
-from .routes import answers, cover_letter, jobs, package, profile, questions, requirements, resume, sharing, welcome
+from .routes import (
+    ai_tasks, answers, cover_letter, jobs, package, profile, questions, requirements, resume, sharing, welcome,
+)
 from .input_cleaning import ControlCharacterMiddleware
 from .security import HeadAsGetMiddleware, NoFramingMiddleware, SameOriginMiddleware
 from .services.answers import upgrade_stored_questions
@@ -51,9 +54,11 @@ def create_app(settings: Settings | None = None, ai_transport: httpx.AsyncBaseTr
             upgrade_stored_approvals(session)
         key = settings.openrouter_api_key.get_secret_value() if settings.openrouter_api_key else None
         app.state.ai_client = OpenRouterClient(key, settings.openrouter_model, transport=ai_transport)
+        app.state.ai_tasks = AITasks(app.state.session_factory)
         try:
             yield
         finally:
+            app.state.ai_tasks.shutdown()
             app.state.ai_client.close()
             engine.dispose()
 
@@ -75,6 +80,7 @@ def create_app(settings: Settings | None = None, ai_transport: httpx.AsyncBaseTr
     app.include_router(cover_letter.router)
     app.include_router(package.router)
     app.include_router(answers.router)
+    app.include_router(ai_tasks.router)
     app.include_router(welcome.router)
 
     @app.get("/favicon.ico", include_in_schema=False)

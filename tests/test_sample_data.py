@@ -131,6 +131,7 @@ def test_an_existing_database_gains_the_sample_columns(tmp_path):
     with engine.begin() as conn:
         conn.execute(text("ALTER TABLE jobs DROP COLUMN sample"))
         conn.execute(text("ALTER TABLE candidates DROP COLUMN sample"))
+        conn.execute(text("DROP TABLE alembic_version"))  # made before migrations
     init_db(engine)
     for table in ("jobs", "candidates"):
         assert "sample" in {c["name"] for c in inspect(engine).get_columns(table)}

@@ -222,6 +222,7 @@ def test_existing_database_gains_the_follow_up_column(tmp_path):
         jobs.create(session, jobs.clean_input(**DEMO_JOB))
     with engine.begin() as conn:
         conn.execute(text("ALTER TABLE applications DROP COLUMN follow_up_after"))
+        conn.execute(text("DROP TABLE alembic_version"))  # made before migrations
     init_db(engine)
     assert "follow_up_after" in {c["name"] for c in inspect(engine).get_columns("applications")}
     with engine.connect() as conn:

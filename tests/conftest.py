@@ -14,6 +14,7 @@ import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
+from app.ai import tasks
 from app.ai.client import OpenRouterClient
 from app.config import Settings
 from app.db import init_db, make_engine, make_session_factory
@@ -29,6 +30,16 @@ def _no_network(request):
 
 # Every app a test builds refuses Greenhouse requests unless the test gives its own stand-in.
 NO_NETWORK = httpx.MockTransport(_no_network)
+
+
+@pytest.fixture(autouse=True)
+def wait_for_ai_requests(monkeypatch):
+    """Form posts wait for a background AI request to finish, so route tests see its result directly.
+
+    The mocked model answers at once, but a busy test machine shouldn't decide whether a test gets
+    the result or the progress page. Tests of the progress page set ``tasks.WAIT_SECONDS`` to 0.
+    """
+    monkeypatch.setattr(tasks, "WAIT_SECONDS", 30.0)
 
 @pytest.fixture
 def sample_profile() -> dict:
