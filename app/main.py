@@ -20,10 +20,13 @@ from . import __version__
 from .config import ALLOWED_HOSTS, Settings, get_settings
 from .ai.client import OpenRouterClient
 from .db import init_db, make_engine, make_session_factory
-from .routes import answers, cover_letter, jobs, package, profile, questions, requirements, resume, sharing, welcome
+from .routes import (answers, autofill, cover_letter, jobs, package, profile, questions, requirements, resume, sharing,
+                     welcome)
 from .input_cleaning import ControlCharacterMiddleware
 from .security import HeadAsGetMiddleware, NoFramingMiddleware, SameOriginMiddleware
 from .services.answers import upgrade_stored_questions
+from .services.autofill import Autofill
+from .services.autofill_browser import LaunchOptions
 from .services.package import rewrite_approvals_with_stored_rules, upgrade_stored_approvals
 from .templating import STATIC_DIR, templates
 
@@ -33,10 +36,15 @@ FORM_TOO_LARGE = re.compile(r"Too many (fields|files)|exceeded maximum size", re
 
 
 def create_app(settings: Settings | None = None, ai_transport: httpx.AsyncBaseTransport | None = None,
-               greenhouse_transport: httpx.BaseTransport | None = None) -> FastAPI:
+               greenhouse_transport: httpx.BaseTransport | None = None,
+               autofill_options: LaunchOptions | None = None) -> FastAPI:
     """Build the app. ``ai_transport`` and ``greenhouse_transport`` replace the network for OpenRouter
-    calls and Greenhouse imports (tests use mocks)."""
+    calls and Greenhouse imports (tests use mocks); ``autofill_options`` start the autofill browser hidden
+    and serve local pages in tests."""
     settings = settings or get_settings()
+    if autofill_options is None:
+        browser = settings.autofill_browser
+        autofill_options = LaunchOptions(executable_path=str(browser.expanduser()) if browser else None)
 
     @asynccontextmanager
     async def lifespan(app: FastAPI):
@@ -54,12 +62,14 @@ def create_app(settings: Settings | None = None, ai_transport: httpx.AsyncBaseTr
         try:
             yield
         finally:
+            app.state.autofill.shutdown()  # the autofill browser, if one is open
             app.state.ai_client.close()
             engine.dispose()
 
     app = FastAPI(title="ResuApply", version=__version__, lifespan=lifespan, docs_url=None, redoc_url=None, openapi_url=None)
     app.state.settings = settings
     app.state.greenhouse_transport = greenhouse_transport
+    app.state.autofill = Autofill(settings.resolved_data_dir, autofill_options)
     app.add_middleware(ControlCharacterMiddleware)  # innermost: routes only ever see cleaned forms
     app.add_middleware(HeadAsGetMiddleware)
     app.add_middleware(SameOriginMiddleware)
@@ -74,6 +84,7 @@ def create_app(settings: Settings | None = None, ai_transport: httpx.AsyncBaseTr
     app.include_router(questions.router)
     app.include_router(cover_letter.router)
     app.include_router(package.router)
+    app.include_router(autofill.router)
     app.include_router(answers.router)
     app.include_router(welcome.router)
 

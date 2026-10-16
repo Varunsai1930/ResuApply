@@ -19,6 +19,7 @@ from .schemas.package import (
     Answer, AnswerDraft, Approval, CoverLetter, CoverLetterDraft, Question, SubmittedSnapshot, stored_approval,
     stored_snapshots,
 )
+from .schemas.autofill import ResumeAttachment
 from .schemas.posting_import import PostingImport
 from .schemas.profile import Profile, stored_profile
 from .schemas.requirements import EvidenceLink, Override, Requirement
@@ -114,6 +115,9 @@ class Application(Base):
     approval_rules_for: Mapped[str | None] = mapped_column(String(64), nullable=True)
     submitted_snapshots: Mapped[list[SubmittedSnapshot]] = mapped_column(
         PydanticJSON(list[SubmittedSnapshot], read_upgrade=stored_snapshots), default=list)
+    # The resume PDF the user saved from the approved package and attached for Greenhouse autofill.
+    # Not package content: attaching or removing it never changes approval.
+    resume_attachment: Mapped[ResumeAttachment | None] = mapped_column(PydanticJSON(ResumeAttachment), nullable=True)
     created_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utcnow)
     updated_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utcnow)
 

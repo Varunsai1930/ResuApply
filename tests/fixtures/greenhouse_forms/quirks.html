@@ -1,0 +1,28 @@
+<!doctype html>
+<!-- A fictional Greenhouse-like form whose scripts misbehave: a phone formatter, an upload that rejects
+     the file, and a text box that tries to submit the form while it is typed in. -->
+<html lang="en">
+<head><meta charset="utf-8"><title>Application</title></head>
+<body>
+<form id="application-form" action="/examplerobotics/jobs/4012345/applications" method="post">
+  <label for="first_name">First Name*</label><input id="first_name" name="first_name" type="text">
+  <label for="email">Email*</label><input id="email" name="email" type="email">
+  <label for="phone">Phone</label><input id="phone" name="phone" type="tel">
+  <label for="resume">Resume/CV*</label><input id="resume" name="resume" type="file">
+  <label for="question_103">Why do you want to work at Example Robotics?*</label><textarea id="question_103" name="question_103"></textarea>
+  <button type="submit">Submit application</button>
+</form>
+<script>
+  window.fixture = { submits: 0, clicks: 0, attempts: 0 };
+  const form = document.getElementById("application-form");
+  form.addEventListener("submit", () => { window.fixture.submits++; });
+  document.getElementById("phone").addEventListener("input", (e) => { e.target.value = e.target.value.replace(/\D/g, ""); });
+  document.getElementById("resume").addEventListener("change", (e) => { e.target.value = ""; });
+  document.getElementById("question_103").addEventListener("input", () => {
+    window.fixture.attempts++;
+    form.requestSubmit();
+    form.submit();
+  });
+</script>
+</body>
+</html>
