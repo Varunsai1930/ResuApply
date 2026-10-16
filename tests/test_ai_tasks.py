@@ -315,3 +315,22 @@ def test_shutdown_is_bounded_cancels_waiting_requests_and_never_holds_the_proces
     release.set()
     wait([running.future], timeout=10)
     assert running.state == "done"
+
+
+def test_an_extraction_for_a_job_edited_meanwhile_is_not_shown(ai_app_client, fake_ai, sample_profile, background):
+    client = ai_app_client
+    job_id, answer, action, _ = _extract(client, sample_profile)
+    fake_ai.hold()
+    fake_ai.push(answer)
+    page_url = client.post(action, follow_redirects=False).headers["location"]
+    assert fake_ai.arrived.wait(10)
+    with client.app.state.session_factory() as session:  # the user edits the job while the model works
+        job = session.get(Job, job_id)
+        job.description += "\nAlso: Rust."
+        job.revision += 1
+        session.commit()
+    fake_ai.release()
+    finished(client, page_url)
+    page = client.get(page_url)
+    assert page.status_code == 409 and "The job changed while its requirements were being extracted" in page.text
+    assert "proposal" not in client.get(page_url, follow_redirects=False).headers.get("location", "")

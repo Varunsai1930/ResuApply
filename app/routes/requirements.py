@@ -101,13 +101,18 @@ async def save_requirements(request: Request, job_id: int, session: Session = De
 
 # ---------------------------------------------------------------- AI
 
+JOB_CHANGED = ("The job changed while its requirements were being extracted, so that proposal isn't shown: it was "
+               "read from the job as it was. Extract the requirements again.")
+
 @router.post("/requirements/extract")
 def extract(request: Request, job_id: int, force: int = Form(0), session: Session = Depends(get_session),
             client: OpenRouterClient = Depends(get_ai_client)):
     job = _job_or_404(session, job_id)
 
     def work(worker_session, worker_job, _candidate):
-        return operations.extract_requirements(worker_session, client, worker_job, force=bool(force))
+        # The job's revision as the request read it: the page checks it again before showing the result.
+        revision = worker_job.revision
+        return revision, operations.extract_requirements(worker_session, client, worker_job, force=bool(force))
 
     task = tasks.start(request, operations.PARSE_JOB, job, work, _extracted)
     return tasks.respond(request, session, job, task)
@@ -115,9 +120,11 @@ def extract(request: Request, job_id: int, force: int = Form(0), session: Sessio
 
 def _extracted(request: Request, session: Session, job: Job, task: tasks.Task):
     try:
-        outcome = task.result()
+        revision, outcome = task.result()
     except AIError as exc:
         return _ai_failed(request, session, job, exc)
+    if job.revision != revision:
+        return _render_workspace(request, session, job, status_code=409, ai_error=JOB_CHANGED)
     if outcome.problems:
         notice = ("The AI model's proposal still has problems after one correction attempt, so nothing was saved. "
                   "Fix the marked requirements (or remove them), then save.")
