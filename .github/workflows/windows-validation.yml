@@ -31,7 +31,8 @@ jobs:
       - name: Install Chromium
         run: python -m playwright install chromium
       - name: Run the full test suite
-        run: python -m pytest -q --junitxml=validation-results/pytest.xml
+        # A test still running after 120 s fails with every thread's stack instead of holding the job.
+        run: python -m pytest -q --timeout=120 --durations=15 --junitxml=validation-results/pytest.xml
       - name: Check real startup, imports, restart persistence and PDF output
         run: python -m scripts.smoke_local --output-dir validation-results/local-smoke --print-pdf validation-results/local-smoke/accepted-resume.pdf
       - name: Keep synthetic validation results
