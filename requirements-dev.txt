@@ -1,5 +1,7 @@
 # Test dependencies. Install with: pip install -r requirements-dev.txt
 -r requirements.txt
+# Autofill's tests drive a hidden Chromium; without one (python -m playwright install chromium) they are skipped.
+-r requirements-autofill.txt
 pytest==9.1.1
 
 # Transitive
