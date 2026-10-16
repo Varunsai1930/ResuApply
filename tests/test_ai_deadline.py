@@ -71,7 +71,7 @@ def socket_provider(monkeypatch, body: bytes, *, pause: float, pieces: int = 20,
                 sent.append(offset)
             if right.recv(1) == b"":
                 disconnected.set()
-        except (BrokenPipeError, ConnectionResetError):
+        except ConnectionError:  # Windows reports a closed peer as ConnectionAbortedError (WinError 10053)
             disconnected.set()
         except OSError:
             if not stop.is_set():
