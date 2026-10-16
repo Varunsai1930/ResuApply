@@ -228,6 +228,17 @@ Supports standard Greenhouse-hosted application forms only. Embedded employer im
 
 The model has no browser-control role. Autofill uses reviewed data and deterministic mappings.
 
+Built (`services/autofill.py`, `autofill_plan.py`, `autofill_browser.py` and `resume_attachment.py`; the **Fill the Greenhouse form** card on Submit and track):
+
+- Playwright is optional and pinned in `requirements-autofill.txt`. It is imported only when the user opens a form; without it the app starts, every other feature works and the card shows the setup commands.
+- The PDF is checked (readable, unencrypted, at most 10 pages, showing the approved resume's name), stored under `data/attachments/` and recorded in a nullable `applications.resume_attachment` column with the approved package's hash. A changed package needs the PDF again; the file's SHA-256 is checked before it is uploaded.
+- One dedicated thread owns Playwright and one browser with a fresh context. Opening needs the reviewed `package_token`; filling needs the plan token of the plan shown, so a changed package, PDF or plan is refused.
+- Mappings: a field is filled only when it is a visible, editable text, email, phone or link input or text box with one label no other field shares, the label is a profile contact field or exactly a package question with an accepted non-sensitive answer (both agreeing when both apply), it isn't sensitive by wording or section, and the value fits (no line breaks in one-line fields, within maxlength). The resume file input gets the PDF. Everything else is listed as left, with its reason. Occupied fields are replaced only when ticked and unchanged since inspection.
+- The form is read again before filling. A CAPTCHA, a sign-in, a different host or posting, a missing or oversized form, a closed window or a changed field structure hands control back and fills nothing. Navigation during the fill stops it.
+- Only `fill`, `set_input_files` and read-back are used: no clicks or key presses. During a fill a guard cancels submit events, `form.submit()`/`requestSubmit()` and form-post navigations, and reports any attempt.
+- Applied is never recorded by autofill. The browser closes on **Close the browser** and at app shutdown.
+- Tests (`tests/test_autofill*.py`, `tests/test_resume_attachment.py`) drive a hidden Chromium against local Greenhouse-like fixtures with every request answered locally: existing values, custom questions, unsupported controls, upload verification, read-back mismatches, CAPTCHA, sign-in, redirects, changed structure, page-initiated submissions and zero automated submissions. A manual check on a live hosted form, without submitting, remains pending.
+
 ## 5. Delivery order and acceptance tests
 
 | Milestone | Deliverable | Acceptance gate |
@@ -238,7 +249,7 @@ The model has no browser-control role. Autofill uses reviewed data and determini
 | **3b — Complete V1** | Questions, answers, answer bank, approval, staleness, submitted snapshots | Prepare, approve, submit manually and retrieve an unchanged package after profile edits |
 | **4 — V2 import** | PDF/DOCX extraction with profile diff; Greenhouse job import | Import without silently changing existing facts |
 | **4a — Resume extensions** | Opt-in local OCR, three layouts, current and frozen DOCX export | Recognize mixed scanned/text pages; preserve selected facts, approval freshness and frozen snapshots; inspect short and multi-page exports |
-| **5 — V2 autofill** | Limited Greenhouse adapter and browser handoff | Verify supported fields with zero automated submissions |
+| **5 — V2 autofill** | Limited Greenhouse adapter and browser handoff (built; live manual check pending) | Verify supported fields with zero automated submissions |
 
 pytest covers matching, validation, revision handling and FastAPI integration. Provider responses are mocked, so ordinary tests need no API key. Before the AI integration is called complete, a live smoke test runs with synthetic, non-identifying content.
 
