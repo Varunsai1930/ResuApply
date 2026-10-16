@@ -270,10 +270,11 @@ def test_finished_requests_are_forgotten_after_a_while(ai_app_client, fake_ai, s
     old = finished(client, client.post(action, follow_redirects=False).headers["location"])
     monkeypatch.setattr(tasks, "KEEP_FINISHED", timedelta(0))
     registry = client.app.state.ai_tasks
+    # Looking a request up (a progress page, the workspace) is enough to forget old ones.
+    assert registry.get(job_id, old.id) is None and old.id not in registry._tasks
     new = registry.start("check", job_id, lambda session, job, candidate: job.id, lambda *args: None)
     wait([new.future], timeout=10)
     assert new.result() == job_id
-    assert registry.get(job_id, old.id) is None and registry.get(job_id, new.id) is new
 
 
 def test_a_request_for_a_deleted_job_saves_nothing(ai_app_client, fake_ai, sample_profile, background):

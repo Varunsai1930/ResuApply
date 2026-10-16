@@ -206,12 +206,16 @@ class AITasks:
             del self._tasks[task_id]
 
     def get(self, job_id: int, task_id: str) -> Task | None:
-        task = self._tasks.get(task_id)
+        with self._lock:
+            self._forget_finished()
+            task = self._tasks.get(task_id)
         return task if task is not None and task.job_id == job_id else None
 
     def running(self, job_id: int) -> list[Task]:
-        return sorted((t for t in list(self._tasks.values()) if t.job_id == job_id and not t.done),
-                      key=lambda t: t.started_at)
+        with self._lock:
+            self._forget_finished()
+            tasks = [t for t in self._tasks.values() if t.job_id == job_id and not t.done]
+        return sorted(tasks, key=lambda t: t.started_at)
 
     def shutdown(self, timeout: float | None = None) -> None:
         """Start nothing new, then wait a little for running requests before the app closes the model client.
