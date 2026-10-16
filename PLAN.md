@@ -35,7 +35,7 @@ ResuApply uses the same rules as ResuSkill: requirement excerpt checks, checklis
   - **Profile:** guided entry and confirmation of candidate facts.
   - **Jobs / Tracker:** saved jobs, review state, tracking status, dates and notes.
   - **Job Workspace:** description, requirement checklist, resume proposals, questions, review and export.
-- AI buttons show progress and block duplicate requests. Saving profiles, jobs, notes and statuses works without an AI key.
+- AI requests run in the background, in a small in-process thread pool (no external queue). A request's progress page reloads itself without JavaScript and shows the result when it is ready; asking again while it runs shows the same request. Saving profiles, jobs, notes and statuses works without an AI key.
 
 ### Profile and storage
 
@@ -105,6 +105,7 @@ draft_answers(candidate_context, job_context, questions) -> AnswerDrafts
 Plus an optional `suggest_evidence(candidate_context, requirements) -> EvidenceSuggestions`, whose results are only suggestions until the user confirms them.
 
 - 90-second timeout per request. One corrective retry for malformed or invalid output; otherwise an error is shown.
+- **Background requests (`app/ai/tasks.py`).** A form post checks what it can at once (profile, AI configured), starts the request in a worker thread with its own database session and redirects to `/jobs/<job>/ai/<request>`, unless the result is ready within a second (a cached run or a refusal). That page carries an HTML meta refresh and, once the request has finished, turns its outcome into the same redirect or error page the route used to return; a plain reload does the same, and `/jobs/<job>/ai/<request>/status` gives the state as JSON. The worker runs the unchanged operation, so freshness is checked before each model request and again under the writer lock before saving, validation stays all-or-nothing, validated runs stay cached and `operations.exclusive` still blocks a duplicate. The registry is in memory: one running request per operation and job, finished outcomes kept for an hour, and nothing survives a restart (the old page says so; a request that never finished saved nothing).
 - For authentication, quota, timeout or provider errors, existing work is kept and the user can retry manually.
 - Validated results are reused when the task inputs, model and prompt revision are unchanged.
 - The app records the model, prompt revision, input revisions, generation time and available usage metadata. Logs never contain secrets or candidate text.

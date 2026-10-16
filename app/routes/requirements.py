@@ -8,7 +8,7 @@ from fastapi import APIRouter, Depends, Form, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from sqlalchemy.orm import Session
 
-from ..ai import operations
+from ..ai import operations, tasks
 from ..ai.client import AIError, OpenRouterClient
 from ..db import get_ai_client, get_session
 from ..models import Job
@@ -105,8 +105,17 @@ async def save_requirements(request: Request, job_id: int, session: Session = De
 def extract(request: Request, job_id: int, force: int = Form(0), session: Session = Depends(get_session),
             client: OpenRouterClient = Depends(get_ai_client)):
     job = _job_or_404(session, job_id)
+
+    def work(worker_session, worker_job, _candidate):
+        return operations.extract_requirements(worker_session, client, worker_job, force=bool(force))
+
+    task = tasks.start(request, operations.PARSE_JOB, job, work, _extracted)
+    return tasks.respond(request, session, job, task)
+
+
+def _extracted(request: Request, session: Session, job: Job, task: tasks.Task):
     try:
-        outcome = operations.extract_requirements(session, client, job, force=bool(force))
+        outcome = task.result()
     except AIError as exc:
         return _ai_failed(request, session, job, exc)
     if outcome.problems:
@@ -120,18 +129,30 @@ def extract(request: Request, job_id: int, force: int = Form(0), session: Sessio
 def suggest(request: Request, job_id: int, force: int = Form(0), session: Session = Depends(get_session),
             client: OpenRouterClient = Depends(get_ai_client)):
     job = _job_or_404(session, job_id)
-    candidate = get_candidate(session)
-    if candidate is None:
+    if get_candidate(session) is None:
         return _render_workspace(request, session, job, status_code=400, ai_error="Create your profile first.")
+    settings = request.app.state.settings
+
+    def work(worker_session, worker_job, candidate):
+        if candidate is None:
+            raise tasks.Gone("Your profile was removed before the request ran. Create your profile first.")
+        run = operations.suggest_evidence(worker_session, client, settings, worker_job, candidate, force=bool(force))
+        return bool(run.result["suggestions"])
+
+    task = tasks.start(request, operations.SUGGEST_EVIDENCE, job, work, _suggested)
+    return tasks.respond(request, session, job, task)
+
+
+def _suggested(request: Request, session: Session, job: Job, task: tasks.Task):
     try:
-        run = operations.suggest_evidence(session, client, request.app.state.settings, job, candidate, force=bool(force))
+        found = task.result()
     except operations.ApprovalNeeded:
         return RedirectResponse(f"/profile/sharing?next={quote(f'/jobs/{job.id}?step=requirements')}", status_code=303)
     except operations.NothingToDo as exc:
         return _render_workspace(request, session, job, ai_notice=str(exc))
     except AIError as exc:
         return _ai_failed(request, session, job, exc)
-    return _back(job, "suggestions_ready" if run.result["suggestions"] else "suggestions_none")
+    return _back(job, "suggestions_ready" if found else "suggestions_none")
 
 
 # ---------------------------------------------------------------- evidence and overrides

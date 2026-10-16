@@ -124,6 +124,7 @@ Imports keep the existing 10 MB, first-30-pages and 100,000-character limits. OC
 The model is a setting, and the app never switches it on its own. Free models can change availability, limits or tool-calling support at any time; if the configured one stops working, the app reports the provider's error, keeps your work and the manual workflow keeps going. Changing `OPENROUTER_MODEL` is always your decision.
 
 - Each request offers one tool that only returns data in a fixed schema. The result is validated locally; malformed or invalid output gets one corrective retry, then an error is shown. Requests time out after 90 seconds.
+- **Requests run in the background.** Choosing an AI action starts the request and opens its progress page, which reloads itself every 2 seconds and shows the result when it's ready; it needs no JavaScript, and reloading it works too. A cached result or a refusal shows at once. You can keep working meanwhile: the job's workspace shows a request that is still running, with a link back to its progress. Only one request per action and job runs at a time, so asking again shows the running one. The freshness checks run again before the result is saved, so an edit you make meanwhile is never overwritten: the request is refused and nothing is saved. Requests live in the app's memory; if the app stops, a running request ends without saving anything. `GET /jobs/<job>/ai/<request>/status` returns the same progress as JSON.
 - Validated results are stored and reused while the inputs, model and prompt revision are unchanged. The app records the model, prompt revision, input revisions, time and token usage. Logs never contain your key, prompts, answers or any profile or job text.
 - **Extracting requirements** sends only the job's title, company, location and description.
 - **Suggesting evidence** sends a reduced copy of your career history: never your contact details, links, work authorization, preferences, availability, GPA, job locations or skills you said you lack. With a `free` model you see an editable preview at **Profile → What the AI model may see** and approve it first; you can leave out or reword any item. The approval is reused until a profile change alters what would be sent. Redaction is best effort.
@@ -142,6 +143,8 @@ To try the AI screens without a key, run the app against a simple local stand-in
 ```bash
 RESUAPPLY_DATA_DIR=data/demo .venv/bin/python -m scripts.fake_ai_server
 ```
+
+Add `--delay 8` to make each of its answers take 8 seconds, to see a request's progress page.
 
 ### Prepare and export a resume
 
@@ -217,7 +220,8 @@ app/
   models.py       candidates, jobs, applications, answer_bank, ai_runs, outbound_approvals
   migrations/     Alembic environment and migrations (versions/0001_baseline.py is the starting schema)
   schemas/        Pydantic shapes for profile, resume and tracking JSON
-  ai/             OpenRouter client, prompts, requirements, evidence, resume tailoring and answer drafts
+  ai/             OpenRouter client, prompts, requirements, evidence, resume tailoring, answer and cover letter
+                  drafts, and the background runner for AI requests (tasks.py)
   services/       Rules ported from ResuSkill (profile, requirements, checklist, claims),
                   outbound context, resume proposals/acceptance, questions and answers, package approval and snapshots,
                   form parsing, jobs, tracking, resume import, Greenhouse job import
