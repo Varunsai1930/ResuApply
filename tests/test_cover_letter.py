@@ -306,3 +306,13 @@ def test_submitted_letter_prints_and_downloads_as_frozen(client, sample_profile)
     document = Document(BytesIO(response.content))
     assert "Frozen paragraph." in [p.text for p in document.paragraphs]
     assert document.styles["Normal"].font.name == "Calibri"  # the snapshot's Modern layout
+
+
+def test_a_cited_entry_vouches_for_its_own_dates_only(candidate, job):
+    dated = f"From June 2024 to August 2024 I worked as an intern.\n\n{BULLET}."
+    assert svc.validate_letter(candidate.profile, job, dated, ["exp-1-b1"]) == []  # the bullet's entry dates
+    assert svc.validate_letter(candidate.profile, job, dated, ["exp-1"]) != []  # the entry's own text has no 1,200
+    assert svc.validate_letter(candidate.profile, job, f"In 2019 I started coding.\n\n{BULLET}.", ["exp-1-b1"])
+    # Another entry's dates are not this source's facts.
+    assert svc.validate_letter(candidate.profile, job, f"Since November 2023 I built bots.\n\n{BULLET}.",
+                               ["exp-1-b1"])

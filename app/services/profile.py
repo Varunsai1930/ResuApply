@@ -697,6 +697,7 @@ class Source:
     entry: str | None
     text: str
     technologies: tuple[str, ...] = ()
+    dates: str = ""  # the entry's start and end, for an entry and its bullets: facts the source vouches for
 
 
 def sources(profile: Profile | dict | None) -> dict[str, Source]:
@@ -713,9 +714,10 @@ def sources(profile: Profile | dict | None) -> dict[str, Source]:
                 if entry.get(f)
             )
             techs = tuple(entry.get("technologies") or ())
-            index[entry["id"]] = Source(entry["id"], section, entry["id"], label, techs)
+            dates = " ".join(_clean_str(entry.get(f)) for f in ("start", "end") if entry.get(f))
+            index[entry["id"]] = Source(entry["id"], section, entry["id"], label, techs, dates)
             for bullet in entry.get("bullets") or []:
-                index[bullet["id"]] = Source(bullet["id"], "bullet", entry["id"], bullet["text"], techs)
+                index[bullet["id"]] = Source(bullet["id"], "bullet", entry["id"], bullet["text"], techs, dates)
     for cert in prof.get("certifications") or []:
         text = f"{cert.get('name', '')} {cert.get('issuer', '')}".strip()
         index[cert["id"]] = Source(cert["id"], "certification", cert["id"], text)

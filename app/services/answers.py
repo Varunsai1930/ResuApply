@@ -160,15 +160,17 @@ def validate_answer(profile: Profile | dict, job: Job | dict, text: str, cited: 
 
 def cited_claim_problems(text: str, sources: dict[str, profile_service.Source], cited: list[str],
                          extra_terms=()) -> list[str]:
-    """Check claims against only the cited text and its entry technologies.
+    """Check claims against only the cited text, its entry technologies and its entry dates.
 
     Both canonical and shared-content validation use this rule. The summary and unrelated
-    skills cannot support a claim unless they are present in the cited evidence itself.
+    skills cannot support a claim unless they are present in the cited evidence itself. A cited
+    entry or bullet does vouch for its entry's own start and end ("an internship from June 2024").
     Callers validate source IDs before calling this helper.
     """
     evidence = [sources[source_id] for source_id in cited]
     allowed = {canon(technology) for source in evidence for technology in source.technologies}
-    return claim_problems(text, [source.text for source in evidence], allowed, extra_terms)
+    return claim_problems(text, [f"{source.text} {source.dates}".strip() for source in evidence], allowed,
+                          extra_terms)
 
 
 # ---------------------------------------------------------------- helpers
