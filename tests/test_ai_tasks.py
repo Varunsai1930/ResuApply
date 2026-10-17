@@ -268,7 +268,8 @@ def test_finished_requests_are_forgotten_after_a_while(ai_app_client, fake_ai, s
     job_id, answer, action, _ = _extract(client, sample_profile)
     fake_ai.push(answer)
     old = finished(client, client.post(action, follow_redirects=False).headers["location"])
-    monkeypatch.setattr(tasks, "KEEP_FINISHED", timedelta(0))
+    # Already past its keep time, whatever the clock's resolution (Windows' can return the same instant twice).
+    monkeypatch.setattr(tasks, "KEEP_FINISHED", timedelta(seconds=-1))
     registry = client.app.state.ai_tasks
     # Looking a request up (a progress page, the workspace) is enough to forget old ones.
     assert registry.get(job_id, old.id) is None and old.id not in registry._tasks

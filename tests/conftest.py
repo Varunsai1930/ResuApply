@@ -32,6 +32,18 @@ def _no_network(request):
 NO_NETWORK = httpx.MockTransport(_no_network)
 
 
+def pytest_make_parametrize_id(config, val, argname):
+    """Name a long text or file parameter by its length, not its content.
+
+    pytest otherwise builds the test id from the whole value: a 10 MB upload made a 10 MB id.
+    On Windows pytest then fails to put it in PYTEST_CURRENT_TEST (32,767 characters at most)
+    and prints it in the error report, a log the GitHub Actions runner never finishes reading.
+    """
+    if isinstance(val, (str, bytes)) and len(val) > 100:
+        return f"{argname}-{len(val)}-{'bytes' if isinstance(val, bytes) else 'chars'}"
+    return None
+
+
 @pytest.fixture(autouse=True)
 def wait_for_ai_requests(monkeypatch):
     """Form posts wait for a background AI request to finish, so route tests see its result directly.

@@ -3,6 +3,7 @@
 # Autofill's tests drive a hidden Chromium; without one (python -m playwright install chromium) they are skipped.
 -r requirements-autofill.txt
 pytest==9.1.1
+pytest-timeout==2.4.0
 
 # Transitive
 iniconfig==2.3.1
