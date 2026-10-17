@@ -252,7 +252,7 @@ Built (`services/autofill.py`, `autofill_plan.py`, `autofill_browser.py` and `re
 | **3b — Complete V1** | Questions, answers, answer bank, approval, staleness, submitted snapshots | Prepare, approve, submit manually and retrieve an unchanged package after profile edits |
 | **4 — V2 import** | PDF/DOCX extraction with profile diff; Greenhouse job import | Import without silently changing existing facts |
 | **4a — Resume extensions** | Opt-in local OCR, three layouts, current and frozen DOCX export | Recognize mixed scanned/text pages; preserve selected facts, approval freshness and frozen snapshots; inspect short and multi-page exports |
-| **5 — V2 autofill** | Limited autofill for Greenhouse, Lever and Ashby forms and browser handoff (built; checked read-only on live Lever and Ashby forms, not yet filled live) | Verify supported fields with zero automated submissions |
+| **5 — V2 autofill** | Limited autofill for Greenhouse, Lever and Ashby forms and browser handoff (built; checked read-only on live Greenhouse, Lever and Ashby forms, not yet filled live) | Verify supported fields with zero automated submissions |
 
 pytest covers matching, validation, revision handling and FastAPI integration. Provider responses are mocked, so ordinary tests need no API key. Before the AI integration is called complete, a live smoke test runs with synthetic, non-identifying content.
 
