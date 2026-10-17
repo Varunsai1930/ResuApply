@@ -202,7 +202,7 @@ class AITasks:
 
     def _forget_finished(self) -> None:
         cutoff = utcnow() - KEEP_FINISHED
-        for task_id in [i for i, t in self._tasks.items() if t.done and t.finished_at and t.finished_at <= cutoff]:
+        for task_id in [i for i, t in self._tasks.items() if t.done and t.finished_at and t.finished_at < cutoff]:
             del self._tasks[task_id]
 
     def get(self, job_id: int, task_id: str) -> Task | None:
