@@ -1,9 +1,11 @@
-"""Greenhouse autofill: open the employer's form in a visible browser and fill what the approved package covers.
+"""Autofill: open the employer's hosted form in a visible browser and fill what the approved package covers.
+
+Standard forms hosted by Greenhouse, Lever or Ashby (``postings``) are supported.
 
 Every step is the user's explicit action on the Submit and track step, and each one checks again:
 
 1. **Open the form** needs an approved, current package (the page's ``package_token``), a job
-   link to a standard Greenhouse-hosted form (``greenhouse.posting_ref``) and the resume PDF
+   link to a standard hosted form (``postings.form_ref``) and the resume PDF
    attached to that package (``resume_attachment``). The browser opens the link and the form is
    read; ``autofill_plan`` decides, field by field, what would be filled and what is left.
 2. **Fill the verified fields** vouches for that plan (``plan_token``). The form is read again
@@ -32,7 +34,7 @@ from . import package, resume_attachment, resume_docx, resume_layouts
 from .autofill_browser import SETUP_MESSAGE, BrowserError, FillStep, FormBrowser, Inspection, LaunchOptions, installed
 from .autofill_plan import (CONTACT_KEYS, COVER_LETTER_UPLOAD, DOCX_TYPE, LEAVE, OCCUPIED, SAME, FillData,
                             PackageAnswer, PlanItem, norm_value, plan, plan_token, structure)
-from .greenhouse import HOSTS, PostingRef, posting_ref
+from .postings import HOSTS, FormRef, form_ref, form_url
 
 # Report outcomes
 FILLED, ATTACHED, MISMATCH, KEPT, ALREADY, LEFT, FAILED = (
@@ -46,8 +48,8 @@ OUTCOME_LABELS = {
     LEFT: "Left for you",
     FAILED: "Not filled",
 }
-NOT_GREENHOUSE = ("Autofill works only with a standard Greenhouse-hosted form: the job's link must be a posting on "
-                  f"{' or '.join(HOSTS)}. Other forms, including an employer's own page with a Greenhouse form "
+NOT_SUPPORTED = ("Autofill works only with a standard form hosted by Greenhouse, Lever or Ashby: the job's link must "
+                 f"be a posting on {', '.join(HOSTS)}. Other forms, including an employer's own page with such a form "
                   "inside, are yours to fill in. Add the posting link with Edit details if you have it.")
 
 
@@ -76,7 +78,7 @@ class Run:
     job_id: int
     job_label: str
     url: str
-    ref: PostingRef
+    ref: FormRef
     phase: str = "inspected"  # "inspected", "filled" or "handed_over"
     structure: str = ""
     plan: list[PlanItem] = field(default_factory=list)
@@ -97,6 +99,7 @@ class Run:
 class Readiness:
     installed: bool
     posting_url: str | None
+    platform: str  # "Greenhouse", "Lever" or "Ashby" for a supported link
     approved: bool
     attachment: object | None  # the current ResumeAttachment
     outdated_attachment: bool  # a PDF is attached, but to an earlier package
@@ -107,7 +110,7 @@ class Readiness:
         if not self.installed:
             problems.append(SETUP_MESSAGE)
         if self.posting_url is None:
-            problems.append(NOT_GREENHOUSE)
+            problems.append(NOT_SUPPORTED)
         if not self.approved:
             problems.append("Approve the current package first (step 4). Autofill uses only what you approved.")
         elif self.attachment is None:
@@ -126,9 +129,11 @@ def readiness(job: Job, application: Application, candidate: Candidate | None,
     state = state or package.review_state(job, application, candidate)
     approved = state is ReviewState.APPROVED
     current = resume_attachment.current(job, application, candidate, state=state)
+    ref = form_ref(job.url)
     return Readiness(
         installed=installed(),
-        posting_url=job.url if posting_ref(job.url) is not None else None,
+        posting_url=job.url if ref is not None else None,
+        platform=ref.label if ref is not None else "",
         approved=approved,
         attachment=current,
         outdated_attachment=application.resume_attachment is not None and current is None,
@@ -178,22 +183,22 @@ def cover_letter_docx(job: Job, application: Application, candidate: Candidate |
         raise AutofillError(str(exc)) from None
 
 
-def handover(inspection: Inspection, ref: PostingRef) -> str:
+def handover(inspection: Inspection, ref: FormRef) -> str:
     """Why the browser is the user's now, or "" when ResuApply may carry on with the form."""
     if inspection.closed:
         return "The browser window was closed."
-    if posting_ref(inspection.url) != ref:
+    if form_ref(inspection.url) != ref:
         host = urlsplit(inspection.url).hostname or "another page"
-        return (f"The page moved to {host}, not the Greenhouse form ResuApply opened. Nothing more is filled after "
+        return (f"The page moved to {host}, not the {ref.label} form ResuApply opened. Nothing more is filled after "
                 "an unexpected redirect; the browser is yours.")
     if inspection.status in (404, 410):
-        return "Greenhouse has no form at this link; the posting may have closed."
+        return f"{ref.label} has no form at this link; the posting may have closed."
     if inspection.login:
         return "The page asks you to sign in. Do that in the browser yourself; ResuApply never signs in for you."
     if inspection.captcha:
         return "A CAPTCHA appeared. Complete it in the browser yourself; ResuApply doesn't fill past it."
     if not inspection.form:
-        return ("No standard Greenhouse application form was found on this page. Forms ResuApply can't read are "
+        return (f"No standard {ref.label} application form was found on this page. Forms ResuApply can't read are "
                 "yours to fill in.")
     if inspection.too_many:
         return "The form has more fields than a standard application form. Fill it in yourself."
@@ -233,7 +238,7 @@ class Autofill:
             raise AutofillError(" ".join(ready.problems))
         return fill_data(job, application, candidate, attachment=ready.attachment), ready.attachment
 
-    def _start_run(self, job: Job, ref: PostingRef, inspection: Inspection, data: FillData) -> Run:
+    def _start_run(self, job: Job, ref: FormRef, inspection: Inspection, data: FillData) -> Run:
         run = Run(job_id=job.id, job_label=f"{job.title} at {job.company}", url=job.url, ref=ref)
         self.run = run
         self._read(run, inspection, data)
@@ -248,7 +253,7 @@ class Autofill:
         run.report = None
 
     def open(self, job: Job, candidate: Candidate | None, token: str) -> Run:
-        """Open the job's Greenhouse form in the visible browser and plan what to fill."""
+        """Open the job's hosted application form in the visible browser and plan what to fill."""
         with self._hold():
             application = job.application
             if self.run is not None and self.run.job_id != job.id:
@@ -258,9 +263,9 @@ class Autofill:
                 raise AutofillError("The package changed since you reviewed it, so the form wasn't opened. Review "
                                     "the package as it is now, then try again.")
             self._load_resume(job, attachment)  # a missing or changed file is refused before opening
-            ref = posting_ref(job.url)
+            ref = form_ref(job.url)
             try:
-                inspection = self.browser.open(job.url)
+                inspection = self.browser.open(form_url(job.url))
             except BrowserError as exc:
                 raise AutofillError(str(exc)) from None
             return self._start_run(job, ref, inspection, data)
@@ -289,7 +294,7 @@ class Autofill:
                 raise AutofillError("The browser is yours for now: " + run.notice + " Choose Check the form again "
                                     "when you want ResuApply to read it.")
             data, attachment = self._check(job, application, candidate)
-            if posting_ref(job.url) != run.ref:
+            if form_ref(job.url) != run.ref:
                 raise AutofillError("The job's link changed since the form was opened. Close the browser and open "
                                     "the form again.")
             pdf = self._load_resume(job, attachment)
@@ -333,7 +338,7 @@ class Autofill:
                     steps.append(FillStep(item.key, value=item.value))
             expected = run.ref
             try:
-                result = self.browser.fill(steps, lambda url: posting_ref(url) == expected)
+                result = self.browser.fill(steps, lambda url: form_ref(url) == expected)
             except BrowserError as exc:
                 raise AutofillError(str(exc)) from None
             labels = {item.key: item.label for item in current}

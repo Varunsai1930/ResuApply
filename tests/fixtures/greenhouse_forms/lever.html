@@ -1,0 +1,42 @@
+<!doctype html>
+<!-- A fictional Lever-hosted application form, shaped like jobs.lever.co/<company>/<id>/apply. Local fixture; no real employer. -->
+<html lang="en">
+<head><meta charset="utf-8"><title>Example Robotics - Robotics Software Intern</title>
+<style>.hidden { display: none; } .visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }</style>
+</head>
+<body>
+<form id="application-form" method="post" enctype="multipart/form-data">
+  <h4>Submit your application</h4>
+  <label><div class="application-label">Resume/CV <span class="required">✱</span></div>
+    <div class="application-field"><input type="file" id="resume-upload-input" name="resume" class="visually-hidden">
+      <button type="button" onclick="document.getElementById('resume-upload-input').click()">Attach resume/CV</button>
+      <span class="hidden">Couldn't auto-read resume.</span><span class="hidden">Analyzing resume.</span><span id="resume-name"></span></div></label>
+  <label><div class="application-label">Full name<span class="required">✱</span></div><div class="application-field"><input type="text" name="name" required></div></label>
+  <label><div class="application-label">Email<span class="required">✱</span></div><div class="application-field"><input type="email" name="email" required></div></label>
+  <label><div class="application-label">Phone</div><div class="application-field"><input type="text" name="phone"></div></label>
+  <label><div class="application-label">Current location <span class="required">✱</span></div><div class="application-field"><input type="text" id="location-input" name="location" maxlength="100" required>
+    <div class="dropdown-no-results hidden">No location found. Try entering a different location</div><div class="dropdown-loading hidden">Loading</div></div></label>
+  <label><div class="application-label">Current company</div><div class="application-field"><input type="text" name="org"></div></label>
+  <h4>Links</h4>
+  <label><div class="application-label">LinkedIn URL</div><div class="application-field"><input type="text" name="urls[LinkedIn]"></div></label>
+  <label><div class="application-label">GitHub URL</div><div class="application-field"><input type="text" name="urls[GitHub]"></div></label>
+  <label><div class="application-label">Portfolio URL</div><div class="application-field"><input type="text" name="urls[Portfolio]"></div></label>
+  <div class="application-question custom-question">
+    <label><div class="application-label">Why do you want to work at Example Robotics? <span class="required">✱</span></div>
+      <div class="application-field"><textarea name="cards[a1b2][field0]" required></textarea></div></label>
+  </div>
+  <div class="application-question"><label><input type="checkbox" name="consent[marketing]"> I agree to receive updates about future roles</label></div>
+  <div class="application-additional"><label><div class="application-label">Additional information</div><div class="application-field"><textarea name="comments"></textarea></div></label></div>
+  <iframe title="hCaptcha" src="https://hcaptcha.com/captcha/v1/fixture?size=invisible" width="1" height="1"></iframe>
+  <button type="submit" id="btn-submit">Submit application</button>
+</form>
+<script>
+  window.fixture = { submits: 0, clicks: 0 };
+  document.getElementById("application-form").addEventListener("submit", () => { window.fixture.submits++; });
+  document.getElementById("btn-submit").addEventListener("click", () => { window.fixture.clicks++; });
+  document.getElementById("resume-upload-input").addEventListener("change", (e) => {
+    document.getElementById("resume-name").textContent = [...e.target.files].map((f) => f.name).join(", ");
+  });
+</script>
+</body>
+</html>

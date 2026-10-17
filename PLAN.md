@@ -12,7 +12,7 @@ Create profile → Add job → Review requirements
 → Save resume as PDF → Submit manually → Track outcome
 ```
 
-**V2 adds PDF/DOCX profile import with optional OCR, advanced resume layouts, DOCX resume export, Greenhouse job import and limited Greenhouse autofill.** The user always clicks the employer's Submit button. OCR, layouts, Word export and optional source-checked cover letters were added to the scope at the user's request.
+**V2 adds PDF/DOCX profile import with optional OCR, advanced resume layouts, DOCX resume export, Greenhouse job import and limited autofill for forms hosted by Greenhouse, Lever and Ashby.** The user always clicks the employer's Submit button. OCR, layouts, Word export and optional source-checked cover letters were added to the scope at the user's request.
 
 Matching is checklist-based throughout. These stay out of both releases: numeric scores, automatic job discovery, other application platforms, email tracking and cloud accounts.
 
@@ -213,9 +213,9 @@ Built (`services/greenhouse.py`, the **Import from Greenhouse** form on Add a jo
 - Questions are added through `answers.add_question`, so the usual keyword rules set their categories, a detected sensitive question can't become anything else, and they are stored in the same shape as typed questions. Self-identification (EEOC) and demographic questions are always Sensitive; a field type the app doesn't know is added as Unrecognized (unless its wording is sensitive), for the user to confirm; file uploads, the resume among them, and hidden fields are listed as left for the employer's form. At most 100 questions are added.
 - Each imported question's field type and choices, and the fields left out, are kept in a nullable `jobs.posting_import` column, so older versions read the database as before. The Questions step shows them.
 
-### Greenhouse autofill
+### Autofill (Greenhouse, Lever and Ashby)
 
-Supports standard Greenhouse-hosted application forms only. Embedded employer implementations and other platforms are unsupported. Because Greenhouse allows custom questions, support is defined by verified fields, not a promise to handle every form.
+Supports standard application forms hosted by Greenhouse, Lever (`jobs.lever.co/<company>/<id>/apply`) and Ashby (`jobs.ashbyhq.com/<org>/<id>/application`, drawn without a `<form>` element). Embedded employer implementations and other platforms, Workday among them, are unsupported: Workday's sign-in and multi-step forms fall outside what deterministic autofill can verify. Because these platforms allow custom questions, support is defined by verified fields, not a promise to handle every form.
 
 - A visible Playwright browser is launched only by an explicit user action.
 - Requires an approved, current application package.
@@ -276,7 +276,7 @@ Required scenarios:
 - OCR tests cover mixed pages, selectable headers over scanned bodies, small images, missing Tesseract, timeouts, renderer failures and unchanged saved profiles.
 - Layout changes reject stale tokens, clear approval only on a real change and preserve frozen snapshots. Word exports contain only selected facts and correct attachment filenames.
 - Greenhouse import fixtures (fictional, recorded API responses; tests never use the network) cover custom questions, required flags, unsupported field types, bad links, timeouts, redirects, oversized and malformed responses.
-- Greenhouse autofill fixtures cover existing answers, custom questions, unsupported controls, upload verification and field readback.
+- Autofill fixtures (Greenhouse, Lever and Ashby) cover existing answers, custom questions, unsupported controls, upload verification and field readback.
 - Autofill tests capture submission events and assert that automation causes none. A manual smoke check confirms behavior on a supported hosted form without submitting.
 
 ## 6. Documentation and defaults

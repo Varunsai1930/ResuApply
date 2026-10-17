@@ -1,20 +1,20 @@
-{# Greenhouse autofill on the Submit and track step: attach the package's resume PDF, open the form, fill, read back. Included with the workspace's context. #}
+{# Autofill (Greenhouse, Lever or Ashby) on the Submit and track step: attach the package's resume PDF, open the form, fill, read back. Included with the workspace's context. #}
 {% import "macros.html" as m with context %}
 {% set run = autofill_run %}
 {% set plan_labels = {'fill': 'Will fill', 'attach': 'Will attach', 'occupied': 'Holds a value: kept unless you tick Replace', 'same': 'Already filled', 'leave': 'Left for you'} %}
 <section class="card autofill" id="autofill" aria-labelledby="autofill-title">
   <div class="section-head">
-    <h2 id="autofill-title">Fill the Greenhouse form</h2>
+    <h2 id="autofill-title">Fill the {{ autofill.platform or "application" }} form</h2>
     <span class="chip">Optional</span>
   </div>
-  <p class="hint">ResuApply can open the employer's Greenhouse form in a browser window on this computer and fill in what your approved package covers: contact details, links, the resume PDF and your approved answers to non-sensitive questions. It never clicks Submit. You check the form, answer what it leaves for you and submit it yourself.</p>
+  <p class="hint">ResuApply can open the employer's application form, when Greenhouse, Lever or Ashby hosts it, in a browser window on this computer and fill in what your approved package covers: contact details, links, the resume PDF, the cover letter and your approved answers to non-sensitive questions. It never clicks Submit. You check the form, answer what it leaves for you and submit it yourself.</p>
   {% if autofill_error %}<p class="notice warn" role="alert" tabindex="-1" data-focus>{{ autofill_error }}</p>{% endif %}
 
   {% if not autofill.installed or autofill.posting_url is none %}
     <p class="notice">{{ autofill.problems[0] }}</p>
   {% else %}
     <ul class="gap-list autofill-ready">
-      <li>{{ m.status_icon(Status.DONE) }}<span>Standard Greenhouse form: <a href="{{ autofill.posting_url }}" target="_blank" rel="noopener noreferrer nofollow">{{ autofill.posting_url }}</a></span></li>
+      <li>{{ m.status_icon(Status.DONE) }}<span>Standard {{ autofill.platform }} form: <a href="{{ autofill.posting_url }}" target="_blank" rel="noopener noreferrer nofollow">{{ autofill.posting_url }}</a></span></li>
       <li>{{ m.status_icon(Status.DONE if autofill.approved else Status.BLOCKED) }}<span>{% if autofill.approved %}Package approved{% else %}Approve the current package in <a href="/jobs/{{ job.id }}?step=review#review">step 4</a> first. Autofill uses only what you approved.{% endif %}</span></li>
       <li>{{ m.status_icon(Status.DONE if autofill.attachment else (Status.NEEDS_YOU if autofill.approved else Status.BLOCKED)) }}
         <div class="autofill-attachment">

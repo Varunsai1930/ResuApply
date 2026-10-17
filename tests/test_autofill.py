@@ -322,12 +322,12 @@ def test_a_closed_window_is_noticed(world):
 # ---------------------------------------------------------------- what autofill requires
 
 @pytest.mark.pages({POSTING_URL: "standard.html"}, url="https://example.com/careers/robotics-intern")
-def test_only_greenhouse_hosted_forms(world):
+def test_only_forms_hosted_by_greenhouse_lever_or_ashby(world):
     page = world.workspace()
-    assert "Autofill works only with a standard Greenhouse-hosted form" in page
+    assert "Autofill works only with a standard form hosted by Greenhouse, Lever or Ashby" in page
     assert "Open the form in a browser" not in page
     response = world.client.post(f"/jobs/{world.job_id}/autofill/open", data={"package_token": world.token()})
-    assert response.status_code == 409 and "Greenhouse-hosted form" in response.text
+    assert response.status_code == 409 and "hosted by Greenhouse, Lever or Ashby" in response.text
     assert world.site.requests == []
 
 
@@ -515,3 +515,49 @@ def test_a_cover_letter_upload_that_takes_no_word_files_is_left(world):
     item = next(i for i in world.run.plan if i.label == "Cover Letter")
     assert item.action == "leave" and "doesn't take Word files" in item.reason
 
+
+
+LEVER_POSTING = "https://jobs.lever.co/examplerobotics/0f1e2d3c-4b5a-4968-8778-695a4b3c2d1e"
+ASHBY_POSTING = "https://jobs.ashbyhq.com/examplerobotics/1a2b3c4d-5e6f-4a7b-8c9d-0e1f2a3b4c5d"
+
+
+@pytest.mark.pages({LEVER_POSTING + "/apply": "lever.html"}, url=LEVER_POSTING)
+def test_fills_a_lever_form_opened_from_its_posting_link(world):
+    assert world.attach().status_code == 303
+    page = world.workspace()
+    assert "Fill the Lever form" in page and "Standard Lever form" in page
+    assert world.open().status_code == 303, world.workspace()
+    assert world.page("() => location.pathname").endswith("/apply")  # the form's own page
+    plan = _plan(world)
+    assert plan["Resume/CV"] == "attach"  # its hidden helper text and ✱ aren't part of the label
+    assert plan["Full name"] == plan["Email"] == plan["Phone"] == "fill"
+    assert plan["Current company"] == plan["LinkedIn URL"] == plan["GitHub URL"] == plan[WHY] == "fill"
+    assert plan["Current location"] == "leave"  # Lever takes a place picked from its suggestions
+    assert plan["Portfolio URL"] == plan["Additional information"] == "leave"
+    assert plan["I agree to receive updates about future roles"] == "leave"
+    assert world.fill().status_code == 303
+    report = _report(world)
+    assert report["Full name"] == ("filled", "Jordan Example")
+    assert report["GitHub URL"] == ("filled", "github.com/jordan-example")
+    assert report[WHY] == ("filled", WHY_ANSWER) and report["Resume/CV"][0] == "attached"
+    assert world.page("() => document.querySelector('[name=\"urls[LinkedIn]\"]').value") == "linkedin.com/in/jordan-example"
+    assert world.run.phase == "filled" and world.run.notice == ""
+    world.assert_not_submitted()
+
+
+@pytest.mark.pages({ASHBY_POSTING + "/application": "ashby.html"}, url=ASHBY_POSTING)
+def test_fills_an_ashby_form_drawn_without_a_form_element(world):
+    world.attach()
+    assert world.open().status_code == 303, world.workspace()
+    plan = _plan(world)
+    assert plan["Legal Name"] == plan["Email"] == plan["Phone Number"] == plan[WHY] == "fill"
+    assert plan["Resume"] == "attach"
+    assert plan["Preferred Name (if applicable)"] == "leave"  # the name you go by is yours to give
+    assert plan["Male"] == plan["Female"] == plan["I acknowledge the Arbitration Agreement"] == "leave"
+    unlabelled = [i for i in world.run.plan if i.label == "A field without a label"]
+    assert unlabelled and all(i.action == "leave" for i in unlabelled)  # Ashby's "autofill from resume" upload
+    assert world.fill().status_code == 303
+    report = _report(world)
+    assert report["Legal Name"] == ("filled", "Jordan Example") and report["Resume"][0] == "attached"
+    assert world.page("() => document.getElementById('_systemfield_email').value") == "jordan@example.com"
+    world.assert_not_submitted()

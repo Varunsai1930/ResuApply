@@ -104,7 +104,7 @@ Every setting is optional and is read from the environment or `.env`:
 | `OPENROUTER_API_KEY` | *(empty)* | Your [OpenRouter](https://openrouter.ai) key. Without it the AI buttons are hidden and everything else works |
 | `OPENROUTER_MODEL` | `nvidia/nemotron-3.5-lightning:free` | Any OpenRouter model ID that supports tool calling |
 | `OPENROUTER_MODEL_TRUST` | `free` | `free`: you approve what is sent before the first AI request that includes your career history. `trusted`: that review is optional |
-| `RESUAPPLY_AUTOFILL_BROWSER` | *(empty)* | Optional Greenhouse autofill: path to a Chrome or Chromium to open instead of Playwright's own |
+| `RESUAPPLY_AUTOFILL_BROWSER` | *(empty)* | Optional autofill: path to a Chrome or Chromium to open instead of Playwright's own |
 
 The bind address is always `127.0.0.1` and cannot be configured. The app also rejects requests whose `Host` isn't `127.0.0.1` or `localhost`, and form posts coming from other websites.
 
@@ -120,9 +120,9 @@ On **Profile → Import resume**, tick **Use OCR for scanned pages** before impo
 
 Imports keep the existing 10 MB, first-30-pages and 100,000-character limits. OCR has a 60-second total deadline, bounded page images and one active OCR import at a time. Failed, interrupted or unreadable OCR imports leave the saved profile unchanged.
 
-### Optional Greenhouse autofill
+### Optional autofill (Greenhouse, Lever and Ashby)
 
-Autofill opens a job's Greenhouse application form in a visible browser window and fills in what your approved package covers. It needs [Playwright](https://playwright.dev/python/), an optional add-on pinned in `requirements-autofill.txt` (`requirements-dev.txt` includes it for the tests):
+Autofill opens a job's application form, when Greenhouse (`boards.greenhouse.io`, `job-boards.greenhouse.io`), Lever (`jobs.lever.co`) or Ashby (`jobs.ashbyhq.com`) hosts it, in a visible browser window and fills in what your approved package covers. It needs [Playwright](https://playwright.dev/python/), an optional add-on pinned in `requirements-autofill.txt` (`requirements-dev.txt` includes it for the tests):
 
 ```bash
 .venv/bin/pip install -r requirements-autofill.txt
@@ -145,7 +145,7 @@ On Windows, use `.\.venv\Scripts\python.exe -m pip install -r requirements-autof
 
 **When it stops.** If the page shows a CAPTCHA or a sign-in, moves to another site, or its fields change after it was read, ResuApply fills nothing more and says the browser is yours; **Check the form again** reads it afresh when you want to continue. It never clicks a button or sends key presses, and while it fills it stops any submission the page itself attempts and tells you. The browser starts without saved cookies or sign-ins. The AI model plays no part: autofill uses only your reviewed data and fixed rules.
 
-**Limits.** Only standard Greenhouse-hosted forms are supported; an employer's own careers page, a Greenhouse form embedded in another site and other platforms are filled in by hand. Because employers add their own questions and widgets, support is defined by the fields ResuApply can verify, not a promise to fill every form.
+**Limits.** Only standard forms hosted by Greenhouse, Lever or Ashby are supported; the job's link can be the posting (ResuApply opens Lever's `/apply` and Ashby's `/application` page itself). An employer's own careers page, a form embedded in another site and other platforms (Workday among them) are filled in by hand. Location fields are always left for you, because these forms take a place picked from their own suggestions, and so is a preferred-name field. Because employers add their own questions and widgets, support is defined by the fields ResuApply can verify, not a promise to fill every form.
 
 ### AI model
 
@@ -233,7 +233,7 @@ Labels you will see on a question: **From profile**, **AI draft**, **User answer
 - **Answer bank:** the **Answers** page, with similar-question suggestions that only fill the answer box.
 - **Review and approval:** Draft, Approved or Stale, listed blockers and warnings, and an explicit **Approve package** step that never sets Applied.
 - **Submitted packages:** the approved package frozen when you record Applied, viewable (including its resume) after any later profile or job edit.
-- **Greenhouse autofill (optional):** opens a standard Greenhouse-hosted form in a visible browser, fills verified contact fields, links, the attached resume PDF, the approved cover letter (as a Word file) and approved non-sensitive answers, reads them back and leaves the rest, and the Submit button, to you.
+- **Autofill (optional):** opens a standard form hosted by Greenhouse, Lever or Ashby in a visible browser, fills verified contact fields, links, the attached resume PDF, the approved cover letter (as a Word file) and approved non-sensitive answers, reads them back and leaves the rest, and the Submit button, to you.
 
 Evidence confirmations apply to the source content you reviewed. If a linked source changes, the checklist asks you to review and reconfirm it before it counts as supporting evidence again. Evidence saved before content checks were added also needs one explicit reconfirmation; existing links remain available to review or remove. Unrelated contact edits keep unchanged evidence valid.
 
@@ -266,7 +266,7 @@ tests/            pytest: rules, mocked AI, HTTP integration and restart persist
 | Release | Scope |
 |---|---|
 | **V1** | Profile, job entry, requirement checklist, resume tailoring, answers, approval, print-to-PDF, tracking |
-| **V2** | PDF/DOCX profile import with optional OCR, resume layouts and DOCX export, Greenhouse job import, limited Greenhouse autofill (you still click Submit) |
+| **V2** | PDF/DOCX profile import with optional OCR, resume layouts and DOCX export, Greenhouse job import, limited autofill for Greenhouse, Lever and Ashby forms (you still click Submit) |
 
 ## Stack
 

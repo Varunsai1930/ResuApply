@@ -1,0 +1,35 @@
+<!doctype html>
+<!-- A fictional Ashby-hosted application form, shaped like jobs.ashbyhq.com/<org>/<id>/application: the fields are
+     drawn without a <form> element and sent by a script. Local fixture; no real employer. -->
+<html lang="en">
+<head><meta charset="utf-8"><title>Robotics Software Intern @ Example Robotics</title>
+<style>.visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }</style>
+</head>
+<body>
+<div class="ashby-application-form-container">
+  <div class="autofill-pane"><p>Autofill from resume</p><input type="file" class="visually-hidden"><button type="button">Upload file</button></div>
+  <div class="field"><label for="_systemfield_name">Legal Name<span>*</span></label><input type="text" id="_systemfield_name" name="_systemfield_name"></div>
+  <div class="field"><label for="4c1d0b2e-1111-4a2b-9c3d-000000000001">Preferred Name (if applicable)</label><input type="text" id="4c1d0b2e-1111-4a2b-9c3d-000000000001" name="4c1d0b2e-1111-4a2b-9c3d-000000000001"></div>
+  <div class="field"><label for="_systemfield_email">Email<span>*</span></label><input type="email" id="_systemfield_email" name="_systemfield_email"></div>
+  <div class="field"><label for="_systemfield_resume">Resume<span>*</span></label>
+    <input type="file" id="_systemfield_resume" class="visually-hidden" accept="application/pdf,.pdf,application/msword,.doc,application/vnd.openxmlformats-officedocument.wordprocessingml.document,.docx">
+    <button type="button">Upload File</button><span id="resume-name"></span></div>
+  <div class="field"><label for="4c1d0b2e-1111-4a2b-9c3d-000000000002">Phone Number</label><input type="tel" id="4c1d0b2e-1111-4a2b-9c3d-000000000002" name="4c1d0b2e-1111-4a2b-9c3d-000000000002"></div>
+  <div class="field"><label for="4c1d0b2e-1111-4a2b-9c3d-000000000003">Why do you want to work at Example Robotics?</label><textarea id="4c1d0b2e-1111-4a2b-9c3d-000000000003" name="4c1d0b2e-1111-4a2b-9c3d-000000000003"></textarea></div>
+  <fieldset class="ashby-eeoc"><legend>Voluntary Self-Identification</legend>
+    <label><input type="radio" name="a2b8__systemfield_eeoc_gender" value="Male"> Male</label>
+    <label><input type="radio" name="a2b8__systemfield_eeoc_gender" value="Female"> Female</label>
+    <label><input type="radio" name="a2b8__systemfield_eeoc_gender" value="Decline"> Decline to self-identify</label>
+  </fieldset>
+  <label><input type="checkbox" id="ack" name="ack"> I acknowledge the Arbitration Agreement</label>
+  <button type="button" id="submit-application">Submit Application</button>
+</div>
+<script>
+  window.fixture = { submits: 0, clicks: 0 };
+  document.getElementById("submit-application").addEventListener("click", () => { window.fixture.clicks++; });
+  document.getElementById("_systemfield_resume").addEventListener("change", (e) => {
+    document.getElementById("resume-name").textContent = [...e.target.files].map((f) => f.name).join(", ");
+  });
+</script>
+</body>
+</html>

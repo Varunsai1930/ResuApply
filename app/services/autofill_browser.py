@@ -1,4 +1,4 @@
-"""The visible browser for Greenhouse autofill, driven by Playwright from a thread of its own.
+"""The visible browser for autofill, driven by Playwright from a thread of its own.
 
 Playwright is optional. Nothing here imports it until the user asks for a browser, so the app
 starts and every other feature works without it; asking without it gives ``SETUP_MESSAGE``.
@@ -71,10 +71,17 @@ INSPECT = """
     return box.width > 0 && box.height > 0;
   };
   const big = (el) => { const box = el.getBoundingClientRect(); return box.width > 40 && box.height > 40; };
+  // A label's visible words: not its controls, buttons or hidden helper text ("No location found", "Loading").
   const words = (node) => {
-    const copy = node.cloneNode(true);
-    copy.querySelectorAll("input, select, textarea, button, option, script, style").forEach((n) => n.remove());
-    return (copy.textContent || "").replace(/\\s+/g, " ").trim();
+    const parts = [];
+    const walker = document.createTreeWalker(node, NodeFilter.SHOW_TEXT);
+    for (let text = walker.nextNode(); text; text = walker.nextNode()) {
+      const parent = text.parentElement;
+      if (!parent || parent.closest("input, select, textarea, button, option, script, style")) continue;
+      if (typeof parent.checkVisibility === "function" && !parent.checkVisibility({ visibilityProperty: true })) continue;
+      parts.push(text.textContent);
+    }
+    return parts.join(" ").replace(/\\s+/g, " ").trim();
   };
   const captchaFrames = [...document.querySelectorAll("iframe")].filter((f) =>
     /captcha|turnstile|arkoselabs|funcaptcha/i.test((f.src || "") + " " + (f.title || "")) &&
@@ -88,9 +95,16 @@ INSPECT = """
     form: false,
     fields: [],
   };
-  const form = document.querySelector("form#application-form, form#application_form") ||
+  // Greenhouse and Lever use a <form>. Ashby draws its fields without one: then the form is the smallest
+  // element around the email field that also holds a file upload (the resume).
+  let form = document.querySelector("form#application-form, form#application_form") ||
     [...document.forms].find((f) =>
       f.querySelector("input[type=file]") && f.querySelector("input[type=email], #email"));
+  if (!form) {
+    let node = document.querySelector("#_systemfield_email, input[name=_systemfield_email]");
+    while (node && !(node.querySelector && node.querySelector("input[type=file]"))) node = node.parentElement;
+    form = node;
+  }
   if (!form) return out;
   out.form = true;
   const unique = (selector) => document.querySelectorAll(selector).length === 1;

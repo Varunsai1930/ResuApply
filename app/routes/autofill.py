@@ -1,4 +1,4 @@
-"""Greenhouse autofill on the Submit and track step: attach the package's resume PDF, open, fill and close the form.
+"""Autofill (Greenhouse, Lever or Ashby) on the Submit and track step: attach the package's resume PDF, open, fill and close the form.
 
 Every action is a form post the user makes; the browser never opens or fills on its own.
 """

@@ -6,7 +6,8 @@ each field gets. No model is involved. A field is filled only when every rule ag
 - it is a visible, editable one-line text, email, phone or link input, or a text box, with
   exactly one label that no other field on the form shares;
 - the label is a contact field the profile holds (``questions.classify``: name, email, phone,
-  location, LinkedIn, GitHub, website), or it is word for word a question of the approved
+  LinkedIn, GitHub, website; never a preferred name, and never a location, which hosted forms
+  take from their own suggestions), or it is word for word a question of the approved
   package whose resolved answer is non-sensitive, accepted and not skipped; when both apply they
   must agree;
 - neither the label nor the form section it sits in is sensitive (self-identification,
@@ -43,13 +44,21 @@ DOCX_TYPE = "application/vnd.openxmlformats-officedocument.wordprocessingml.docu
 
 _RESUME = re.compile(r"\b(?:resume|résumé|cv|curriculum vitae)\b", re.IGNORECASE)
 _COVER = re.compile(r"\bcover\s*letter\b", re.IGNORECASE)
-_TRAILING_MARKS = re.compile(r"(?:\s*(?:\*|\((?:required|optional)\)))+$", re.IGNORECASE)
+_PREFERRED_NAME = re.compile(r"\b(?:preferred|nick)\s*name\b|\bnickname\b|\bgo(?:es)? by\b", re.IGNORECASE)
+# Required/optional marks forms put after a label: "*", Lever's "✱", "(required)".
+_TRAILING_MARKS = re.compile(r"(?:\s*(?:[*✱＊]|\((?:required|optional)\)))+$", re.IGNORECASE)
 
 
 def norm_label(text: str) -> str:
     """A label as compared: composed characters, single spaces, case folded, without a trailing * or (required)."""
     text = re.sub(r"\s+", " ", unicodedata.normalize("NFKC", text or "")).strip()
     return _TRAILING_MARKS.sub("", text).strip().casefold()
+
+
+def clean_label(text: str) -> str:
+    """A label as the form shows it, single-spaced, without required marks (Lever's ✱ wherever it sits)."""
+    text = re.sub(r"\s+", " ", (text or "").replace("✱", " ")).strip()
+    return _TRAILING_MARKS.sub("", text).strip()
 
 
 def norm_value(text: str) -> str:
@@ -92,7 +101,7 @@ class FormField:
             return None
         return cls(
             key=key, tag=text("tag", 20).lower(), type=text("type", 30).lower(), role=text("role", 30).lower(),
-            label=text("label", 2000), labels=labels if isinstance(labels, int) and labels >= 0 else 0,
+            label=clean_label(text("label", 2000)), labels=labels if isinstance(labels, int) and labels >= 0 else 0,
             required=raw.get("required") is True, visible=raw.get("visible") is True,
             editable=raw.get("editable") is True, value=text("value", 20000),
             max_length=max_length if isinstance(max_length, int) and max_length > 0 else None,
@@ -187,6 +196,8 @@ def _contact_value(label: str, data: FillData) -> tuple[str | None, str]:
     category, key = q_rules.classify(label)
     if category != q_rules.FACTUAL or key not in CONTACT_KEYS:
         return None, ""
+    if key == "name" and _PREFERRED_NAME.search(label):
+        return None, ""  # the name someone goes by is theirs to give, not the profile's legal name
     value = (data.contact.get(key) or "").strip()
     return (value or None), f"Profile: {key}"
 
@@ -270,6 +281,9 @@ def _item(field: FormField, data: FillData, label_counts: dict[str, int], answer
     if field.labels != 1 or label_counts.get(label, 0) > 1:
         return _leave(field, "More than one label or field matches here, so ResuApply can't tell what it asks.")
     matched = answers.get(label, [])
+    if q_rules.classify(field.label) == (q_rules.FACTUAL, "location") and not matched:
+        # Hosted forms take a place picked from their own suggestions (Lever, Greenhouse); typed text isn't one.
+        return _leave(field, "A location field: pick your place from the form's suggestions yourself.")
     contact, contact_source = _contact_value(field.label, data)
     value, source = contact, contact_source
     if matched:
