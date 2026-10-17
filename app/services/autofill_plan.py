@@ -208,6 +208,16 @@ def takes_word_files(accept: str) -> bool:
     return not kinds or bool(kinds & {".docx", DOCX_TYPE, "application/*", "*/*", "*"})
 
 
+# What a hosted form's upload button says when its own label is the button ("Attach" on Greenhouse job boards).
+_GENERIC_UPLOAD = {"attach", "attach file", "upload", "upload file", "choose file", "browse", "select file", "add file"}
+
+
+def _upload_label(field: FormField, name: str) -> str:
+    """An upload's name in the plan: its label, or ``name`` when the label is only the button's word."""
+    shown = _shown_label(field) if field.label else ""
+    return name if not shown or shown.casefold() in _GENERIC_UPLOAD else shown
+
+
 def _is_cover_letter_upload(field: FormField) -> bool:
     return bool(_COVER.search(field.label)) or field.key in ("id:cover_letter", "name:cover_letter")
 
@@ -220,7 +230,7 @@ def _cover_letter_item(field: FormField, data: FillData, cover_fields: int) -> P
     if not takes_word_files(field.accept):
         return _leave(field, "This upload doesn't take Word files. Save the cover letter as a PDF from its print "
                              "view and attach it yourself.")
-    return PlanItem(field.key, _shown_label(field), OCCUPIED if field.value else ATTACH,
+    return PlanItem(field.key, _upload_label(field, "Cover letter"), OCCUPIED if field.value else ATTACH,
                     value=data.cover_letter_file, existing=field.value[:500],
                     source="The cover letter in your approved package, as a Word file", file=True,
                     upload=COVER_LETTER_UPLOAD)
@@ -237,7 +247,7 @@ def _file_item(field: FormField, data: FillData, resume_fields: int, cover_field
         return _leave(field, "The form has more than one resume upload, so ResuApply can't tell which to use.")
     if data.resume_file is None:
         return _leave(field, "Attach the PDF saved from your package in ResuApply first.")
-    return PlanItem(field.key, _shown_label(field) if field.label else "Resume", OCCUPIED if field.value else ATTACH,
+    return PlanItem(field.key, _upload_label(field, "Resume"), OCCUPIED if field.value else ATTACH,
                     value=data.resume_file, existing=field.value[:500],
                     source="The PDF you attached to the approved package", file=True, upload=RESUME_UPLOAD)
 

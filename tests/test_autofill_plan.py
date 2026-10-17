@@ -207,3 +207,14 @@ def test_a_cover_letter_upload_gets_the_packages_letter_as_a_word_file():
     assert ap.plan([cover()], without)[0].action == ap.LEAVE
     assert ap.takes_word_files("") and ap.takes_word_files("*/*") and not ap.takes_word_files("application/pdf")
 
+
+
+def test_uploads_labelled_only_by_their_button_are_named_by_what_they_take():
+    # Greenhouse job boards label both file inputs "Attach"; their ids say which is which.
+    def upload(key: str) -> FormField:
+        return FormField(key=key, tag="input", type="file", label="Attach", visible=False, accept=".pdf,.doc,.docx")
+
+    data = FillData(contact={}, answers=(), resume_file="Resume.pdf", cover_letter_file="Letter.docx")
+    resume, letter = ap.plan([upload("id:resume"), upload("id:cover_letter")], data)
+    assert (resume.label, resume.value, resume.upload) == ("Resume", "Resume.pdf", ap.RESUME_UPLOAD)
+    assert (letter.label, letter.value, letter.upload) == ("Cover letter", "Letter.docx", ap.COVER_LETTER_UPLOAD)
