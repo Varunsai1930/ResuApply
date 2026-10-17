@@ -18,7 +18,7 @@ from scripts import fake_ai_server, smoke_openrouter
 from tests.conftest import FAKE_KEY, make_settings, tool_response
 from tests.synthetic import DEMO_REQUIREMENTS
 
-TOOLS = ["return_requirements", "return_evidence_suggestions", "return_resume", "return_answers"]
+TOOLS = ["return_requirements", "return_evidence_suggestions", "return_resume", "return_answers", "return_cover_letter"]
 
 
 def capture_disposed_database(monkeypatch):
@@ -54,7 +54,7 @@ def capture_disposed_database(monkeypatch):
     return observed
 
 
-def test_complete_smoke_runs_four_operations_accepts_and_freezes_only_disposable_data(tmp_path, monkeypatch, capsys):
+def test_complete_smoke_runs_five_operations_accepts_and_freezes_only_disposable_data(tmp_path, monkeypatch, capsys):
     settings = make_settings(tmp_path, openrouter_model="fake/local-stand-in")
     settings.resolved_data_dir.mkdir(parents=True)
     settings.database_path.write_bytes(b"existing user database must not be opened")
@@ -68,17 +68,19 @@ def test_complete_smoke_runs_four_operations_accepts_and_freezes_only_disposable
     assert smoke_openrouter.main(settings, transport=httpx.MockTransport(provider)) == 0
     assert [request["tool_choice"]["function"]["name"] for request in requests] == TOOLS
     state = observed["states"][0]
-    assert state["operations"] == ["parse_job", "suggest_evidence", "tailor_resume", "draft_answers"]
+    assert state["operations"] == ["parse_job", "suggest_evidence", "tailor_resume", "draft_answers",
+                                   "draft_cover_letter"]
     assert state["profile_revision"] == 1 and state["review_state"] == "approved"
     assert len(state["answers"]) == 1 and state["answers"][0].origin == "ai_draft"
     assert state["answers"][0].sources and state["approval"] is not None
     assert len(state["snapshots"]) == 1
     assert state["snapshots"][0].answers[0]["text"] == state["answers"][0].text
-    assert state["snapshots"][0].resume_html
+    assert state["snapshots"][0].resume_html and state["snapshots"][0].cover_letter
     assert settings.database_path.read_bytes() == b"existing user database must not be opened"
     assert observed["paths"] and all(not path.parent.exists() for path in observed["paths"])
     printed = capsys.readouterr().out
-    assert "4. draft_answers" in printed and "submitted snapshot validated" in printed
+    assert "4. draft_answers" in printed and "5. draft_cover_letter" in printed
+    assert "submitted snapshot validated" in printed
     assert "Smoke test passed." in printed and FAKE_KEY not in printed
     sent = json.dumps(requests)
     for private in ("jordan@example.com", "+1 555 0100", "Jordan Example", "github.com/jordan-example"):
@@ -164,7 +166,7 @@ def test_repeated_invalid_answer_draft_fails_without_approving_or_freezing(tmp_p
         return response
 
     assert smoke_openrouter.main(settings, transport=httpx.MockTransport(provider)) == 1
-    assert requested == [*TOOLS, "return_answers"]
+    assert requested == [*TOOLS[:4], "return_answers"]
     state = observed["states"][0]
     assert state["answers"] == [] and state["approval"] is None and state["snapshots"] == []
     assert "draft_answers" not in state["operations"]

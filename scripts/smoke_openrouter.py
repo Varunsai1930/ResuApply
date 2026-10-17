@@ -6,8 +6,9 @@ Run it after adding OPENROUTER_API_KEY to .env:
 
 It uses a throwaway database in a temporary folder (your data/ is untouched), sends a
 fictional job and a fictional candidate to the configured model, and checks that all AI
-operations return results that pass local validation. It then accepts the fictional
-resume and answer, approves their package, and freezes a local submitted snapshot.
+operations (requirements, evidence, resume, answers and a cover letter) return results that
+pass local validation. It then accepts the fictional resume, answer and letter, approves their
+package, and freezes a local submitted snapshot.
 The key is never printed. Nothing is submitted to an employer.
 """
 
@@ -24,12 +25,14 @@ from sqlalchemy.orm import Session
 
 from app.ai import operations
 from app.ai import answers as answers_ai
+from app.ai import cover_letter as letter_ai
 from app.ai import resume as resume_ai
 from app.ai.client import AIError, OpenRouterClient
 from app.config import Settings, get_settings
 from app.db import init_db, make_engine, make_session_factory
 from app.services import checklist, outbound, package
 from app.services import answers as answer_service
+from app.services import cover_letter as letter_service
 from app.services import jobs as job_service
 from app.services import profile as profile_service
 from app.services import resume as resume_service
@@ -106,11 +109,22 @@ def _exercise(session: Session, client: OpenRouterClient, settings: Settings, *,
         report("   FAILED: drafting or accepting an answer changed the accepted resume.")
         return 1
 
+    report("\n5. draft_cover_letter (a sourced letter body from the approved fictional context)")
+    run = letter_ai.draft_cover_letter(session, client, settings, job, candidate)
+    letter_draft = application.cover_letter_draft
+    if letter_draft is None or application.cover_letter is not None:
+        report("   FAILED: drafting did not create the expected review-only cover letter proposal.")
+        return 1
+    letter = letter_service.accept_draft(session, job, candidate, letter_service.draft_token(job, letter_draft))
+    report(f"   {run.attempts} attempt(s), usage {run.usage}; {len(letter.text.split())} words citing "
+           f"{', '.join(letter.sources)}; validated and accepted locally.")
+
     token = package.package_token(job, application, candidate)
     package.approve(session, job, candidate, token)
     snapshot = package.record_applied(session, job, candidate, token, on=date(2030, 1, 15), today=date(2030, 1, 15))
-    if len(snapshot.answers) != 1 or snapshot.answers[0]["text"] != answer.text or not snapshot.resume_html:
-        report("   FAILED: the fictional submitted snapshot did not retain the accepted resume and answer.")
+    if (len(snapshot.answers) != 1 or snapshot.answers[0]["text"] != answer.text or not snapshot.resume_html
+            or snapshot.cover_letter != letter.text):
+        report("   FAILED: the fictional submitted snapshot did not retain the accepted resume, answer and letter.")
         return 1
     session.refresh(candidate)
     if candidate.profile.model_dump(mode="json") != original_profile or candidate.revision != 1:
@@ -139,7 +153,8 @@ def main(settings: Settings | None = None, *, transport: httpx.AsyncBaseTranspor
                     try:
                         result = _exercise(session, client, settings, api_key=key)
                     except (AIError, operations.ApprovalNeeded, operations.NothingToDo, RequirementsInvalid,
-                            resume_service.ResumeError, answer_service.AnswerError, package.PackageError) as exc:
+                            resume_service.ResumeError, answer_service.AnswerError, letter_service.CoverLetterError,
+                            package.PackageError) as exc:
                         detail = str(exc).replace(key, "[redacted]")
                         print(f"   FAILED ({getattr(exc, 'kind', type(exc).__name__)}): {detail}")
                         result = 1
