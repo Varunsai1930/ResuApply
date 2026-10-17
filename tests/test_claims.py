@@ -189,3 +189,15 @@ def test_ai_claim_must_also_match_the_reworded_shared_source(prof):
     context = outbound.apply_choices(outbound.reduced_context(prof), set(), {"exp-1-b1": "Built a REST API"})
     with pytest.raises(resume.ResumeInvalid, match="shared context numbers"):
         resume.validate_resume(prof, {}, one_bullet("Served 1200 users via a Flask REST API", ["exp-1-b1"]), context)
+
+
+def test_a_credential_in_progress_or_at_a_lower_level_does_not_back_one_held():
+    from app.services.claims import claim_problems, credentials
+
+    assert claim_problems("Passed CFA Level II", ["CFA Level I candidate"], set())  # a higher level
+    assert claim_problems("Holds the CPA", ["CPA candidate, expected 2025"], set())  # not yet held
+    assert claim_problems("Certified PMP", ["Certified CISSP"], set())  # another qualification
+    assert claim_problems("Holds the CPA", ["Licensed CPA since 2020"], set()) == []
+    assert claim_problems("Passed CFA Level I", ["Passed CFA Level I in 2023"], set()) == []
+    assert "CPA credential" in credentials("Certified Public Accountant")  # spelled out, the same qualification
+    assert "charterholder" in credentials("CFA charterholder")

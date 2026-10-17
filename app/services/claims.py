@@ -56,12 +56,28 @@ _CREDENTIALS = {
     "bachelor's degree": r"bachelor'?s|bachelors?\s+of|b\.(?:s|a|sc|e|eng|tech)\.?|bsc|b\.?tech|beng|" + _degree_abbreviation("BS|BA|BE"),
     "master's degree": r"master'?s|masters?\s+of|m\.(?:s|a|sc|eng|tech)\.?|msc|m\.?tech|meng|" + _degree_abbreviation("MS|MA|ME"),
     "mba": r"mba", "degree": r"degree",
-    "CPA credential": r"cpa", "PMP credential": r"pmp", "CFA credential": r"cfa",
-    "CISSP credential": r"cissp", "CCNA credential": r"ccna",
+    "charterholder": r"charter\s?holders?|cfa charter",
     "publication": r"publish(?:ed|ing)?|publications?|peer[- ]reviewed",
     "honor": r"honou?rs?|honou?red|cum laude|dean'?s list|scholarship|fellowship|valedictorian",
 }
 _CREDENTIAL_RES = {name: re.compile(rf"(?<!\w)(?:{pat})(?!\w)", re.IGNORECASE) for name, pat in _CREDENTIALS.items()}
+# Distinct professional qualifications never back each other, as an acronym or spelled out (ResuSkill's rule).
+_PROFESSIONAL = {
+    "CPA credential": r"cpa|certified public accountant",
+    "PMP credential": r"pmp|project management professional",
+    "CFA credential": r"cfa|chartered financial analyst",
+    "CISSP credential": r"cissp|certified information systems security professional",
+    "CCNA credential": r"cisco certified network associate|ccna",
+}
+_PROFESSIONAL_RES = {name: re.compile(rf"(?<!\w)(?:{pat})(?!\w)", re.IGNORECASE) for name, pat in _PROFESSIONAL.items()}
+# Wording that marks a credential as not yet held. A clause runs to the next sentence break; commas don't
+# end it, so "CPA, expected 2025" stays in progress and can't back a claim of holding it.
+_PROGRESS_RE = re.compile(
+    r"(?<!\w)(?:pursu\w*|candidates?|candidacy|preparing|studying|working toward\w*|enrolled|"
+    r"in progress|expected|sitting for|registered for|level (?:iii|ii|i|[123]))(?!\w)", re.IGNORECASE)
+_CFA_LEVEL_RE = re.compile(r"(?<!\w)level (iii|ii|i|[123])(?!\w)", re.IGNORECASE)
+_LEVELS = {"1": "I", "2": "II", "3": "III", "i": "I", "ii": "II", "iii": "III"}
+_CLAUSE_RE = re.compile(r"[^.;!?\n]+")
 
 
 def numbers(text: str) -> set[str]:
@@ -89,6 +105,16 @@ def _number_key(raw: str, scale: str | None = None) -> str:
 def credentials(text: str) -> set[str]:
     normalized = unicodedata.normalize("NFKC", text or "").replace("’", "'").replace("‘", "'")
     found = {name for name, regex in _CREDENTIAL_RES.items() if regex.search(normalized)}
+    # A professional credential counts as held only when its clause has no progress wording; a CFA
+    # claim also names its level, so "CFA Level I candidate" can't back "passed CFA Level II".
+    for clause in _CLAUSE_RE.findall(normalized):
+        in_progress = bool(_PROGRESS_RE.search(clause))
+        for name, regex in _PROFESSIONAL_RES.items():
+            if not regex.search(clause):
+                continue
+            found.add(f"{name} (in progress)" if in_progress else name)
+            if name == "CFA credential":
+                found.update(f"CFA Level {_LEVELS[level.lower()]}" for level in _CFA_LEVEL_RE.findall(clause))
     if found & {"associate's degree", "bachelor's degree", "master's degree", "doctorate", "mba"}:
         found.add("degree")
     return found
