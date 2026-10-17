@@ -1,12 +1,16 @@
-"""Start the local server: ``python -m app``. Always binds to 127.0.0.1.
+"""Start the local server: ``python -m app`` (``--open`` also opens it in the browser). Always binds to 127.0.0.1.
 
 Before starting, it checks the settings, the data folder and the port, so a problem ends with
 a plain message instead of a traceback (and "running at" is only printed once they pass).
 """
 
+import argparse
 import logging
 import socket
 import sys
+import threading
+import time
+import webbrowser
 
 import uvicorn
 from pydantic import ValidationError
@@ -68,7 +72,27 @@ def check_port(port: int) -> None:
                      "another port with RESUAPPLY_PORT (for example RESUAPPLY_PORT=8001).")
 
 
-def main() -> None:
+def open_when_ready(url: str, port: int, timeout: float = 30.0) -> threading.Thread:
+    """Open ``url`` in the default browser once the server accepts connections, from a background thread."""
+    def wait_and_open() -> None:
+        deadline = time.monotonic() + timeout
+        while time.monotonic() < deadline:
+            try:
+                with socket.create_connection((HOST, port), timeout=0.5):
+                    webbrowser.open(url)
+                    return
+            except OSError:
+                time.sleep(0.25)
+
+    thread = threading.Thread(target=wait_and_open, name="resuapply-open-browser", daemon=True)
+    thread.start()
+    return thread
+
+
+def main(argv: list[str] | None = None) -> None:
+    parser = argparse.ArgumentParser(prog="python -m app", description="Start ResuApply on this computer.")
+    parser.add_argument("--open", action="store_true", help="open the app in your browser once it is running")
+    args = parser.parse_args(argv)
     settings = load_settings()
     check_storage(settings)
     check_port(settings.port)
@@ -76,7 +100,10 @@ def main() -> None:
     logging.basicConfig(level=logging.INFO, format="%(levelname)s:     %(name)s %(message)s")
     ai = f"AI model {settings.openrouter_model} ({settings.openrouter_model_trust})" if settings.ai_configured else "AI off (no OPENROUTER_API_KEY)"
     print(ai)
-    print(f"ResuApply running at http://{HOST}:{settings.port}  (data: {settings.database_path})")
+    url = f"http://{HOST}:{settings.port}"
+    print(f"ResuApply running at {url}  (data: {settings.database_path})")
+    if args.open:
+        open_when_ready(url, settings.port)
     uvicorn.run("app.main:app", host=HOST, port=settings.port)
 
 

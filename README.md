@@ -22,6 +22,18 @@ Create profile → Add job → Review requirements
 
 Requires Python 3.12 and Git. The app keeps its Python packages in a `.venv` folder inside the project and its data in `data/`. Optional OCR also needs a local Tesseract installation, described below.
 
+### Quick start (one command)
+
+Install **Python 3.12** (or [uv](https://docs.astral.sh/uv/)) and Git, clone the project, then start it:
+
+```bash
+git clone https://github.com/Varunsai1930/ResuApply.git
+cd ResuApply
+./start.sh
+```
+
+On Windows, double-click `start.bat` in the project folder (or run it from a terminal). The first start creates the `.venv` folder, installs the packages and creates `.env` from `.env.example`; later starts update the packages only when `requirements.txt` changed. The app then opens at <http://127.0.0.1:8000> in your browser. Stop it with Ctrl+C. To use the AI features, add your `OPENROUTER_API_KEY` to `.env` (never to `.env.example`, which Git tracks) and start again. The manual steps below do the same by hand.
+
 ### macOS and Linux
 
 These are the commands used to verify the app on macOS. Linux uses the same ones.
