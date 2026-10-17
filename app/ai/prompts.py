@@ -293,7 +293,7 @@ def draft_answers_messages(candidate_context: dict, job_context: dict, questions
     ]
 
 
-DRAFT_COVER_LETTER_REVISION = "draft_cover_letter/1"
+DRAFT_COVER_LETTER_REVISION = "draft_cover_letter/2"
 
 DRAFT_COVER_LETTER_TOOL = Tool(
     name="return_cover_letter",
@@ -326,6 +326,10 @@ every item you rely on in sources. Cite only IDs present in candidate_content. N
 responsibilities, achievements, degrees, certificates or credentials, and do not mention a technology \
 the cited sources do not mention. Do not turn the employer's requirements or values into candidate claims: \
 where the candidate has no evidence for a requirement, leave it out rather than claim it.
+- Every number, year and date must appear in a cited item, its dates included. Avoid number words such as \
+"one", "two", "first" or "twice" unless that number is in a cited item: write "a" or "an" instead of "one".
+- Name a technology only when a cited item mentions it or lists it among its technologies. The candidate's \
+general skills list is not a source for a letter; leave out a skill no cited item shows.
 - Never mention salary, work authorization, visa status or other personal details.
 - Stay under {{limit}} words. This is a draft for human review. It does not edit the profile and is not sent."""
 

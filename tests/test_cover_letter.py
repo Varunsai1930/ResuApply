@@ -91,7 +91,7 @@ def test_document_adds_greeting_and_sign_off_around_the_body(candidate):
 def test_draft_sends_only_shared_content_and_is_not_the_letter(session, job, candidate, trusted, fake_ai, ai_client):
     fake_ai.push(reply())
     draft = drafted(session, ai_client, trusted, job, candidate)
-    assert (draft.text, draft.sources, draft.prompt_revision) == (BODY, ["exp-1-b1"], "draft_cover_letter/1")
+    assert (draft.text, draft.sources, draft.prompt_revision) == (BODY, ["exp-1-b1"], "draft_cover_letter/2")
     assert job.application.cover_letter is None  # a proposal until accepted
     assert operations.latest_run(session, "draft_cover_letter", job.id).result["letter"]["text"] == BODY
     request = fake_ai.bodies[0]
