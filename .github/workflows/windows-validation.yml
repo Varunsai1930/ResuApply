@@ -31,9 +31,13 @@ jobs:
       - name: Install Chromium
         run: python -m playwright install chromium
       - name: Run the full test suite
-        # A test still running after 120 s fails with every thread's stack instead of holding the job.
+        # A test still running after 120 s ends the run with every thread's stack and its name in the log,
+        # instead of holding the job until it is cancelled. Windows has no SIGALRM, so pytest-timeout stops
+        # the whole pytest process there: later tests don't run and pytest.xml isn't written.
         run: python -m pytest -q --timeout=120 --durations=15 --junitxml=validation-results/pytest.xml
       - name: Check real startup, imports, restart persistence and PDF output
+        # Independent of the test suite, so it still reports when tests fail or the run was stopped by a timeout.
+        if: ${{ !cancelled() }}
         run: python -m scripts.smoke_local --output-dir validation-results/local-smoke --print-pdf validation-results/local-smoke/accepted-resume.pdf
       - name: Keep synthetic validation results
         if: always()
