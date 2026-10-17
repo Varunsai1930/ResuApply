@@ -129,6 +129,7 @@ INSPECT = """
         "[id*=eeoc i], [class*=eeoc i], [id*=demographic i], [class*=demographic i], " +
         "[id*=self-identification i], [class*=self-identification i], [id*=self_identification i]"),
       autocomplete: el.hasAttribute("list") || ["list", "both"].includes(el.getAttribute("aria-autocomplete")),
+      accept: type === "file" ? (el.getAttribute("accept") || "") : "",
     });
   }
   return out;
@@ -175,6 +176,7 @@ class FillStep:
     value: str = ""  # the text to fill
     file_name: str = ""  # with ``file_data``: the file to attach
     file_data: bytes = b""
+    mime_type: str = "application/pdf"
 
     @property
     def is_file(self) -> bool:
@@ -405,7 +407,7 @@ class FormBrowser:
                         outcomes.append(FillOutcome(step.key, False, error="The field is no longer on the form."))
                         continue
                     if step.is_file:
-                        locator.set_input_files({"name": step.file_name, "mimeType": "application/pdf",
+                        locator.set_input_files({"name": step.file_name, "mimeType": step.mime_type,
                                                  "buffer": step.file_data})
                     else:
                         locator.fill(step.value)

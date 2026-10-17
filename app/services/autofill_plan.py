@@ -13,7 +13,8 @@ each field gets. No model is involved. A field is filled only when every rule ag
   demographics, authorization, salary, consent and the rest of ``questions.SENSITIVE``);
 - the value fits: no line breaks in a one-line field, and no more characters than its maxlength.
 
-The resume file input gets the attached PDF. Everything else (choices, drop-downs, search
+The resume file input gets the attached PDF, and a cover letter upload gets the package's accepted
+letter as a Word file (when the upload takes Word files). Everything else (choices, drop-downs, search
 fields, tick boxes, dates, other uploads, sensitive and ambiguous fields) is listed as left for
 the user, with the reason. A field that already holds a different value is kept unless the user
 ticks it for replacing.
@@ -36,6 +37,9 @@ FILLABLE_CATEGORIES = (q_rules.FACTUAL, q_rules.OPEN)
 
 # Plan actions
 FILL, OCCUPIED, SAME, ATTACH, LEAVE = "fill", "occupied", "same", "attach", "leave"
+# Which file an upload gets
+RESUME_UPLOAD, COVER_LETTER_UPLOAD = "resume", "cover_letter"
+DOCX_TYPE = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
 
 _RESUME = re.compile(r"\b(?:resume|résumé|cv|curriculum vitae)\b", re.IGNORECASE)
 _COVER = re.compile(r"\bcover\s*letter\b", re.IGNORECASE)
@@ -70,6 +74,7 @@ class FormField:
     max_length: int | None = None
     sensitive_section: bool = False  # inside a self-identification or demographic section
     autocomplete: bool = False  # a search field that offers choices (aria-autocomplete, a datalist)
+    accept: str = ""  # a file input's accept attribute, lower case ("" accepts anything)
 
     @classmethod
     def from_page(cls, raw: object) -> FormField | None:
@@ -92,6 +97,7 @@ class FormField:
             editable=raw.get("editable") is True, value=text("value", 20000),
             max_length=max_length if isinstance(max_length, int) and max_length > 0 else None,
             sensitive_section=raw.get("sensitiveSection") is True, autocomplete=raw.get("autocomplete") is True,
+            accept=text("accept", 300).lower(),
         )
 
     @property
@@ -132,6 +138,7 @@ class FillData:
     answers: tuple[PackageAnswer, ...]
     resume_file: str | None  # the attached PDF's file name, None without one
     resume_size: int = 0
+    cover_letter_file: str | None = None  # the Word file made from the package's accepted letter, None without one
     package_hash: str = ""
     resume_sha256: str = ""
 
@@ -145,7 +152,8 @@ class PlanItem:
     existing: str = ""  # what the field held when it was inspected
     source: str = ""  # where the value comes from, in words
     reason: str = ""  # why a field is left for the user
-    file: bool = False  # the resume upload: ``value`` is the attached PDF's file name
+    file: bool = False  # a file upload: ``value`` is the file's name
+    upload: str = ""  # which file: RESUME_UPLOAD or COVER_LETTER_UPLOAD
 
     @property
     def fillable(self) -> bool:
@@ -183,19 +191,44 @@ def _contact_value(label: str, data: FillData) -> tuple[str | None, str]:
     return (value or None), f"Profile: {key}"
 
 
-def _file_item(field: FormField, data: FillData, resume_fields: int) -> PlanItem:
+def takes_word_files(accept: str) -> bool:
+    """Whether a file input's accept attribute lets a .docx file through ("" accepts anything)."""
+    kinds = {kind.strip() for kind in accept.split(",") if kind.strip()}
+    return not kinds or bool(kinds & {".docx", DOCX_TYPE, "application/*", "*/*", "*"})
+
+
+def _is_cover_letter_upload(field: FormField) -> bool:
+    return bool(_COVER.search(field.label)) or field.key in ("id:cover_letter", "name:cover_letter")
+
+
+def _cover_letter_item(field: FormField, data: FillData, cover_fields: int) -> PlanItem:
+    if cover_fields > 1:
+        return _leave(field, "The form has more than one cover letter upload, so ResuApply can't tell which to use.")
+    if data.cover_letter_file is None:
+        return _leave(field, "Your approved package has no cover letter: attach one yourself if you want to.")
+    if not takes_word_files(field.accept):
+        return _leave(field, "This upload doesn't take Word files. Save the cover letter as a PDF from its print "
+                             "view and attach it yourself.")
+    return PlanItem(field.key, _shown_label(field), OCCUPIED if field.value else ATTACH,
+                    value=data.cover_letter_file, existing=field.value[:500],
+                    source="The cover letter in your approved package, as a Word file", file=True,
+                    upload=COVER_LETTER_UPLOAD)
+
+
+def _file_item(field: FormField, data: FillData, resume_fields: int, cover_fields: int) -> PlanItem:
     label = field.label or field.key
-    is_resume = (_RESUME.search(label) or field.key in ("id:resume", "name:resume")) and not _COVER.search(label)
+    if _is_cover_letter_upload(field):
+        return _cover_letter_item(field, data, cover_fields)
+    is_resume = _RESUME.search(label) or field.key in ("id:resume", "name:resume")
     if not is_resume:
-        return _leave(field, "A cover letter upload: attach it yourself if you want to." if _COVER.search(label)
-                      else "A file upload: attach it yourself.")
+        return _leave(field, "A file upload: attach it yourself.")
     if resume_fields > 1:
         return _leave(field, "The form has more than one resume upload, so ResuApply can't tell which to use.")
     if data.resume_file is None:
         return _leave(field, "Attach the PDF saved from your package in ResuApply first.")
     return PlanItem(field.key, _shown_label(field) if field.label else "Resume", OCCUPIED if field.value else ATTACH,
                     value=data.resume_file, existing=field.value[:500],
-                    source="The PDF you attached to the approved package", file=True)
+                    source="The PDF you attached to the approved package", file=True, upload=RESUME_UPLOAD)
 
 
 def plan(fields: list[FormField], data: FillData) -> list[PlanItem]:
@@ -210,21 +243,22 @@ def plan(fields: list[FormField], data: FillData) -> list[PlanItem]:
         answers.setdefault(norm_label(answer.question), []).append(answer)
     resume_fields = sum(1 for f in shown if f.is_file and _RESUME.search(f.label or f.key)
                         and not _COVER.search(f.label))
+    cover_fields = sum(1 for f in shown if f.is_file and _is_cover_letter_upload(f))
     items = []
     for field in shown:
-        items.append(_item(field, data, label_counts, answers, resume_fields))
+        items.append(_item(field, data, label_counts, answers, resume_fields, cover_fields))
     return items
 
 
 def _item(field: FormField, data: FillData, label_counts: dict[str, int], answers: dict[str, list[PackageAnswer]],
-          resume_fields: int) -> PlanItem:
+          resume_fields: int, cover_fields: int = 0) -> PlanItem:
     label = norm_label(field.label)
     if not field.addressable:
         return _leave(field, "ResuApply can't find this field again reliably: fill it yourself.")
     if not field.editable:
         return _leave(field, "Locked on the employer's form.")
     if field.is_file:
-        return _file_item(field, data, resume_fields)
+        return _file_item(field, data, resume_fields, cover_fields)
     if field.sensitive_section or (label and q_rules.classify(field.label)[0] in q_rules.SENSITIVE_CATEGORIES):
         if field.type in ("checkbox", "radio"):
             return _leave(field, "A consent or declaration: only you can give it.")

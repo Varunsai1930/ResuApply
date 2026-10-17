@@ -27,10 +27,11 @@ from urllib.parse import urlsplit
 
 from ..models import Application, Candidate, Job
 from ..schemas.tracking import ReviewState
-from . import package, resume_attachment
+from . import cover_letter as letter_service
+from . import package, resume_attachment, resume_docx, resume_layouts
 from .autofill_browser import SETUP_MESSAGE, BrowserError, FillStep, FormBrowser, Inspection, LaunchOptions, installed
-from .autofill_plan import (CONTACT_KEYS, LEAVE, OCCUPIED, SAME, FillData, PackageAnswer, PlanItem,
-                            norm_value, plan, plan_token, structure)
+from .autofill_plan import (CONTACT_KEYS, COVER_LETTER_UPLOAD, DOCX_TYPE, LEAVE, OCCUPIED, SAME, FillData,
+                            PackageAnswer, PlanItem, norm_value, plan, plan_token, structure)
 from .greenhouse import HOSTS, PostingRef, posting_ref
 
 # Report outcomes
@@ -153,7 +154,28 @@ def fill_data(job: Job, application: Application, candidate: Candidate | None,
         resume_file=attachment.filename if attachment else None, resume_size=attachment.size if attachment else 0,
         package_hash=application.approval.content_hash if application.approval else "",
         resume_sha256=attachment.sha256 if attachment else "",
+        cover_letter_file=cover_letter_name(values["name"], job.company) if resolved.get("cover_letter") else None,
     )
+
+
+def cover_letter_name(name: str, company: str) -> str:
+    """The Word file's name on the employer's form, like the app's own Word download."""
+    title = " - ".join(part for part in (name, company, "cover letter") if part)
+    return resume_attachment.safe_name(title, extension=".docx", default="Cover letter.docx")
+
+
+def cover_letter_docx(job: Job, application: Application, candidate: Candidate | None) -> bytes:
+    """The approved package's cover letter as a Word file, in the resume's layout, or AutofillError."""
+    resolved = package.resolved_package(job, application, candidate)
+    text = resolved.get("cover_letter")
+    contact = (resolved.get("resume") or {}).get("contact")
+    if not text or not contact:
+        raise AutofillError("The approved package has no cover letter to attach.")
+    try:
+        return resume_docx.export_cover_letter(letter_service.document(contact, job.company, text),
+                                               layout=resume_layouts.layout_key(application))
+    except resume_docx.ResumeDocxError as exc:
+        raise AutofillError(str(exc)) from None
 
 
 def handover(inspection: Inspection, ref: PostingRef) -> str:
@@ -302,6 +324,9 @@ class Autofill:
                 elif item.action == OCCUPIED and norm_value(item.existing) != norm_value(planned.existing):
                     report[item.key] = ReportRow(item.label, KEPT, "It changed in the browser after the form was "
                                                  f"read, so your entry was kept: {item.existing}")
+                elif item.file and item.upload == COVER_LETTER_UPLOAD:
+                    steps.append(FillStep(item.key, file_name=item.value, mime_type=DOCX_TYPE,
+                                          file_data=cover_letter_docx(job, application, candidate)))
                 elif item.file:
                     steps.append(FillStep(item.key, file_name=item.value, file_data=pdf))
                 else:
@@ -368,8 +393,8 @@ def _checked(label: str, step: FillStep, outcome, data: FillData) -> ReportRow:
     if outcome.error:
         return ReportRow(label, MISMATCH, outcome.error)
     if step.is_file:
-        if outcome.read == step.file_name and outcome.read_size == data.resume_size:
-            return ReportRow(label, ATTACHED, f"{step.file_name} ({data.resume_size:,} bytes)")
+        if outcome.read == step.file_name and outcome.read_size == len(step.file_data):
+            return ReportRow(label, ATTACHED, f"{step.file_name} ({len(step.file_data):,} bytes)")
         shown = outcome.read or "no file"
         return ReportRow(label, MISMATCH, f"The form holds {shown}, not {step.file_name}. Attach it there yourself.")
     if norm_value(outcome.read) == norm_value(step.value):

@@ -45,13 +45,13 @@ def path_for(data_dir: Path, job_id: int) -> Path:
     return data_dir / FOLDER / f"job-{job_id}.pdf"
 
 
-def safe_name(filename: str | None) -> str:
+def safe_name(filename: str | None, extension: str = ".pdf", default: str = DEFAULT_NAME) -> str:
     """The file name the employer's form receives: the user's own, without folders or unusual characters."""
     name = (filename or "").replace("\\", "/").rsplit("/", 1)[-1]
     name = unicodedata.normalize("NFC", name)
-    stem = name[:-4] if name.lower().endswith(".pdf") else name
+    stem = name[:-len(extension)] if name.lower().endswith(extension) else name
     stem = re.sub(r"\s+", " ", _UNSAFE.sub("-", stem)).strip(" .-")[:100]
-    return f"{stem}.pdf" if stem else DEFAULT_NAME
+    return f"{stem}{extension}" if stem else default
 
 
 def _squash(text: str) -> str:

@@ -468,3 +468,50 @@ def test_an_oversized_resume_pdf_is_refused_before_it_is_read(world, monkeypatch
     response = world.attach(b"%PDF-" + b"x" * (MAX_BYTES + 200_000))
     assert response.status_code == 413 and "over 10 MB" in response.text
     assert read == []  # the shared check refused it from its Content-Length
+
+
+def test_attaches_the_approved_cover_letter_as_a_word_file_and_reads_it_back(world):
+    from io import BytesIO
+
+    from docx import Document
+
+    from app.services import cover_letter as letter_service
+
+    with world.session() as session:
+        job = jobs.get(session, world.job_id)
+        candidate = get_candidate(session)
+        letter_service.save_letter(session, job, "I would like to build robots with you.\n\nThank you.")
+        package.approve(session, job, candidate, package.package_token(job, job.application, candidate))
+    assert world.attach().status_code == 303
+    assert world.open().status_code == 303
+    assert _plan(world)["Cover Letter"] == "attach"
+    assert world.fill().status_code == 303
+    outcome, detail = _report(world)["Cover Letter"]
+    assert outcome == "attached" and detail.startswith("Jordan Example - Example Robotics - cover letter.docx")
+    name, data = world.page("""() => new Promise((resolve) => {
+        const file = document.getElementById("cover_letter").files[0];
+        const reader = new FileReader();
+        reader.onload = () => resolve([file.name, Array.from(new Uint8Array(reader.result))]);
+        reader.readAsArrayBuffer(file);
+    })""")
+    paragraphs = [p.text for p in Document(BytesIO(bytes(data))).paragraphs]
+    assert name.endswith("cover letter.docx")
+    assert "I would like to build robots with you." in paragraphs and "Thank you." in paragraphs
+    world.assert_not_submitted()
+
+
+def test_a_cover_letter_upload_that_takes_no_word_files_is_left(world):
+    from app.services import cover_letter as letter_service
+
+    with world.session() as session:
+        job = jobs.get(session, world.job_id)
+        candidate = get_candidate(session)
+        letter_service.save_letter(session, job, "A short letter.")
+        package.approve(session, job, candidate, package.package_token(job, job.application, candidate))
+    world.attach()
+    world.open()
+    world.page("() => document.getElementById('cover_letter').setAttribute('accept', '.pdf')")
+    assert world.client.post(f"/jobs/{world.job_id}/autofill/inspect", follow_redirects=False).status_code == 303
+    item = next(i for i in world.run.plan if i.label == "Cover Letter")
+    assert item.action == "leave" and "doesn't take Word files" in item.reason
+

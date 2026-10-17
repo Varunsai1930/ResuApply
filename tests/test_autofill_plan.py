@@ -74,7 +74,7 @@ def test_unsupported_controls_are_left_with_a_reason():
     assert reasons["Country"] == reasons["Location (City)"] == "A drop-down or search field: choose it yourself."
     assert "date field" in reasons["Start date"] and "number field" in reasons["Years of experience"]
     assert reasons["Remote"] == "A tick box or choice: choose it yourself."
-    assert reasons["Cover Letter"].startswith("A cover letter upload")
+    assert reasons["Cover Letter"].startswith("Your approved package has no cover letter")
     assert reasons["Transcript"] == "A file upload: attach it yourself."
 
 
@@ -187,3 +187,23 @@ def test_the_review_state_is_worked_out_once(monkeypatch):
     assert resume_attachment.current(job, application, None, state=ReviewState.APPROVED) is attachment and calls == []
     autofill.readiness(job, application, None)
     assert calls == [1]  # worked out once, for both the approval and the attachment
+
+
+def test_a_cover_letter_upload_gets_the_packages_letter_as_a_word_file():
+    def cover(accept: str = "", value: str = "", key: str = "id:cover_letter", label: str = "Cover Letter") -> FormField:
+        return FormField(key=key, tag="input", type="file", label=label, accept=accept, value=value, visible=False)
+
+    with_letter = FillData(contact={}, answers=(), resume_file=None, cover_letter_file="Jordan Example - cover letter.docx")
+    item = ap.plan([cover()], with_letter)[0]
+    assert (item.action, item.value, item.upload, item.file) == (ap.ATTACH, "Jordan Example - cover letter.docx",
+                                                                  ap.COVER_LETTER_UPLOAD, True)
+    assert ap.plan([cover(value="mine.pdf")], with_letter)[0].action == ap.OCCUPIED  # kept unless ticked
+    assert ap.plan([cover(accept=".pdf,.doc,.docx")], with_letter)[0].action == ap.ATTACH
+    pdf_only = ap.plan([cover(accept=".pdf")], with_letter)[0]
+    assert pdf_only.action == ap.LEAVE and "doesn't take Word files" in pdf_only.reason
+    two = ap.plan([cover(key="id:a"), cover(key="id:b")], with_letter)
+    assert all(i.action == ap.LEAVE and "more than one cover letter" in i.reason for i in two)
+    without = FillData(contact={}, answers=(), resume_file=None)
+    assert ap.plan([cover()], without)[0].action == ap.LEAVE
+    assert ap.takes_word_files("") and ap.takes_word_files("*/*") and not ap.takes_word_files("application/pdf")
+
