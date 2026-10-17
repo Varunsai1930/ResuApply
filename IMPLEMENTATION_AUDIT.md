@@ -6,16 +6,16 @@ Implementation follow-up: recommendations 1–4 have now been implemented. New i
 
 ## Implementation remaining
 
-The main V1 paths and Milestone 4 imports are implemented: profile review and persistence, jobs, requirements and evidence, resume proposals and acceptance, questions and answers, the answer bank, approval, tracking, submitted snapshots, PDF/DOCX profile import and Greenhouse posting import. At the user's request, local OCR, three resume layouts and DOCX resume export are also implemented. This matches [README.md](/Users/varun/Downloads/Varun/ResuMax/ResuApply/README.md:5) and the inspected code. Live provider validation is still outstanding, so implementation presence should not be confused with a completed live integration acceptance gate.
+Updated 17 October 2026. Everything in PLAN.md is implemented, plus cover letters, Lever and Ashby autofill, Alembic migrations, background AI requests and one-command start scripts. What remains is validation on real services and two decisions.
 
-| Work | What remains | Evidence |
+| Work | Status | Evidence |
 | --- | --- | --- |
-| Greenhouse autofill — Milestone 5 | Explicit browser launch and handoff; require a current approved package; associate and upload its PDF; inspect and map supported fields; fill approved values; preserve existing values; read back and report mismatches/skips; handle CAPTCHA/login/changed forms; clean up browser resources. Add fixtures proving no automated submission and a manual smoke check. | [PLAN.md](/Users/varun/Downloads/Varun/ResuMax/ResuApply/PLAN.md:213), [acceptance tests](/Users/varun/Downloads/Varun/ResuMax/ResuApply/PLAN.md:249) |
-| Live OpenRouter validation | Expanded smoke covers all four operations plus acceptance, approval and a snapshot. Offline checks pass; a real provider run remains pending because no key is configured and the user chose to defer it. | [smoke_openrouter.py](/Users/varun/Downloads/Varun/ResuMax/ResuApply/scripts/smoke_openrouter.py), [acceptance gate](/Users/varun/Downloads/Varun/ResuMax/ResuApply/PLAN.md:245) |
-| Windows validation | Windows commands, a real CLI acceptance script and a Windows/Python 3.12 CI workflow are prepared. Native execution remains pending; the user has no Windows machine. | [Windows workflow](/Users/varun/Downloads/Varun/ResuMax/ResuApply/.github/workflows/windows-validation.yml), [smoke_local.py](/Users/varun/Downloads/Varun/ResuMax/ResuApply/scripts/smoke_local.py) |
-| Reliability fixes | Recommendations 1–4 implemented, including the test clock fix; see the original findings and the follow-up validation below. | Reproductions below |
-
-Other application platforms remain deferred. OCR, advanced resume layouts and DOCX resume export were moved into scope and implemented; validation and review fixes are recorded below.
+| Live OpenRouter validation | Done with the configured free model (`nvidia/nemotron-3.5-super-vl:free`): requirement extraction, evidence suggestions, resume tailoring, answer drafts and cover letters each passed local validation at least once. The free tier also timed out at 90 s or returned provider errors on several requests, and allows 50 free-model requests a day. One false positive was fixed (a cited entry's own dates now count as support) and the cover letter prompt was tightened. | `scripts/smoke_openrouter.py` (five stages) |
+| Autofill on a live form | Fixture forms for Greenhouse, Lever and Ashby pass end to end. The form reader and plan were run read-only on live Lever and Ashby application pages; no live form has been filled. | `tests/test_autofill.py`, `tests/test_postings.py` |
+| Windows validation | Windows CI (`windows-validation.yml`) passes; the earlier hang was a 10 MB test parameter id. | GitHub Actions, PR #3 |
+| ResuSkill rules | Claim checks now agree with ResuSkill (held/in-progress credentials and CFA levels were ported). ResuSkill lacks nine form-field labels ResuApply recognises; `scripts/rules_parity.py` lists them. A shared package would need ResuSkill restructured, which is the owner's decision. | `scripts/rules_parity.py` |
+| Workday autofill | Not planned: its sign-in and multi-step forms fall outside what deterministic autofill can verify. | PLAN.md |
+| Desktop packaging | `start.sh` and `start.bat` set up and start the app in one command; a bundled desktop app (with Tesseract and a browser) is not built. | README.md, Quick start |
 
 ## Original confirmed findings, in recommended fix order
 
