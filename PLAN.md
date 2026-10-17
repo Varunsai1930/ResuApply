@@ -22,7 +22,7 @@ Success means the user can prepare and retrieve an accurate application package 
 
 The model drafts; Python decides. The model never writes to the canonical profile, never computes the checklist and never controls a browser. Every generated claim cites profile sources and passes deterministic checks before the user sees it as a proposal.
 
-ResuApply uses the same rules as ResuSkill: requirement excerpt checks, checklist logic, claim validation, question categories and approval and staleness rules. The rules and their test scenarios are kept identical between the two projects. If ResuSkill's core is later published as a package, ResuApply may depend on it instead of keeping its own copy.
+ResuApply uses the same rules as ResuSkill: requirement excerpt checks, checklist logic, claim validation, question categories and approval and staleness rules. The rules and their test scenarios are kept identical between the two projects. `scripts/rules_parity.py` runs both copies (question categories, claim checks, skill names) on the same synthetic inputs and lists every difference in meaning, reading a `../ResuSkill` checkout without changing it. If ResuSkill's core is later published as a package, ResuApply may depend on it instead of keeping its own copy.
 
 ## 3. V1 implementation
 
