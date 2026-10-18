@@ -72,6 +72,7 @@ INSPECT = """
   };
   const big = (el) => { const box = el.getBoundingClientRect(); return box.width > 40 && box.height > 40; };
   // A label's visible words: not its controls, buttons or hidden helper text ("No location found", "Loading").
+  // Text nodes are joined as the page sets them, so inline markup ("Linked<span>In</span>") adds no space.
   const words = (node) => {
     const parts = [];
     const walker = document.createTreeWalker(node, NodeFilter.SHOW_TEXT);
@@ -81,7 +82,7 @@ INSPECT = """
       if (typeof parent.checkVisibility === "function" && !parent.checkVisibility({ visibilityProperty: true })) continue;
       parts.push(text.textContent);
     }
-    return parts.join(" ").replace(/\\s+/g, " ").trim();
+    return parts.join("").replace(/\\s+/g, " ").trim();
   };
   const captchaFrames = [...document.querySelectorAll("iframe")].filter((f) =>
     /captcha|turnstile|arkoselabs|funcaptcha/i.test((f.src || "") + " " + (f.title || "")) &&

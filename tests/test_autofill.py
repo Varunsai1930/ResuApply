@@ -275,6 +275,16 @@ def test_a_changed_form_structure_stops_before_anything_is_filled(world):
     world.assert_not_submitted()
 
 
+@pytest.mark.pages({POSTING_URL: "inline_labels.html"})
+def test_inline_markup_inside_a_label_reads_as_the_label_text(world):
+    world.attach()
+    assert world.open().status_code == 303, world.workspace()
+    plan = _plan(world)
+    assert plan[WHY] == "fill"  # "at <strong>Example Robotics</strong>?" is still the question word for word
+    assert plan["LinkedIn Profile"] == "fill"  # "Linked<span>In</span>" is one word
+    world.assert_not_submitted()
+
+
 @pytest.mark.pages({POSTING_URL: "captcha.html"})
 def test_a_captcha_returns_control(world):
     world.attach()
