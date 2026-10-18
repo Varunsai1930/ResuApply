@@ -240,7 +240,7 @@ Built (`services/autofill.py`, `autofill_plan.py`, `autofill_browser.py` and `re
 - The form is read again before filling. A CAPTCHA, a sign-in, a different host or posting, a missing or oversized form, a closed window or a changed field structure hands control back and fills nothing. Navigation during the fill stops it.
 - Only `fill`, `set_input_files` and read-back are used: no clicks or key presses. During a fill a guard cancels submit events, `form.submit()`/`requestSubmit()` and form-post navigations, and reports any attempt.
 - Applied is never recorded by autofill. The browser closes on **Close the browser** and at app shutdown.
-- Tests (`tests/test_autofill*.py`, `tests/test_resume_attachment.py`) drive a hidden Chromium against local Greenhouse-like fixtures with every request answered locally: existing values, custom questions, unsupported controls, upload verification, read-back mismatches, CAPTCHA, sign-in, redirects, changed structure, page-initiated submissions and zero automated submissions. A manual check on a live hosted form, without submitting, remains pending.
+- Tests (`tests/test_autofill*.py`, `tests/test_resume_attachment.py`) drive a hidden Chromium against local Greenhouse-like fixtures with every request answered locally: existing values, custom questions, unsupported controls, upload verification, read-back mismatches, CAPTCHA, sign-in, redirects, changed structure, page-initiated submissions and zero automated submissions. The form reader and plan were also run read-only on live Greenhouse, Lever and Ashby application pages; filling a live form, without submitting, has not been done yet.
 
 ## 5. Delivery order and acceptance tests
 
@@ -258,7 +258,7 @@ pytest covers matching, validation, revision handling and FastAPI integration. P
 
 The live smoke command (`python -m scripts.smoke_openrouter`) covers requirement extraction, evidence suggestions, resume tailoring, answer drafting and a cover letter, followed by local acceptance, package approval and a submitted snapshot. Its offline regression tests check every stage, failure handling and data isolation. On 17 October 2026 each stage passed local validation against the configured free model (`nvidia/nemotron-3.5-super-vl:free`); the free tier also timed out or returned provider errors on some requests, so a single run can stop at any stage and is simply retried.
 
-`python -m scripts.smoke_local` exercises the real CLI with temporary fictional data: startup, occupied-port rejection, PDF/DOCX import, reviewed saves, accepted print HTML, shutdown and persistence after restart in a path with spaces and Unicode. Optional `--print-pdf FILE` verifies Chromium PDF output. A Windows/Python 3.12 GitHub Actions workflow is prepared to run the full suite and these checks; native Windows acceptance remains pending until that workflow runs successfully. Browser packages are test dependencies only.
+`python -m scripts.smoke_local` exercises the real CLI with temporary fictional data: startup, occupied-port rejection, PDF/DOCX import, reviewed saves, accepted print HTML, shutdown and persistence after restart in a path with spaces and Unicode. Optional `--print-pdf FILE` verifies Chromium PDF output. A Windows/Python 3.12 GitHub Actions workflow (`windows-validation.yml`) runs the full suite and these checks on every push and pull request, and passes. Browser packages are test dependencies only.
 
 Required scenarios:
 
