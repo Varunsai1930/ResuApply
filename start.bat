@@ -15,16 +15,24 @@ if exist ".venv\Scripts\python.exe" goto packages
 py -3.12 -c "import sys" >nul 2>nul
 if not errorlevel 1 (
   py -3.12 -m venv .venv
+  if errorlevel 1 goto novenv
   goto packages
 )
 where uv >nul 2>nul
 if not errorlevel 1 (
   uv venv -q --python 3.12 .venv
+  if errorlevel 1 goto novenv
   goto packages
 )
 echo ResuApply needs Python 3.12. Install it from https://www.python.org/downloads/windows/
 echo (keep "py launcher" selected), or run: winget install Python.Python.3.12
 echo Then run start.bat again.
+pause
+exit /b 1
+
+:novenv
+echo Making the .venv folder with Python 3.12 failed (see above). Delete the .venv folder and run
+echo start.bat again; if it fails again, reinstall Python 3.12 from https://www.python.org/downloads/windows/
 pause
 exit /b 1
 

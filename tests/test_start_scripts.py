@@ -61,6 +61,17 @@ def test_the_launchers_are_valid_and_start_the_app_with_open():
     assert b"-m scripts.ensure_packages" in bat and b"-m app --open" in bat and b"py -3.12" in bat
 
 
+def test_start_bat_stops_with_a_message_when_the_venv_cant_be_made():
+    lines = [line.strip() for line in (ROOT / "start.bat").read_text().splitlines() if line.strip()]
+    makes = [index for index, line in enumerate(lines) if " venv " in f" {line} " and line.endswith(" .venv")]
+    assert len(makes) == 2  # the py launcher and uv
+    for index in makes:
+        assert lines[index + 1] == "if errorlevel 1 goto novenv", lines[index]
+    after = lines[lines.index(":novenv") + 1:]
+    failed = after[:next(index for index, line in enumerate(after) if line.startswith(":"))]
+    assert failed[0].startswith("echo ") and failed[-1] == "exit /b 1"
+
+
 def test_open_waits_for_the_server_then_opens_the_browser(monkeypatch):
     opened = []
     monkeypatch.setattr(entry.webbrowser, "open", opened.append)
