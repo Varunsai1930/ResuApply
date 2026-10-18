@@ -2,7 +2,7 @@
 
 Reviewed on 14 October 2026 against the current working tree, including its existing uncommitted UI and test changes. Application source and existing tests were not changed during this audit.
 
-Implementation follow-up: recommendations 1–4 have now been implemented. New invalid Unicode is refused, legacy profile text can be corrected through review and save, damaged DOCX files return import errors, editable forms guard unsaved work, textarea values preserve initial newlines, AI exchanges have a cancellable total deadline and bounded responses, malformed numeric inputs return validation errors, and the reminder test uses a consistent date. Provider and Windows acceptance harnesses are prepared; their live/native validation remains pending by the user's choice. The original findings and reproductions below describe the audited version before those fixes. Greenhouse autofill remains unstarted.
+Implementation follow-up: recommendations 1–4 have now been implemented. New invalid Unicode is refused, legacy profile text can be corrected through review and save, damaged DOCX files return import errors, editable forms guard unsaved work, textarea values preserve initial newlines, AI exchanges have a cancellable total deadline and bounded responses, malformed numeric inputs return validation errors, and the reminder test uses a consistent date. Provider and Windows acceptance harnesses were prepared and have since passed (see "Implementation remaining"), and Greenhouse, Lever and Ashby autofill have been built. The original findings and reproductions below describe the audited version before those fixes; the later sections are a dated record and keep the status they had when written.
 
 ## Implementation remaining
 
@@ -93,8 +93,8 @@ Codebase Memory was used first to identify relevant modules, symbols and call pa
 2. **Implemented:** Guard unsaved workspace edits and preserve textarea values exactly.
 3. **Implemented:** Enforce the AI request deadline and normalize malformed numeric inputs.
 4. **Implemented:** Fix the test clock mismatch, then rerun the suite and the new regressions.
-5. **Prepared; execution pending:** Complete live provider and Windows acceptance checks. Four-operation provider smoke, local CLI acceptance, Windows commands and a Windows CI workflow are ready. Live provider and native Windows runs remain pending as requested.
-6. Implement Milestone 5 Greenhouse autofill and its no-submission tests.
+5. **Done (17 October 2026):** Complete live provider and Windows acceptance checks. The OpenRouter smoke passed every stage with the configured free model, and the Windows workflow passes.
+6. **Done:** Implement Milestone 5 Greenhouse autofill and its no-submission tests (extended to Lever and Ashby). Filling a live form remains open.
 
 ## Follow-up implementation validation
 
