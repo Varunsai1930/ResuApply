@@ -218,6 +218,12 @@ def _upload_label(field: FormField, name: str) -> str:
     return name if not shown or shown.casefold() in _GENERIC_UPLOAD else shown
 
 
+def _is_resume_upload(field: FormField) -> bool:
+    """A file input for the resume (and not the cover letter), by its label or its id or name."""
+    return (not _is_cover_letter_upload(field)
+            and bool(_RESUME.search(field.label or field.key) or field.key in ("id:resume", "name:resume")))
+
+
 def _is_cover_letter_upload(field: FormField) -> bool:
     return bool(_COVER.search(field.label)) or field.key in ("id:cover_letter", "name:cover_letter")
 
@@ -237,11 +243,9 @@ def _cover_letter_item(field: FormField, data: FillData, cover_fields: int) -> P
 
 
 def _file_item(field: FormField, data: FillData, resume_fields: int, cover_fields: int) -> PlanItem:
-    label = field.label or field.key
     if _is_cover_letter_upload(field):
         return _cover_letter_item(field, data, cover_fields)
-    is_resume = _RESUME.search(label) or field.key in ("id:resume", "name:resume")
-    if not is_resume:
+    if not _is_resume_upload(field):
         return _leave(field, "A file upload: attach it yourself.")
     if resume_fields > 1:
         return _leave(field, "The form has more than one resume upload, so ResuApply can't tell which to use.")
@@ -262,8 +266,7 @@ def plan(fields: list[FormField], data: FillData) -> list[PlanItem]:
     answers: dict[str, list[PackageAnswer]] = {}
     for answer in data.answers:
         answers.setdefault(norm_label(answer.question), []).append(answer)
-    resume_fields = sum(1 for f in shown if f.is_file and _RESUME.search(f.label or f.key)
-                        and not _COVER.search(f.label))
+    resume_fields = sum(1 for f in shown if f.is_file and _is_resume_upload(f))
     cover_fields = sum(1 for f in shown if f.is_file and _is_cover_letter_upload(f))
     items = []
     for field in shown:

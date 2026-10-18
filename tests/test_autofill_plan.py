@@ -132,6 +132,13 @@ def test_the_resume_upload_needs_the_attached_pdf_and_one_resume_field():
     assert {i.action for i in ap.plan([upload, second], data())} == {"leave"}
 
 
+def test_a_resume_upload_known_only_by_its_id_counts_towards_the_one_resume_field():
+    # Greenhouse labels the upload "Attach"; its id says it takes the resume.
+    by_id = FormField(key="id:resume", tag="input", type="file", label="Attach", visible=False)
+    by_label = FormField(key="id:cv_upload", tag="input", type="file", label="Resume/CV", visible=False)
+    assert {i.action for i in ap.plan([by_id, by_label], data())} == {"leave"}
+
+
 def test_plan_token_ignores_typed_values_but_not_the_form_package_or_pdf():
     fields = [text("email", "Email"), text("q", "Why us?")]
     fill_data = data(answer("Why us?", "Because."))
