@@ -217,3 +217,12 @@ def test_progress_wording_after_an_abbreviation_still_counts_for_licenses_and_ce
     assert claim_problems("I am a licensed nurse", ["R.N. license expected in 2025"], set())
     assert claim_problems("I am certified in cloud security", ["Cloud security certification in progress"], set())
     assert claim_problems("Licensed CPA", ["Licensed CPA in the U.S. since 2020"], set()) == []
+
+
+def test_progress_wording_about_something_else_leaves_a_credential_held():
+    for source in ("PMP certified, cut costs ahead of expected timelines", "Level 2 support engineer, PMP certified",
+                   "PMP certified, enrolled 40 new clients in the loyalty program"):
+        assert claim_problems("PMP certified project lead", [source], set()) == [], source
+    # A short remark after a comma is still about the credential.
+    assert claim_problems("PMP certified project lead", ["PMP, exam pending"], set())
+    assert claim_problems("Holds the CPA", ["CPA, expected May 2025"], set())

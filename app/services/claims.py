@@ -72,12 +72,13 @@ _PROGRESS_AWARE = {**_PROFESSIONAL, "certification": r"certif(?:ied|ication|icat
                    "license": r"licen[cs](?:e|ed|es|ing)"}
 _PROGRESS_AWARE_RES = {name: re.compile(rf"(?<!\w)(?:{pat})(?!\w)", re.IGNORECASE)
                        for name, pat in _PROGRESS_AWARE.items()}
-# Wording that marks a credential as not yet held. A clause runs to the next sentence break; commas don't
-# end it, so "CPA, expected 2025" stays in progress and can't back a claim of holding it.
+# Wording that marks a credential as not yet held, when it sits beside the credential (``_credential_scopes``):
+# "CPA, expected 2025" stays in progress and can't back a claim of holding it.
 _PROGRESS_RE = re.compile(
     r"(?<!\w)(?:pursu\w*|candidates?|candidacy|preparing|studying|working toward\w*|enrolled|"
     r"in progress|expected|sitting for|registered for|eligib\w*|pending|awaiting|plann\w*|"
     r"level (?:iii|ii|i|[123]))(?!\w)", re.IGNORECASE)
+_SHORT_REMARK_WORDS = 3
 _CFA_LEVEL_RE = re.compile(r"(?<!\w)level (iii|ii|i|[123])(?!\w)", re.IGNORECASE)
 _LEVELS = {"1": "I", "2": "II", "3": "III", "i": "I", "ii": "II", "iii": "III"}
 # A sentence break: ; ! ? a line break, or a full stop before a capital or the end. A full stop after a
@@ -107,19 +108,33 @@ def _number_key(raw: str, scale: str | None = None) -> str:
     return key.rstrip("0").rstrip(".") if "." in key else key
 
 
+def _credential_scopes(clause: str):
+    """Each comma-separated part of a clause (where a credential is named) with the wording that speaks of it.
+
+    Progress wording counts in the part itself and in a short part right after it ("CPA, expected May
+    2025"), not elsewhere in the sentence ("PMP certified, cut costs ahead of expected timelines").
+    """
+    parts = clause.split(",")
+    for index, part in enumerate(parts):
+        after = parts[index + 1] if index + 1 < len(parts) else ""
+        short = len(re.findall(r"\w+", after)) <= _SHORT_REMARK_WORDS
+        yield (f"{part},{after}" if short else part), part
+
+
 def credentials(text: str) -> set[str]:
     normalized = unicodedata.normalize("NFKC", text or "").replace("’", "'").replace("‘", "'")
     found = {name for name, regex in _CREDENTIAL_RES.items() if regex.search(normalized)}
     # A credential, license or certification counts as held only when its clause has no progress
     # wording; a CFA claim also names its level, so "CFA Level I candidate" can't back "passed CFA Level II".
     for clause in _CLAUSE_BREAK_RE.split(normalized):
-        in_progress = bool(_PROGRESS_RE.search(clause))
-        for name, regex in _PROGRESS_AWARE_RES.items():
-            if not regex.search(clause):
-                continue
-            found.add(f"{name} (in progress)" if in_progress else name)
-            if name == "CFA credential":
-                found.update(f"CFA Level {_LEVELS[level.lower()]}" for level in _CFA_LEVEL_RE.findall(clause))
+        for scope, mention in _credential_scopes(clause):
+            in_progress = bool(_PROGRESS_RE.search(scope))
+            for name, regex in _PROGRESS_AWARE_RES.items():
+                if not regex.search(mention):
+                    continue
+                found.add(f"{name} (in progress)" if in_progress else name)
+                if name == "CFA credential":
+                    found.update(f"CFA Level {_LEVELS[level.lower()]}" for level in _CFA_LEVEL_RE.findall(scope))
     if found & {"associate's degree", "bachelor's degree", "master's degree", "doctorate", "mba"}:
         found.add("degree")
     return found
