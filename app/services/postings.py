@@ -36,22 +36,11 @@ class FormRef:
         return LABELS[self.platform]
 
 
-def _parts(url: str):
-    try:
-        parts = urlsplit((url or "").strip())
-        port = parts.port
-    except ValueError:
-        return None
-    if parts.scheme != "https" or parts.username is not None or parts.password is not None or port not in (None, 443):
-        return None
-    return parts
-
-
 def form_ref(url: str) -> FormRef | None:
     """The supported posting a link names, or None for any other link."""
     if (ref := greenhouse.posting_ref(url)) is not None:
         return FormRef(GREENHOUSE, ref.board, ref.job_id)
-    parts = _parts(url)
+    parts = greenhouse.https_parts(url)
     if parts is None:
         return None
     host = (parts.hostname or "").lower()

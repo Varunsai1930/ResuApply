@@ -20,7 +20,7 @@ import re
 import time
 from dataclasses import dataclass
 from html.parser import HTMLParser
-from urllib.parse import parse_qs, urlsplit
+from urllib.parse import SplitResult, parse_qs, urlsplit
 
 import httpx
 from pydantic import TypeAdapter, ValidationError
@@ -68,6 +68,21 @@ class Posting:
     description: str  # plain text, from the posting's HTML
 
 
+def https_parts(url: str) -> SplitResult | None:
+    """A link split into its parts when it is plain https: no user name or password, no port but 443.
+
+    The rule every job-board link ResuApply fetches or opens must meet (here and in ``postings``).
+    """
+    try:
+        parts = urlsplit((url or "").strip())
+        port = parts.port
+    except ValueError:
+        return None
+    if parts.scheme != "https" or parts.username is not None or parts.password is not None or port not in (None, 443):
+        return None
+    return parts
+
+
 def posting_ref(url: str) -> PostingRef | None:
     """The board and job a Greenhouse posting link names, or None for any other link.
 
@@ -76,13 +91,8 @@ def posting_ref(url: str) -> PostingRef | None:
     ``/embed/job_app?for={board}&token={id}``. Anything else (another host, http, a port,
     a user name, another path) is not a Greenhouse posting.
     """
-    try:
-        parts = urlsplit((url or "").strip())
-        port = parts.port
-    except ValueError:
-        return None
-    if (parts.scheme != "https" or (parts.hostname or "") not in HOSTS or parts.username is not None
-            or parts.password is not None or port not in (None, 443)):
+    parts = https_parts(url)
+    if parts is None or (parts.hostname or "") not in HOSTS:
         return None
     if match := _JOB_PATH.fullmatch(parts.path):
         return PostingRef(match.group(1), match.group(2))

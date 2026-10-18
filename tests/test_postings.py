@@ -46,3 +46,20 @@ def test_the_form_is_opened_on_its_own_page():
     assert postings.form_url(f"https://jobs.ashbyhq.com/examplerobotics/{UUID}?src=board") == \
         f"https://jobs.ashbyhq.com/examplerobotics/{UUID}/application?src=board"
     assert postings.form_ref(postings.form_url(f"https://jobs.ashbyhq.com/examplerobotics/{UUID}")).platform == ASHBY
+
+
+@pytest.mark.parametrize("link", [
+    "https://job-boards.greenhouse.io/examplerobotics/jobs/4012345",
+    f"https://jobs.lever.co/examplerobotics/{UUID}",
+    f"https://jobs.ashbyhq.com/examplerobotics/{UUID}",
+])
+@pytest.mark.parametrize("unsafe", [
+    lambda url: url.replace("https://", "http://"),
+    lambda url: url.replace("https://", "https://user@"),
+    lambda url: url.replace("https://", "https://user:secret@"),
+    lambda url: url.replace(".io/", ".io:8443/").replace(".co/", ".co:8443/").replace(".com/", ".com:8443/"),
+    lambda url: url.replace(".io/", ".io:99999/").replace(".co/", ".co:99999/").replace(".com/", ".com:99999/"),
+], ids=["http", "user", "password", "port", "bad-port"])
+def test_every_platform_refuses_the_same_unsafe_links(link, unsafe):
+    assert postings.form_ref(link) is not None
+    assert postings.form_ref(unsafe(link)) is None
