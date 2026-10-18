@@ -154,12 +154,15 @@ def fill_data(job: Job, application: Application, candidate: Candidate | None,
                                   resolved=q["resolved"] is True, skipped=q["skipped"] is True)
                     for q in resolved["questions"])
     attachment = attachment if attachment is not None else resume_attachment.current(job, application, candidate)
+    text = resolved.get("cover_letter")
+    letter = letter_service.document(contact, job.company, text) if text and contact else None
     return FillData(
         contact=values, answers=answers,
         resume_file=attachment.filename if attachment else None, resume_size=attachment.size if attachment else 0,
         package_hash=application.approval.content_hash if application.approval else "",
         resume_sha256=attachment.sha256 if attachment else "",
-        cover_letter_file=cover_letter_name(values["name"], job.company) if resolved.get("cover_letter") else None,
+        cover_letter_file=cover_letter_name(values["name"], job.company) if letter else None,
+        cover_letter=letter,
     )
 
 
@@ -169,16 +172,15 @@ def cover_letter_name(name: str, company: str) -> str:
     return resume_attachment.safe_name(title, extension=".docx", default="Cover letter.docx")
 
 
-def cover_letter_docx(job: Job, application: Application, candidate: Candidate | None) -> bytes:
-    """The approved package's cover letter as a Word file, in the resume's layout, or AutofillError."""
-    resolved = package.resolved_package(job, application, candidate)
-    text = resolved.get("cover_letter")
-    contact = (resolved.get("resume") or {}).get("contact")
-    if not text or not contact:
+def cover_letter_docx(data: FillData, layout: str) -> bytes:
+    """The fill data's cover letter as a Word file in ``layout`` (the resume's), or AutofillError.
+
+    The letter is the one ``fill_data`` resolved with the rest of the package, so it is the one checked.
+    """
+    if data.cover_letter is None:
         raise AutofillError("The approved package has no cover letter to attach.")
     try:
-        return resume_docx.export_cover_letter(letter_service.document(contact, job.company, text),
-                                               layout=resume_layouts.layout_key(application))
+        return resume_docx.export_cover_letter(data.cover_letter, layout=layout)
     except resume_docx.ResumeDocxError as exc:
         raise AutofillError(str(exc)) from None
 
@@ -331,7 +333,7 @@ class Autofill:
                                                  f"read, so your entry was kept: {item.existing}")
                 elif item.file and item.upload == COVER_LETTER_UPLOAD:
                     steps.append(FillStep(item.key, file_name=item.value, mime_type=DOCX_TYPE,
-                                          file_data=cover_letter_docx(job, application, candidate)))
+                                          file_data=cover_letter_docx(data, resume_layouts.layout_key(application))))
                 elif item.file:
                     steps.append(FillStep(item.key, file_name=item.value, file_data=pdf))
                 else:

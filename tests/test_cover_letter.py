@@ -322,3 +322,16 @@ def test_entry_dates_vouch_for_their_years_not_their_month_digits(candidate, job
     # exp-1 runs 2024-06 to 2024-08: June and August, not the numbers 6 and 8.
     for claim in ("I worked with a team of 6.", "I cut build times by 8%."):
         assert svc.validate_letter(candidate.profile, job, f"{claim}\n\n{BULLET}.", ["exp-1-b1"])
+
+
+def test_autofill_makes_the_word_letter_from_the_fill_data_it_planned_with():
+    from app.services import autofill
+    from app.services.autofill_plan import FillData
+
+    letter = svc.document({"name": "Jordan Example", "email": "jordan@example.com"}, "Example Robotics",
+                          "I would like to build robots with you.\n\nThank you.")
+    data = FillData(contact={}, answers=(), resume_file=None, cover_letter_file="Letter.docx", cover_letter=letter)
+    built = Document(BytesIO(autofill.cover_letter_docx(data, layout="classic")))
+    assert "I would like to build robots with you." in [p.text for p in built.paragraphs]
+    with pytest.raises(autofill.AutofillError):
+        autofill.cover_letter_docx(FillData(contact={}, answers=(), resume_file=None), layout="classic")

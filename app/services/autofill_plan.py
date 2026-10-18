@@ -148,6 +148,7 @@ class FillData:
     resume_file: str | None  # the attached PDF's file name, None without one
     resume_size: int = 0
     cover_letter_file: str | None = None  # the Word file made from the package's accepted letter, None without one
+    cover_letter: dict | None = None  # that letter (``cover_letter.document``), resolved with everything above
     package_hash: str = ""
     resume_sha256: str = ""
 
