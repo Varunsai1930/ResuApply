@@ -61,7 +61,7 @@ Run the tests:
 
 ### Windows
 
-Windows setup commands are provided below. Native Windows acceptance remains pending. A Windows validation workflow is prepared in `.github/workflows/windows-validation.yml`; it runs the tests and acceptance checks on a Windows runner once the workflow is available in GitHub. If a step fails, please [open an issue](https://github.com/Varunsai1930/ResuApply/issues) with the command and its output.
+Windows setup commands are provided below. The Windows validation workflow (`.github/workflows/windows-validation.yml`) runs the full test suite and the local acceptance checks on a Windows runner with Python 3.12 for every push and pull request, and it passes. If a step fails, please [open an issue](https://github.com/Varunsai1930/ResuApply/issues) with the command and its output.
 
 1. Install **Python 3.12** from [python.org](https://www.python.org/downloads/windows/) (keep **py launcher** selected in the installer), or run `winget install Python.Python.3.12`. Install [Git for Windows](https://git-scm.com/download/win) if you don't have it.
 2. In **PowerShell** or **Command Prompt**, run:
@@ -172,13 +172,13 @@ The model is a setting, and the app never switches it on its own. Free models ca
 - **Suggesting evidence** sends a reduced copy of your career history: never your contact details, links, work authorization, preferences, availability, GPA, job locations or skills you said you lack. With a `free` model you see an editable preview at **Profile → What the AI model may see** and approve it first; you can leave out or reword any item. The approval is reused until a profile change alters what would be sent. Redaction is best effort.
 - **Tailoring a resume** uses that same approved, reduced context plus the job and requirements. Removed items cannot be selected or cited, and each rewrite is checked against both the original profile and the exact text shared. Sharing approval and input freshness are checked before each request, including the corrective retry.
 
-To check requirement extraction, evidence suggestions, resume tailoring and answer drafting with a key and model using fictional data (a throwaway database; your `data/` is untouched):
+To check requirement extraction, evidence suggestions, resume tailoring, answer drafting and a cover letter with a key and model using fictional data (a throwaway database; your `data/` is untouched):
 
 ```bash
 .venv/bin/python -m scripts.smoke_openrouter
 ```
 
-On Windows, use `.\.venv\Scripts\python.exe -m scripts.smoke_openrouter`. A missing key returns exit code 2 and makes no provider request. Live provider validation remains pending until this check succeeds with the configured model; the ordinary test suite exercises all four stages with a local stand-in.
+On Windows, use `.\.venv\Scripts\python.exe -m scripts.smoke_openrouter`. A missing key returns exit code 2 and makes no provider request. On 17 October 2026 every stage passed with `nvidia/nemotron-3.5-super-vl:free`; free-tier models can time out or return provider errors, so a run that stops at one stage is simply retried. The ordinary test suite exercises every stage with a local stand-in.
 
 To try the AI screens without a key, run the app against a simple local stand-in for the model (nothing leaves your machine):
 
