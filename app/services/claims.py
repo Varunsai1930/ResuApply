@@ -74,7 +74,8 @@ _PROFESSIONAL_RES = {name: re.compile(rf"(?<!\w)(?:{pat})(?!\w)", re.IGNORECASE)
 # end it, so "CPA, expected 2025" stays in progress and can't back a claim of holding it.
 _PROGRESS_RE = re.compile(
     r"(?<!\w)(?:pursu\w*|candidates?|candidacy|preparing|studying|working toward\w*|enrolled|"
-    r"in progress|expected|sitting for|registered for|level (?:iii|ii|i|[123]))(?!\w)", re.IGNORECASE)
+    r"in progress|expected|sitting for|registered for|eligib\w*|pending|awaiting|plann\w*|"
+    r"level (?:iii|ii|i|[123]))(?!\w)", re.IGNORECASE)
 _CFA_LEVEL_RE = re.compile(r"(?<!\w)level (iii|ii|i|[123])(?!\w)", re.IGNORECASE)
 _LEVELS = {"1": "I", "2": "II", "3": "III", "i": "I", "ii": "II", "iii": "III"}
 _CLAUSE_RE = re.compile(r"[^.;!?\n]+")

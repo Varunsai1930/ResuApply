@@ -201,3 +201,12 @@ def test_a_credential_in_progress_or_at_a_lower_level_does_not_back_one_held():
     assert claim_problems("Passed CFA Level I", ["Passed CFA Level I in 2023"], set()) == []
     assert "CPA credential" in credentials("Certified Public Accountant")  # spelled out, the same qualification
     assert "charterholder" in credentials("CFA charterholder")
+
+
+def test_eligible_or_pending_wording_marks_a_credential_not_yet_held():
+    for claim, source in (("As a CPA, I lead audits", "CPA eligible"), ("As a CPA, I lead audits", "CPA-eligible"),
+                          ("As a CPA, I lead audits", "CPA exam pending"),
+                          ("As a CPA, I lead audits", "Awaiting CPA licensure"),
+                          ("As a CFA, I value portfolios", "Passed all three CFA levels, charter pending"),
+                          ("As a PMP, I run projects", "Planning to sit for the PMP")):
+        assert claim_problems(claim, [source], set()), source
