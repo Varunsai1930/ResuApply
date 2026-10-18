@@ -697,7 +697,7 @@ class Source:
     entry: str | None
     text: str
     technologies: tuple[str, ...] = ()
-    dates: str = ""  # the entry's start and end, for an entry and its bullets: facts the source vouches for
+    dates: str = ""  # the years of the entry's start and end, for an entry and its bullets: facts it vouches for
 
 
 def sources(profile: Profile | dict | None) -> dict[str, Source]:
@@ -714,7 +714,9 @@ def sources(profile: Profile | dict | None) -> dict[str, Source]:
                 if entry.get(f)
             )
             techs = tuple(entry.get("technologies") or ())
-            dates = " ".join(_clean_str(entry.get(f)) for f in ("start", "end") if entry.get(f))
+            # Only the years: a stored "2024-06" vouches for June 2024, not for the number 6.
+            dates = " ".join(_clean_str(entry.get(f))[:4] for f in ("start", "end")
+                             if re.match(r"\d{4}", _clean_str(entry.get(f))))
             index[entry["id"]] = Source(entry["id"], section, entry["id"], label, techs, dates)
             for bullet in entry.get("bullets") or []:
                 index[bullet["id"]] = Source(bullet["id"], "bullet", entry["id"], bullet["text"], techs, dates)

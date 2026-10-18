@@ -316,3 +316,9 @@ def test_a_cited_entry_vouches_for_its_own_dates_only(candidate, job):
     # Another entry's dates are not this source's facts.
     assert svc.validate_letter(candidate.profile, job, f"Since November 2023 I built bots.\n\n{BULLET}.",
                                ["exp-1-b1"])
+
+
+def test_entry_dates_vouch_for_their_years_not_their_month_digits(candidate, job):
+    # exp-1 runs 2024-06 to 2024-08: June and August, not the numbers 6 and 8.
+    for claim in ("I worked with a team of 6.", "I cut build times by 8%."):
+        assert svc.validate_letter(candidate.profile, job, f"{claim}\n\n{BULLET}.", ["exp-1-b1"])
