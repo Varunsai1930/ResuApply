@@ -210,3 +210,10 @@ def test_eligible_or_pending_wording_marks_a_credential_not_yet_held():
                           ("As a CFA, I value portfolios", "Passed all three CFA levels, charter pending"),
                           ("As a PMP, I run projects", "Planning to sit for the PMP")):
         assert claim_problems(claim, [source], set()), source
+
+
+def test_progress_wording_after_an_abbreviation_still_counts_for_licenses_and_certifications():
+    assert claim_problems("Licensed CPA", ["Passed the U.S. CPA exam; license expected 2025"], set())
+    assert claim_problems("I am a licensed nurse", ["R.N. license expected in 2025"], set())
+    assert claim_problems("I am certified in cloud security", ["Cloud security certification in progress"], set())
+    assert claim_problems("Licensed CPA", ["Licensed CPA in the U.S. since 2020"], set()) == []

@@ -48,8 +48,6 @@ def _degree_abbreviation(abbreviations: str) -> str:
 
 
 _CREDENTIALS = {
-    "certification": r"certif(?:ied|ication|icate)s?",
-    "license": r"licen[cs](?:e|ed|es|ing)",
     "patent": r"patent(?:s|ed)?", "award": r"award(?:s|ed|-winning)?",
     "doctorate": r"ph\.?\s?d\.?|doctorate|doctoral",
     "associate's degree": r"associate'?s|associates?\s+(?:of|degree)|a\.(?:a|s|as|sc)\.?|aas|" + _degree_abbreviation("AA|AS"),
@@ -69,7 +67,11 @@ _PROFESSIONAL = {
     "CISSP credential": r"cissp|certified information systems security professional",
     "CCNA credential": r"cisco certified network associate|ccna",
 }
-_PROFESSIONAL_RES = {name: re.compile(rf"(?<!\w)(?:{pat})(?!\w)", re.IGNORECASE) for name, pat in _PROFESSIONAL.items()}
+# These and the generic certification and license claims are held only without progress wording.
+_PROGRESS_AWARE = {**_PROFESSIONAL, "certification": r"certif(?:ied|ication|icate)s?",
+                   "license": r"licen[cs](?:e|ed|es|ing)"}
+_PROGRESS_AWARE_RES = {name: re.compile(rf"(?<!\w)(?:{pat})(?!\w)", re.IGNORECASE)
+                       for name, pat in _PROGRESS_AWARE.items()}
 # Wording that marks a credential as not yet held. A clause runs to the next sentence break; commas don't
 # end it, so "CPA, expected 2025" stays in progress and can't back a claim of holding it.
 _PROGRESS_RE = re.compile(
@@ -78,7 +80,9 @@ _PROGRESS_RE = re.compile(
     r"level (?:iii|ii|i|[123]))(?!\w)", re.IGNORECASE)
 _CFA_LEVEL_RE = re.compile(r"(?<!\w)level (iii|ii|i|[123])(?!\w)", re.IGNORECASE)
 _LEVELS = {"1": "I", "2": "II", "3": "III", "i": "I", "ii": "II", "iii": "III"}
-_CLAUSE_RE = re.compile(r"[^.;!?\n]+")
+# A sentence break: ; ! ? a line break, or a full stop before a capital or the end. A full stop after a
+# single letter or a short title ("U.S.", "R.N.", "Sr.") is an abbreviation, not a break.
+_CLAUSE_BREAK_RE = re.compile(r"[;!?\n]|(?<!\b[A-Za-z])(?<!\b(?:Sr|Jr|St|Dr|Mr|Ms|No|vs))\.(?=\s+[A-Z]|\s*$)")
 
 
 def numbers(text: str) -> set[str]:
@@ -106,11 +110,11 @@ def _number_key(raw: str, scale: str | None = None) -> str:
 def credentials(text: str) -> set[str]:
     normalized = unicodedata.normalize("NFKC", text or "").replace("’", "'").replace("‘", "'")
     found = {name for name, regex in _CREDENTIAL_RES.items() if regex.search(normalized)}
-    # A professional credential counts as held only when its clause has no progress wording; a CFA
-    # claim also names its level, so "CFA Level I candidate" can't back "passed CFA Level II".
-    for clause in _CLAUSE_RE.findall(normalized):
+    # A credential, license or certification counts as held only when its clause has no progress
+    # wording; a CFA claim also names its level, so "CFA Level I candidate" can't back "passed CFA Level II".
+    for clause in _CLAUSE_BREAK_RE.split(normalized):
         in_progress = bool(_PROGRESS_RE.search(clause))
-        for name, regex in _PROFESSIONAL_RES.items():
+        for name, regex in _PROGRESS_AWARE_RES.items():
             if not regex.search(clause):
                 continue
             found.add(f"{name} (in progress)" if in_progress else name)
