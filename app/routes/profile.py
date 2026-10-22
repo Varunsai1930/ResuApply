@@ -102,7 +102,8 @@ def _revision_of(raw: object) -> int | None:
 
 
 def _render_form(request: Request, data: dict, errors=(), warnings=(), status_code: int = 200, message: str = "",
-                 section: Section | None = None, opened_revision: int | None = None, imported: dict | None = None):
+                 section: Section | None = None, opened_revision: int | None = None, imported: dict | None = None,
+                 draft_from_saved: bool = False):
     """The profile editor. With ``section``, only that section shows; the others stay in the form as
     hidden fields with their saved values, so the review and save steps are the same as for the
     whole profile. A problem outside the section shows the whole profile, so it can be fixed."""
@@ -125,6 +126,7 @@ def _render_form(request: Request, data: dict, errors=(), warnings=(), status_co
             "sections": list(Section),
             "opened_revision": opened_revision,
             "imported": imported,
+            "draft_from_saved": draft_from_saved,
             "active": "profile",
         },
         status_code=status_code,
@@ -179,6 +181,7 @@ def edit_profile(request: Request, section: Section | None = None, session: Sess
     data = candidate.profile.model_dump() if candidate else BLANK_PROFILE
     return _render_form(request, data, section=section if candidate else None,
                         opened_revision=candidate.revision if candidate else None,
+                        draft_from_saved=True,
                         message=RECOVERY_MESSAGE if candidate and candidate.profile.unicode_recovered else "")
 
 
@@ -249,9 +252,9 @@ def _save(request: Request, session: Session, data: dict, base_revision: int):
     try:
         result = profile_service.save(session, data, base_revision=base_revision)
     except profile_service.ProfileInvalid as exc:
-        return _render_form(request, data, exc.errors, exc.warnings, status_code=422)
+        return _render_form(request, data, exc.errors, exc.warnings, status_code=422, opened_revision=base_revision)
     except profile_service.StaleReview as exc:
-        return _render_form(request, data, status_code=409, message=str(exc))
+        return _render_form(request, data, status_code=409, message=str(exc), opened_revision=base_revision)
     msg = "profile_saved" if result.saved else "profile_unchanged"
     return RedirectResponse(f"/profile?msg={msg}", status_code=303)
 
