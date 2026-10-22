@@ -168,6 +168,22 @@
   {% if not job.requirements %}
     <p class="muted">No requirements yet. {% if settings.ai_configured %}Extract them with AI or enter{% else %}Enter{% endif %} them yourself, each with the words from the description that state it.</p>
   {% else %}
+    <aside class="fit-overview" aria-labelledby="fit-overview-title">
+      <h3 id="fit-overview-title">How your profile lines up</h3>
+      <p class="hint">Based on the requirements you saved and your current profile. Unknown means there is not enough comparable information; it does not mean you lack the skill. Overrides include your reason.</p>
+      <div class="fit-columns">
+      {% for status, title in [('met', 'Matched'), ('unmet', 'Known gaps'), ('unknown', 'Needs clarification')] %}
+        {% set required = result_groups[status] | selectattr('importance', 'equalto', 'required') | list %}
+        {% set other = result_groups[status] | rejectattr('importance', 'equalto', 'required') | list %}
+        {% set ordered = required + other %}
+        <section><h4>{{ title }} <span class="tag">{{ ordered | length }}</span></h4>
+          <ul>{% for r in ordered[:3] %}<li><a href="#req-{{ r.id }}">{{ r.text }}</a><small>{{ r.importance | capitalize }} · {{ r.basis }}</small></li>{% else %}<li class="hint">No items in this group.</li>{% endfor %}</ul>
+          {% if ordered | length > 3 %}<p class="hint">{{ ordered | length - 3 }} more in the detailed checklist below.</p>{% endif %}
+        </section>
+      {% endfor %}
+      </div>
+      <p class="hint">This explains the checklist, not your chance of being hired. You can prepare an application with gaps.</p>
+    </aside>
     <p class="counts">
       {% if coverage %}<strong class="coverage">{{ coverage.text }}</strong>{% endif %}
       <span class="badge check-met">Met {{ counts.met }}</span>

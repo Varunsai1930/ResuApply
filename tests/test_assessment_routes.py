@@ -92,6 +92,17 @@ def test_editor_round_trips_saved_requirements(client, sample_profile):
     assert response.headers["location"].endswith("msg=requirements_unchanged#requirements")
 
 
+def test_fit_overview_explains_each_status_and_links_to_evidence(client, sample_profile):
+    job_id = setup(client, sample_profile)
+    page = client.get(f'/jobs/{job_id}?step=requirements').text
+    overview = page.split('<aside class="fit-overview"')[1].split('</aside>')[0]
+    assert 'Matched' in overview and 'Known gaps' in overview and 'Needs clarification' in overview
+    assert 'Unknown means' in overview and 'not your chance of being hired' in overview
+    assert 'href="#req-r6"' in overview and 'confirmed you don&#39;t have Rust' in overview
+    for target in re.findall(r'href="#(req-[^"]+)"', overview):
+        assert f'id="{target}"' in page
+
+
 @pytest.mark.parametrize("criterion, expected", [
     ({"type": "skill", "skills": ["Python", "SQL"], "match": "any"}, ["Needs any skill: Python, SQL"]),
     ({"type": "degree", "level": "phd", "fields": ["Physics"], "status": "pursuing"},
