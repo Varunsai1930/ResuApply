@@ -56,6 +56,37 @@ def step_url(job_id: int, step: Step) -> str:
     return f"/jobs/{job_id}?step={step.value}#{step.anchor}"
 
 
+def action_target(job_id: int, guide: Guide, current: Step, *, proposal_ready: bool = False) -> str:
+    """Take a workspace's next action to its controls rather than reloading that step."""
+    if current is Step.TRACK and guide.next.href == f"/jobs/{job_id}?step=track#follow-up":
+        return "#follow-up"
+    if guide.next.href != step_url(job_id, current):
+        return guide.next.href
+    return {
+        Step.REQUIREMENTS: f"/jobs/{job_id}/requirements/edit",
+        Step.RESUME: f"/jobs/{job_id}/resume/review" if proposal_ready else "#resume-actions",
+        Step.QUESTIONS: "#questions",
+        Step.REVIEW: "#review-contents",
+        Step.TRACK: "#status",
+    }[current]
+
+
+def action_hint(guide: Guide) -> str:
+    """Explain the recommended action without introducing another readiness rule."""
+    if guide.next.href == "/profile/edit":
+        return "Start with your verified experience. It supplies the facts for every application."
+    if guide.next.href.endswith("#follow-up"):
+        return "Your reminder is due. Review the application and decide whether to follow up."
+    return {
+        Step.REQUIREMENTS: "Confirm what the employer asks for. Requirement gaps stay visible and do not block you.",
+        Step.RESUME: "Review a resume built from your profile, then accept the version you want to use.",
+        Step.QUESTIONS: "Finish the remaining answers or explicitly skip optional questions.",
+        Step.REVIEW: "Check the exact resume and answers before approving this package.",
+        Step.TRACK: "Submit on the employer's site first. Record Applied only after you have submitted."
+        if guide.next.status is not Status.INFO else "Keep the application status and your notes up to date.",
+    }[guide.next.step]
+
+
 @dataclass(frozen=True)
 class StepState:
     step: Step

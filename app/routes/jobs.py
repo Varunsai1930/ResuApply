@@ -134,6 +134,8 @@ def _render_workspace(request: Request, session: Session, job: Job, msg: str = "
     guide = guide_service.next_action(job, application, candidate)
     if step is None:
         step = next((FORM_STEPS[name] for name, value in forms.items() if value and name in FORM_STEPS), None)
+    step = step or guide.next.step
+    resume_state = presentation_state(session, settings, job, candidate)
     return templates.TemplateResponse(
         request,
         "job_workspace.html",
@@ -164,7 +166,7 @@ def _render_workspace(request: Request, session: Session, job: Job, msg: str = "
             "source_groups": _source_groups(candidate),
             "settings": settings,
             "sharing": sharing,
-            "resume_state": presentation_state(session, settings, job, candidate),
+            "resume_state": resume_state,
             "selected_layout": resume_layouts.layout_key(application),
             "layout_choices": resume_layouts.LAYOUTS,
             "layout_token": package.package_token(job, application, candidate),
@@ -192,7 +194,10 @@ def _render_workspace(request: Request, session: Session, job: Job, msg: str = "
             "autofill_error": forms.get("autofill_error"),
             "has_proposal": operations.cached_proposal(session, job, settings.openrouter_model) is not None,
             "guide": guide,
-            "step": step or guide.next.step,
+            "next_action_href": guide_service.action_target(job.id, guide, step,
+                proposal_ready=bool(resume_state.proposal and not resume_state.proposal_stale)),
+            "next_action_hint": guide_service.action_hint(guide),
+            "step": step,
             "Step": guide_service.Step,
             "active": "jobs",
         },

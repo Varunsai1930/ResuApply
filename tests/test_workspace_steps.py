@@ -176,7 +176,7 @@ def test_the_workspace_opens_on_the_next_action_with_one_section(client, sample_
     for other in ("requirements-title", "questions-title", "review-title"):
         assert f'id="{other}"' not in page
     assert page.count('class="btn-primary" href=') == 1
-    assert f'<a class="btn-primary" href="/jobs/{job_id}?step=resume#resume">Prepare a resume' in page
+    assert re.search(r'<a [^>]*class="btn-primary" href="#resume-actions">Prepare a resume', page)
 
 
 @pytest.mark.parametrize("step, heading", [

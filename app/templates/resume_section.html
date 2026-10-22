@@ -36,7 +36,7 @@
       {% endif %}
       <p><a class="btn-secondary" href="/jobs/{{ job.id }}/resume/review">Review resume proposal</a></p>
     {% endif %}
-    <div class="ai-actions">
+    <div class="ai-actions" id="resume-actions" tabindex="-1">
       <form method="post" action="/jobs/{{ job.id }}/resume/profile" class="inline-form">
         <button type="submit" class="btn-secondary">Use profile as-is</button>
       </form>

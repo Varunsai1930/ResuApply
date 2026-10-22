@@ -9,6 +9,8 @@
 
 .draft-recovery { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; padding: 12px 16px; margin-bottom: 18px; border: 1px solid var(--rule-strong); border-radius: 8px; background: var(--well); }
 .draft-recovery p { flex: 1 1 280px; margin: 0; color: var(--ink-2); font-size: .8rem; line-height: 1.5; }
+.step-next > .eyebrow { margin: 0 0 8px; }
+.step-next > p.hint { max-width: 300px; margin: 10px 0 0; font-size: .78rem; line-height: 1.6; }
 
 /* ------------------------------------------------------------------ tokens */
 
