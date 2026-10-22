@@ -6,6 +6,7 @@ from datetime import datetime
 from typing import Annotated
 
 from pydantic import BaseModel, ConfigDict, Field, StringConstraints
+from .profile import Profile
 
 Text = Annotated[str, StringConstraints(strict=True, strip_whitespace=True, min_length=1)]
 Identifier = Annotated[str, StringConstraints(strict=True, strip_whitespace=True, min_length=1)]
@@ -54,3 +55,11 @@ class ResumeRecord(_Model):
 class ResumePackage(_Model):
     resume: ResumeRecord
     accepted_at: datetime
+
+
+class ResumeVersion(_Model):
+    id: Identifier
+    record: ResumeRecord
+    profile: Profile
+    layout: str
+    saved_at: datetime

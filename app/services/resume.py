@@ -12,7 +12,7 @@ from sqlalchemy.orm import Session
 from ..db import utcnow
 from ..models import Application, Candidate, Job
 from ..schemas.profile import Profile
-from ..schemas.resume import Claim, ResumeContent, ResumeDraft, ResumeEntry, ResumePackage, ResumeRecord
+from ..schemas.resume import Claim, ResumeContent, ResumeDraft, ResumeEntry, ResumePackage, ResumeRecord, ResumeVersion
 from ..schemas.tracking import ReviewState
 from . import profile as profile_service
 from .claims import claim_problems, detection_terms
@@ -223,11 +223,17 @@ def accept(session: Session, job: Job, candidate: Candidate, proposal_token: str
         raise ResumeError("The profile or job changed since this proposal was created. Generate a fresh proposal.")
     validate_resume(candidate.profile, job, record.resume)
     package = ResumePackage(resume=record, accepted_at=utcnow())
+    versions = list(job.application.resume_versions)
+    if not any(v.id == _record_token(record) for v in versions):
+        versions.append(ResumeVersion(id=_record_token(record), record=record,
+                                     profile=candidate.profile.model_copy(deep=True),
+                                     layout=job.application.resume_layout, saved_at=package.accepted_at))
+    versions = versions[-20:]
     with session.no_autoflush:
         result = session.execute(update(Application).where(
             Application.job_id == job.id, Application.current_proposal == record,
             *_revision_guard(job, candidate, record.profile_revision, record.job_revision),
-        ).values(accepted_package=package, candidate_id=candidate.id, approval=None,
+        ).values(accepted_package=package, resume_versions=versions, candidate_id=candidate.id, approval=None,
                  review_state=ReviewState.DRAFT.value, updated_at=utcnow()).execution_options(synchronize_session=False))
     if result.rowcount != 1:
         session.rollback()

@@ -1,6 +1,7 @@
 <section class="card" id="resume" aria-labelledby="resume-title">
   <h2 id="resume-title">Resume</h2>
   <p class="hint">Prepare a proposal, review its wording against your profile, then accept the resume for printing.</p>
+  <p><a href="/jobs/{{ job.id }}/resume/history">Resume version history</a></p>
   {% if resume_error %}<p class="notice warn" role="alert" tabindex="-1" data-focus>{{ resume_error }}</p>{% endif %}
   {% if resume_notice %}<p class="notice" role="status">{{ resume_notice }}</p>{% endif %}
   {% if msg == 'resume_accepted' %}<p class="flash" role="status">Resume accepted. Open the print view to save it as a PDF.</p>{% endif %}

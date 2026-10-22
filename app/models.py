@@ -23,7 +23,7 @@ from .schemas.autofill import ResumeAttachment
 from .schemas.posting_import import PostingImport
 from .schemas.profile import Profile, stored_profile
 from .schemas.requirements import EvidenceLink, Override, Requirement
-from .schemas.resume import ResumePackage, ResumeRecord
+from .schemas.resume import ResumePackage, ResumeRecord, ResumeVersion
 from .schemas.tracking import Note, ReviewState, StatusEvent, TrackingStatus
 
 JSONList = list[dict[str, Any]]
@@ -97,6 +97,7 @@ class Application(Base):
     follow_up_after: Mapped[date | None] = mapped_column(Date, nullable=True)
     current_proposal: Mapped[ResumeRecord | None] = mapped_column(PydanticJSON(ResumeRecord), nullable=True)
     accepted_package: Mapped[ResumePackage | None] = mapped_column(PydanticJSON(ResumePackage), nullable=True)
+    resume_versions: Mapped[list[ResumeVersion]] = mapped_column(PydanticJSON(list[ResumeVersion]), default=list, server_default="[]")
     # Presentation choice stays separate from accepted content; the server default also
     # upgrades older databases to the original layout without rewriting their packages.
     resume_layout: Mapped[str] = mapped_column(String(32), default="classic", server_default="classic")

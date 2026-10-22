@@ -30,7 +30,7 @@ from tests.synthetic import DEMO_JOB, SAMPLE_PROFILE
 # Columns added after the first releases; an older database has none of them.
 LATER_COLUMNS = {
     "applications": ["resume_layout", "cover_letter", "cover_letter_draft", "answer_drafts", "approval_rules",
-                     "approval_rules_for", "follow_up_after"],
+                     "approval_rules_for", "follow_up_after", "resume_versions"],
     "jobs": ["posting_import", "sample"],
     "candidates": ["sample"],
 }
@@ -278,11 +278,11 @@ def test_a_database_at_the_baseline_gains_the_resume_attachment_column(settings)
             conn.execute(text("ALTER TABLE applications DROP COLUMN resume_attachment"))
             conn.execute(text("UPDATE alembic_version SET version_num = '0001'"))
         init_db(engine)
-        assert _version(engine) == head_revision() == "0002"
+        assert _version(engine) == head_revision()
         assert "resume_attachment" in _columns(engine, "applications")
         with engine.connect() as conn:
             assert conn.execute(text("SELECT resume_attachment FROM applications")).scalar_one() is None
             assert conn.execute(text("SELECT count(*) FROM jobs")).scalar_one() == 1
     finally:
         engine.dispose()
-    assert settings.database_path.with_name("resuapply.db.before-0002.bak").exists()
+    assert settings.database_path.with_name(f"resuapply.db.before-{head_revision()}.bak").exists()

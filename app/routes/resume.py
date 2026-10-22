@@ -155,6 +155,40 @@ def accept(request: Request, job_id: int, proposal_token: str = Form(""), sessio
     return RedirectResponse(f"/jobs/{job.id}?step=resume&msg=resume_accepted#resume", status_code=303)
 
 
+@router.get("/history", response_class=HTMLResponse)
+def history(request: Request, job_id: int, version: str = "", session: Session = Depends(get_session)):
+    job = _job_or_404(session, job_id)
+    versions = list(reversed(job.application.resume_versions))
+    chosen = next((v for v in versions if v.id == version), None) if version else next(iter(versions), None)
+    if version and chosen is None:
+        raise HTTPException(404, "Resume version not found.")
+    candidate = get_candidate(session)
+    current = resume_service.state(job, candidate)
+    return templates.TemplateResponse(request, "resume_history.html", {
+        "job": job, "versions": versions, "chosen": chosen,
+        "previous": resume_service.render_context(chosen.profile, chosen.record.resume) if chosen else None,
+        "current": resume_service.render_context(candidate.profile, current.accepted.resume)
+                   if candidate and current.accepted and not current.accepted_stale else None,
+        "active": "jobs",
+    })
+
+
+@router.post("/history/{version}/restore")
+def restore_version(request: Request, job_id: int, version: str, session: Session = Depends(get_session)):
+    job = _job_or_404(session, job_id)
+    chosen = next((v for v in job.application.resume_versions if v.id == version), None)
+    if chosen is None:
+        raise HTTPException(404, "Resume version not found.")
+    candidate = get_candidate(session)
+    if candidate is None:
+        return _failure(request, session, job, "Create your profile before restoring a version.", 400)
+    try:
+        resume_service.propose(session, job, candidate, chosen.record.resume)
+    except resume_service.ResumeError as exc:
+        return _failure(request, session, job, "This version no longer matches your profile. " + str(exc))
+    return RedirectResponse(f"/jobs/{job.id}/resume/review", status_code=303)
+
+
 @router.get("/print", response_class=HTMLResponse)
 def print_resume(request: Request, job_id: int, msg: str = "", preview_layout: str | None = None,
                  session: Session = Depends(get_session)):

@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% block title %}Resume history{% endblock %}
+{% macro wording(r, label) %}
+<section class="card"><h2>{{ label }}</h2>
+{% if r %}
+  <h3>{{ r.contact.name }}</h3><p>{{ r.contact.email }} · {{ r.contact.phone }} · {{ r.contact.location }}</p>
+  {% for label, value in r.contact.links.items() %}{% if value %}<p>{{ label | capitalize }}: {{ value }}</p>{% endif %}{% endfor %}
+  {% if r.summary %}<p>{{ r.summary.text }}</p>{% endif %}
+  {% for section in ['experience', 'projects', 'education', 'certifications'] %}
+    {% if r[section] %}<h3>{{ section | capitalize }}</h3>{% endif %}
+    {% for entry in r[section] %}<h4>{{ entry.organization or entry.institution or entry.name }}{% if entry.title %} · {{ entry.title }}{% endif %}</h4>
+      <p class="meta">{{ entry.start or entry.date or '' }}{% if entry.end %} – {{ entry.end }}{% endif %} {{ entry.degree or entry.role or '' }}</p>
+      {% if entry.location %}<p>{{ entry.location }}</p>{% endif %}
+      {% if entry.field %}<p>{{ entry.field }}{% if entry.gpa %} · GPA {{ entry.gpa }}{% endif %}</p>{% endif %}
+      {% if entry.issuer %}<p>{{ entry.issuer }}</p>{% endif %}
+      {% if entry.link %}<p>{{ entry.link }}</p>{% endif %}
+      {% if entry.technologies %}<p>{{ entry.technologies | join(', ') }}</p>{% endif %}
+      <ul>{% for b in entry.bullets | default([]) %}<li>{{ b.text }}</li>{% endfor %}</ul>
+    {% endfor %}
+  {% endfor %}
+  <h3>Skills</h3><p>{{ r.skills | join(', ') }}</p>
+{% else %}<p class="hint">No current accepted version is available. Prepare and accept a resume using your current profile.</p>{% endif %}
+</section>
+{% endmacro %}
+{% block content %}
+<p class="crumbs"><a href="/jobs/{{ job.id }}?step=resume">← Job workspace</a></p>
+<div class="page-head"><h1>Resume history</h1><p class="lead">{{ job.title }} at {{ job.company }}</p><p class="hint">Your latest 20 accepted versions are kept here from now on, with the facts saved at acceptance.</p></div>
+{% if versions %}
+<form method="get" class="card"><label for="version">Compare saved version</label><select name="version" id="version">{% for v in versions %}<option value="{{ v.id }}" {% if chosen.id == v.id %}selected{% endif %}>{{ v.saved_at | local_datetime }} · profile {{ v.record.profile_revision }} · {{ v.layout | capitalize }}</option>{% endfor %}</select><button class="btn-secondary" type="submit">Compare</button></form>
+<div class="history-comparison">{{ wording(previous, 'Saved version') }}{{ wording(current, 'Current accepted version') }}</div>
+<section class="card"><h2>Restore as a proposal</h2><p>Recheck this wording against your current profile, then review and accept it. Current facts and your current layout will be used. Your accepted resume stays in place until you accept the replacement.</p><form method="post" action="/jobs/{{ job.id }}/resume/history/{{ chosen.id }}/restore"><button class="btn-secondary" type="submit">Restore for review</button></form></section>
+{% else %}<div class="card empty"><p>No saved versions yet. Accept a resume to start your history.</p></div>{% endif %}
+{% endblock %}
