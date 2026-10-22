@@ -17,6 +17,7 @@ from ..db import get_ai_client, get_session
 from ..models import Application
 from ..services import outbound, package, resume_docx, resume_layouts, resume_pdf, resume as resume_service
 from ..services.profile import get_candidate, skill_keys
+from ..services.resume_quality import quality_notes
 from ..templating import templates
 from .jobs import _job_or_404, _render_workspace
 from .resume_download import docx_response, pdf_response, preview_image, preview_response
@@ -127,6 +128,7 @@ def review(request: Request, job_id: int, session: Session = Depends(get_session
     return templates.TemplateResponse(request, "resume_review.html", {
         "job": job, "candidate": candidate, "record": record, "resume_state": current,
         "rendered": rendered, "selection": _selection(candidate.profile, record.resume) if rendered else [],
+        "quality_notes": quality_notes(candidate.profile, record.resume) if rendered else [],
         "proposal_token": resume_service.proposal_token(record),
         "selected_layout": resume_layouts.layout_key(job.application),
         "layout_choices": resume_layouts.LAYOUTS,

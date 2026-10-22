@@ -49,6 +49,12 @@
     <p class="wording-legend">In each comparison, <ins>underlined words</ins> were added and <del>struck words</del> were removed from the closest profile line; <mark>highlighted words</mark> in the other cited lines are where added words come from. Automated checks can't prove a paraphrase is accurate: the meaning is yours to confirm.</p>
   </section>
 
+  <section class="card" aria-labelledby="quality-title">
+    <h2 id="quality-title">Writing suggestions</h2>
+    <p class="hint">Optional checks for repeated bullets, broad openings, long sentences and reversed dates. They do not assess hiring chances. Use only outcomes you can substantiate.</p>
+    <ul>{% for note in quality_notes %}<li><strong>{{ note.label }}:</strong> {{ note.message }} <a href="/profile/edit?section={{ note.section }}">Edit source</a></li>{% else %}<li>No issues found by these limited checks. Read the full resume before accepting.</li>{% endfor %}</ul>
+    {% if quality_notes %}<p class="hint">After editing your profile, prepare a fresh proposal to include the changes.</p>{% endif %}
+  </section>
   <section class="card">
     <h2>Selection and order</h2>
     <ul class="resume-selection">{% for section in selection %}<li>{{ section.label }}: {{ section.selected }} of {{ section.available }} selected</li>{% endfor %}</ul>
