@@ -6,6 +6,7 @@ from io import BytesIO
 
 import pytest
 from pypdf import PdfReader, PdfWriter
+from pypdf.generic import DictionaryObject, NameObject, DecodedStreamObject
 
 from app.models import Job
 from app.services import profile, resume, resume_pdf
@@ -48,6 +49,7 @@ def test_preview_is_read_only_and_download_uses_saved_layout(client, sample_prof
         accepted = copy.deepcopy(job.application.accepted_package)
     preview = client.get(f"/jobs/{job_id}/resume/preview?layout={layout}")
     assert preview.status_code == 200 and preview.json()["page_count"] == 1
+    assert preview.json()["readability"]["warnings"] == ["No searchable text was found. Check the PDF before submitting."]
     assert f'class="resume-document resume-layout-{layout}"' in pdf_builder[-1]
     page = client.get(preview.json()["pages"][0])
     assert page.status_code == 200 and page.content.startswith(b"\x89PNG")
@@ -117,6 +119,22 @@ def test_pdf_cache_changes_with_selected_facts_and_preview_uses_accepted_selecti
     assert len(pdf_builder) == 1
 
 
+def test_readability_warns_when_searchable_text_crosses_a_page_edge(monkeypatch):
+    writer = PdfWriter()
+    page = writer.add_blank_page(width=595, height=842)
+    font = DictionaryObject({NameObject('/Type'): NameObject('/Font'), NameObject('/Subtype'): NameObject('/Type1'), NameObject('/BaseFont'): NameObject('/Helvetica')})
+    page[NameObject('/Resources')] = DictionaryObject({NameObject('/Font'): DictionaryObject({NameObject('/F1'): writer._add_object(font)})})
+    stream = DecodedStreamObject()
+    stream.set_data(b'BT /F1 12 Tf -10 400 Td (Clipped text) Tj ET')
+    page[NameObject('/Contents')] = writer._add_object(stream)
+    output = BytesIO()
+    writer.write(output)
+    monkeypatch.setattr(resume_pdf, '_build', lambda *_: output.getvalue())
+    document = resume_pdf.render_html('<main>Clipped text</main>')
+    assert document.text_characters > 0
+    assert any('page edge' in warning for warning in document.warnings)
+
+
 def test_submitted_pdf_is_frozen_after_live_profile_and_layout_changes(client, sample_profile, pdf_builder):
     job_id = accepted_job(client, sample_profile)
     choose(client, job_id, "modern")
@@ -153,6 +171,8 @@ def test_real_pdf_keeps_a4_selected_text_and_actual_page_previews(session, sampl
     candidate = profile.get_candidate(session)
     rendered = resume.render_context(candidate.profile, resume.profile_draft(candidate.profile))
     document = resume_pdf.export_resume(rendered, layout, executable)
+    assert document.text_characters > 100
+    assert document.warnings == ()
     reader = PdfReader(BytesIO(document.content))
     assert len(reader.pages) == document.pages > 1
     for page in reader.pages:
@@ -161,6 +181,7 @@ def test_real_pdf_keeps_a4_selected_text_and_actual_page_previews(session, sampl
     text = " ".join(page.extract_text() for page in reader.pages)
     for value in ("Jordan Example", "Sample Analytics", "TaskBot", "Example State University"):
         assert value in text
+    assert text.index('Jordan Example') < text.index('Sample Analytics') < text.index('TaskBot')
     assert document.image(1).startswith(b"\x89PNG")
     assert document.image(document.pages).startswith(b"\x89PNG")
     assert resume_pdf.export_resume(rendered, layout, executable) is document

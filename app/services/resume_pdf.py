@@ -5,6 +5,7 @@ Playwright stays optional; ordinary print and Word export still work without it.
 """
 
 from collections import OrderedDict
+from contextlib import closing
 from dataclasses import dataclass
 from hashlib import sha256
 from io import BytesIO
@@ -35,6 +36,8 @@ class PDFDocument:
     content: bytes
     pages: int
     version: str
+    text_characters: int = 0
+    warnings: tuple[str, ...] = ()
 
     def image(self, page_number: int) -> bytes:
         if not 1 <= page_number <= self.pages:
@@ -53,6 +56,34 @@ class PDFDocument:
                 if bitmap is not None:
                     bitmap.close()
                 page.close()
+
+
+def _readability(pdf) -> tuple[int, tuple[str, ...]]:
+    characters = 0
+    clipped = False
+    unreadable = False
+    for page in pdf:
+        try:
+            width, height = page.get_size()
+            with closing(page.get_textpage()) as text:
+                value = text.get_text_range()
+                characters += len(value.strip())
+                unreadable |= '\ufffd' in value
+                for index in range(text.count_chars()):
+                    left, bottom, right, top = text.get_charbox(index)
+                    if (right > left and top > bottom and
+                            (left < -1 or bottom < -1 or right > width + 1 or top > height + 1)):
+                        clipped = True
+        finally:
+            page.close()
+    warnings = []
+    if not characters:
+        warnings.append("No searchable text was found. Check the PDF before submitting.")
+    if unreadable:
+        warnings.append("Some PDF text could not be read. Check for missing characters.")
+    if clipped:
+        warnings.append("Some text extends beyond a page edge. Try another layout or shorten the content.")
+    return characters, tuple(warnings)
 
 
 def _build(html: str, executable: str | None) -> bytes:
@@ -93,9 +124,10 @@ def render_html(document_html: str, executable: str | None = None) -> PDFDocumen
         try:
             with pdfium.PdfDocument(content) as pdf:
                 pages = len(pdf)
+                characters, warnings = _readability(pdf)
         except pdfium.PdfiumError as exc:
             raise PDFError("The PDF could not be read. Try again, or download Word.") from exc
-        result = PDFDocument(content, pages, version)
+        result = PDFDocument(content, pages, version, characters, warnings)
         if len(content) <= MAX_CACHE_BYTES:
             _cache[version] = result
             while len(_cache) > 4 or sum(len(value.content) for value in _cache.values()) > MAX_CACHE_BYTES:

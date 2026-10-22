@@ -14,6 +14,7 @@ document.addEventListener("click", function (event) {
     const pages = panel.querySelector('[data-resume-pages]');
     const status = panel.querySelector('[data-preview-status]');
     const retry = panel.querySelector('[data-preview-retry]');
+    const checks = panel.querySelector('[data-preview-checks]');
     const saved = panel.dataset.savedLayout || '';
     let selected = saved;
     let pending = null;
@@ -27,6 +28,7 @@ document.addEventListener("click", function (event) {
       panel.classList.remove('has-page-preview');
       pages.hidden = true;
       retry.hidden = true;
+      if (checks) checks.hidden = true;
       status.textContent = 'Preparing page preview…';
       const timeout = window.setTimeout(() => request.abort(), 45_000);
       try {
@@ -65,6 +67,12 @@ document.addEventListener("click", function (event) {
         pages.replaceChildren(fragment);
         pages.hidden = false;
         panel.classList.add('has-page-preview');
+        if (checks && result.readability) {
+          checks.hidden = false;
+          checks.textContent = result.readability.warnings.length
+            ? result.readability.warnings.join(' ')
+            : 'Searchable text found; no text outside page boundaries detected. Review spacing and reading order in the preview.';
+        }
         status.textContent = `${result.page_count} ${result.page_count === 1 ? 'page' : 'pages'} · A4 · 18 mm side margins`;
       } catch (error) {
         if (pending !== request) return;
