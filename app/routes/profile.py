@@ -22,7 +22,7 @@ from ..services import profile as profile_service
 from ..services import sample as sample_service
 from ..services import resume_draft, resume_import
 from ..services.citations import Usage, citations
-from ..services.profile_gaps import asks_for_facts, gaps
+from ..services.profile_gaps import asks_for_facts, gaps, profile_basics
 from ..services.profile_form import is_form_shaped, parse_form
 from ..templating import templates
 from .forms import read_form, upload_too_large
@@ -167,6 +167,7 @@ def view_profile(request: Request, msg: str = "", session: Session = Depends(get
     return templates.TemplateResponse(request, "profile_view.html", {
         "candidate": candidate, "msg": msg, "active": "profile",
         "gaps": gaps(jobs, candidate.profile) if candidate else [],
+        "basics": profile_basics(candidate.profile) if candidate else [],
         "asked_jobs": asks_for_facts(jobs),
         "citations": citations(jobs),
         "sample": sample_service.current(session),

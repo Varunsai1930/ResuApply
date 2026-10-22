@@ -38,6 +38,28 @@ CLOSED = (TrackingStatus.REJECTED, TrackingStatus.WITHDRAWN)
 
 
 @dataclass(frozen=True)
+class ProfileBasic:
+    label: str
+    section: str
+    present: bool
+    reason: str
+
+
+def profile_basics(profile: Profile) -> list[ProfileBasic]:
+    """Useful starting facts, independent of an employer's requirements."""
+    entries = [*profile.experience, *profile.projects]
+    return [
+        ProfileBasic("Full name", "contact", bool(profile.contact.name.strip()), "Identify your resume."),
+        ProfileBasic("Email", "contact", bool(profile.contact.email.strip()), "Give employers a way to contact you."),
+        ProfileBasic("Location", "contact", bool(profile.contact.location.strip()), "Provide context for location preferences."),
+        ProfileBasic("Experience or a project", "experience" if profile.experience else "projects",
+                     any(b.text.strip() for e in entries for b in e.bullets),
+                     "Add a bullet describing work you actually did, including personal or course projects."),
+        ProfileBasic("Skills", "skills", bool(profile.skills), "List skills you can support with your experience."),
+    ]
+
+
+@dataclass(frozen=True)
 class Gap:
     key: str  # "start_date", "authorization:CA"
     label: str

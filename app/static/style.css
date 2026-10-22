@@ -1334,3 +1334,5 @@ details.card:not(.job-description)[open] summary::after { content: " −"; }
 /* A request still running for this job, shown in the workspace. */
 .flash.ai-running { background: var(--accent-wash); border-color: var(--accent-line); }
 .flash.ai-running::before { background: var(--accent); }
+.profile-basics progress { display: block; width: 100%; height: 8px; margin: 18px 0; accent-color: var(--accent); }
+.profile-basics .section-heading { justify-content: space-between; }

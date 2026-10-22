@@ -62,6 +62,19 @@
   </div>
 </aside>
 <div class="profile-content">
+<section class="card profile-basics" aria-labelledby="basics-title">
+  {% set present = basics | selectattr('present') | list | length %}
+  <div class="section-heading"><h2 id="basics-title">Profile foundations</h2><span class="tag">{{ present }} of {{ basics | length }} added</span></div>
+  <p class="hint">A starting point for a useful resume. Add only what applies to you; this does not measure job fit or block an application.</p>
+  <progress value="{{ present }}" max="{{ basics | length }}" aria-label="Profile foundations added">{{ present }} of {{ basics | length }}</progress>
+  <ul class="gap-list">
+  {% for basic in basics if not basic.present %}
+    <li><span class="gap-text"><strong>{{ basic.label }}</strong><span class="hint">{{ basic.reason }}</span></span><a href="/profile/edit?section={{ basic.section }}">Add {{ basic.label | lower }} {{ m.icon('arrow-right', 15) }}</a></li>
+  {% else %}
+    <li>{{ m.icon('check-circle', 18) }} Your foundations are in place. Keep them current as your experience grows.</li>
+  {% endfor %}
+  </ul>
+</section>
 <section class="card profile-gaps" aria-labelledby="gaps-title">
   <div class="section-heading"><span class="option-icon">{{ m.icon('check-circle', 20) }}</span><h2 id="gaps-title">Your application checklist</h2></div>
   {% if gaps %}

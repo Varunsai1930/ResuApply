@@ -135,3 +135,25 @@ def test_year_and_date_questions_ask_for_one_graduation_date(client, sample_prof
     add(client, second, "Expected graduation date")
     card = gaps_card(client)
     assert card.count(": Graduation date</span>") == 1 and "Asked by 2 jobs:" in card
+
+
+def test_foundations_allow_projects_instead_of_employment():
+    from app.services.profile_gaps import profile_basics
+
+    basics = profile_basics(profile(experience=[]))
+    assert all(b.present for b in basics)
+    assert len(basics) == 5
+
+
+def test_foundations_link_missing_details_without_changing_profile(client, sample_profile):
+    sample_profile['contact']['email'] = ''
+    sample_profile['experience'] = []
+    sample_profile['projects'] = []
+    setup_profile(client, sample_profile)
+    page = client.get('/profile').text
+    card = page.split('aria-labelledby="basics-title"')[1].split('</section>')[0]
+    assert '3 of 5 added' in card
+    assert 'href="/profile/edit?section=contact">Add email' in card
+    assert 'href="/profile/edit?section=projects">Add experience or a project' in card
+    assert 'does not measure job fit or block an application' in card
+    assert 'Revision 1' in page
