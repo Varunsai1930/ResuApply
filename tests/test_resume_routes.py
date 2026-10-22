@@ -79,7 +79,7 @@ def test_manual_resume_review_accept_print_without_ai(client, sample_profile):
     assert "2024-06 – 2024-08" in printed.text
     assert "Example State University" in printed.text and "B.S., Computer Science" in printed.text
     assert "Coursework: Data Structures, Operating Systems, Databases" in printed.text
-    assert "<h2>Skills</h2>" in printed.text and "Print / save PDF" in printed.text
+    assert "<h2>Skills</h2>" in printed.text and "Download PDF" in printed.text
     assert SAMPLE_JOB["title"] not in printed.text and SAMPLE_JOB["company"] not in printed.text
     _, package, review_state, tracking_status = stored(client, job_id)
     assert package is not None and review_state == "draft" and tracking_status == "saved"
@@ -301,7 +301,7 @@ def test_accepted_proposal_is_not_offered_for_review_again(client, sample_profil
     assert "Ready to review" in client.get(f"/jobs/{job_id}?step=resume").text
     accept(client, job_id, review)
     page = client.get(f"/jobs/{job_id}?step=resume").text
-    assert "Accepted resume" in page and "Print / save PDF" in page
+    assert "Accepted resume" in page and "Download PDF" in page and "Preview / print resume" in page
     assert "Ready to review" not in page and "Review resume proposal" not in page
     manual_proposal(client, job_id)  # a new proposal is offered alongside the accepted one
     assert "Review resume proposal" in client.get(f"/jobs/{job_id}?step=resume").text

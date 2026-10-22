@@ -5,8 +5,8 @@ from __future__ import annotations
 from dataclasses import replace
 from urllib.parse import quote
 
-from fastapi import APIRouter, Depends, Form, Request
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi import APIRouter, Depends, Form, HTTPException, Request
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from sqlalchemy import update
 from sqlalchemy.orm import Session
 
@@ -15,11 +15,11 @@ from ..ai.client import AIError, OpenRouterClient
 from ..ai.resume import TAILOR_RESUME, tailor_resume
 from ..db import get_ai_client, get_session
 from ..models import Application
-from ..services import outbound, package, resume_docx, resume_layouts, resume as resume_service
+from ..services import outbound, package, resume_docx, resume_layouts, resume_pdf, resume as resume_service
 from ..services.profile import get_candidate, skill_keys
 from ..templating import templates
 from .jobs import _job_or_404, _render_workspace
-from .resume_download import docx_response
+from .resume_download import docx_response, pdf_response, preview_image, preview_response
 
 router = APIRouter(prefix="/jobs/{job_id}/resume")
 
@@ -154,7 +154,8 @@ def accept(request: Request, job_id: int, proposal_token: str = Form(""), sessio
 
 
 @router.get("/print", response_class=HTMLResponse)
-def print_resume(request: Request, job_id: int, msg: str = "", session: Session = Depends(get_session)):
+def print_resume(request: Request, job_id: int, msg: str = "", preview_layout: str | None = None,
+                 session: Session = Depends(get_session)):
     job = _job_or_404(session, job_id)
     candidate = get_candidate(session)
     current = presentation_state(session, request.app.state.settings, job, candidate)
@@ -165,8 +166,10 @@ def print_resume(request: Request, job_id: int, msg: str = "", session: Session 
                         "Your accepted resume is out of date because the profile or job changed. "
                         "Prepare a fresh proposal, review it and accept it before printing.")
     try:
+        if preview_layout is not None:
+            resume_layouts.get_layout(preview_layout)
         rendered = resume_service.render_context(candidate.profile, current.accepted.resume)
-    except resume_service.ResumeError as exc:
+    except (resume_service.ResumeError, ValueError) as exc:
         return _failure(request, session, job, str(exc))
     return templates.TemplateResponse(request, "resume_print.html", {
         "job": job, "record": current.accepted, "rendered": rendered, "msg": msg,
@@ -209,3 +212,46 @@ def download_docx(request: Request, job_id: int, session: Session = Depends(get_
     except (resume_service.ResumeError, resume_docx.ResumeDocxError) as exc:
         return _failure(request, session, job, str(exc), 422)
     return docx_response(content, rendered["contact"]["name"], job.company)
+
+
+def _pdf_document(request, session, job_id, layout=None):
+    """Preview choices are read-only. Downloads always use the persisted layout."""
+    job = _job_or_404(session, job_id)
+    candidate = get_candidate(session)
+    current = presentation_state(session, request.app.state.settings, job, candidate)
+    if current.accepted is None:
+        raise HTTPException(400, "Review and accept a resume before downloading or previewing it.")
+    if current.accepted_stale or candidate is None:
+        raise HTTPException(409, "Your accepted resume is out of date. Review and accept a fresh resume first.")
+    try:
+        selected = resume_layouts.get_layout(layout).key if layout is not None else resume_layouts.layout_key(job.application)
+        rendered = resume_service.render_context(candidate.profile, current.accepted.resume)
+        browser = request.app.state.settings.autofill_browser
+        document = resume_pdf.export_resume(rendered, selected, str(browser.expanduser()) if browser else None)
+    except resume_pdf.PDFError as exc:
+        raise HTTPException(503, str(exc)) from exc
+    except (ValueError, resume_service.ResumeError) as exc:
+        raise HTTPException(422, str(exc)) from exc
+    return job, rendered, document, selected
+
+
+@router.get("/pdf")
+def download_pdf(request: Request, job_id: int, session: Session = Depends(get_session)):
+    job, rendered, document, _ = _pdf_document(request, session, job_id)
+    return pdf_response(document.content, rendered["contact"]["name"], job.company)
+
+
+@router.get("/preview")
+def preview_pdf(request: Request, job_id: int, layout: str | None = None, session: Session = Depends(get_session)):
+    try:
+        _, _, document, selected = _pdf_document(request, session, job_id, layout)
+    except HTTPException as exc:
+        return JSONResponse({"detail": exc.detail}, status_code=exc.status_code, headers={"Cache-Control": "no-store"})
+    return preview_response(document, f"/jobs/{job_id}/resume/preview", selected)
+
+
+@router.get("/preview/{page_number}.png")
+def preview_pdf_page(request: Request, job_id: int, page_number: int, version: str = "", layout: str | None = None,
+                     session: Session = Depends(get_session)):
+    _, _, document, _ = _pdf_document(request, session, job_id, layout)
+    return preview_image(document, page_number, version)

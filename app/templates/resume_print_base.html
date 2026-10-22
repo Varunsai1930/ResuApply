@@ -6,6 +6,7 @@
   <title>{{ name }} · {% block title_suffix %}Resume{% endblock %}</title>
   <link rel="icon" href="{{ asset('favicon.svg') }}" type="image/svg+xml">
   <link rel="stylesheet" href="{{ asset('resume.css') }}">
+  <link rel="stylesheet" href="{{ asset('resume-layouts.css') }}">
   <script src="{{ asset('resume.js') }}" defer></script>
 </head>
 <body class="resume-print-page">
@@ -13,8 +14,11 @@
     <a href="{% block back_href %}{% endblock %}">{% block back_label %}← Job workspace{% endblock %}</a>
     <h1>{% block heading %}{% endblock %}</h1>
     <p>{% block note %}Choose Print, then Save as PDF. Use A4 paper and disable the browser's headers and footers.{% endblock %}</p>
-    <button type="button" data-print-resume>Print / save PDF</button>
-    {% block download_extra %}{% endblock %}
+    <div class="resume-print-actions">
+      {% block primary_download %}{% endblock %}
+      {% block print_action %}<button type="button" data-print-resume data-saved-export>Print / save PDF</button>{% endblock %}
+      {% block download_extra %}{% endblock %}
+    </div>
     {% block layout_controls %}{% endblock %}
     {% if msg and MESSAGES.get(msg) %}<p class="resume-print-flash" role="status">{{ MESSAGES[msg] }}</p>{% endif %}
   </div>

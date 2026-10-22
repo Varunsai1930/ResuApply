@@ -18,7 +18,7 @@ def header(page: str) -> str:
 def test_the_top_bar_holds_brand_sections_and_controls(client, path):
     page = client.get(path).text
     bar = header(page)
-    assert re.search(r'<a class="brand" href="/jobs"', bar)
+    assert re.search(r'<a class="brand" href="/welcome"', bar)
     assert '<nav aria-label="Main">' in bar
     assert 'href="/welcome"' in bar and "Getting started" in bar  # outside the main sections
     assert "Local workspace" in bar and "data-theme-toggle" in bar

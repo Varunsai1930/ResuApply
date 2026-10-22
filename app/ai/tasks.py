@@ -167,8 +167,16 @@ class AITasks:
                 raise RuntimeError("The app is stopping; no new AI request can start.")
             task = Task(secrets.token_hex(8), operation, job_id, finish)
             self._tasks[task.id] = task
-        threading.Thread(target=self._thread, args=(task, work), daemon=True,
-                         name=f"resuapply-ai-{task.id}").start()
+        try:
+            threading.Thread(target=self._thread, args=(task, work), daemon=True,
+                             name=f"resuapply-ai-{task.id}").start()
+        except RuntimeError:
+            # Thread exhaustion must finish the registered request, otherwise every
+            # retry finds the same task waiting forever for a worker that never ran.
+            task.finished_at = utcnow()
+            if task.future.set_running_or_notify_cancel():
+                task.future.set_exception(AIError("busy", "The AI request could not start because the app is busy. "
+                                                         "Nothing was saved; try again."))
         return task
 
     def _thread(self, task: Task, work: Work) -> None:

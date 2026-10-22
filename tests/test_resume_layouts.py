@@ -124,5 +124,6 @@ def test_print_layout_selector_identifies_the_reviewed_package(session):
     )
     assert 'action="/jobs/17/resume/layout"' in output
     assert 'name="package_token" value="reviewed-package-token"' in output
-    assert '<option value="compact" selected>Compact</option>' in output
+    assert '<input type="radio" name="layout" value="compact" checked>' in output
+    assert output.count('type="radio" name="layout"') == 3
     assert "Changing the layout requires package review again." in output

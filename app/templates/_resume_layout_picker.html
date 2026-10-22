@@ -1,0 +1,24 @@
+{# Shared by the job workspace and print page. Native radios work without JavaScript. #}
+<input type="hidden" name="package_token" value="{{ layout_token }}">
+<fieldset class="resume-layout-options" aria-describedby="{{ picker_id }}-hint">
+  <legend>Resume layout</legend>
+  <div class="resume-layout-cards">
+    {% for choice in layout_choices %}
+    <label class="resume-layout-choice">
+      <input type="radio" name="layout" value="{{ choice.key }}"{% if choice.key == selected_layout %} checked{% endif %}>
+      <span class="layout-mini layout-mini-{{ choice.key }}" aria-hidden="true">
+        <span class="layout-mini-header"><i></i><i></i><i></i></span>
+        {% for n in range(3) %}<span class="layout-mini-section"><b></b><span><i></i><i></i><i></i></span></span>{% endfor %}
+      </span>
+      <span class="layout-choice-title">{{ choice.label }}</span>
+      <span class="layout-choice-description">{{ choice.description }}</span>
+    </label>
+    {% endfor %}
+  </div>
+</fieldset>
+<a class="resume-examples-link" href="/resume-examples?job_id={{ job.id }}">Browse resume examples <span aria-hidden="true">→</span></a>
+<div class="resume-layout-actions">
+  <button type="submit" class="btn-secondary">Apply layout</button>
+  <p class="hint" id="{{ picker_id }}-hint">Changing the layout requires package review again.</p>
+  <p class="layout-preview-notice" data-layout-status role="status" hidden></p>
+</div>

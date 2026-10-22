@@ -1,7 +1,7 @@
 {% import "macros.html" as ui with context %}
 <header class="site-header">
   <div class="header-inner">
-    <a class="brand" href="/jobs" title="ResuApply workspace"><span class="brand-mark" aria-hidden="true">{{ ui.icon('layers', 18) }}</span><span class="brand-name">ResuApply</span></a>
+    <a class="brand" href="/welcome" title="ResuApply home"><span class="brand-mark" aria-hidden="true">{{ ui.icon('layers', 18) }}</span><span class="brand-name">ResuApply</span></a>
     <nav aria-label="Main">
       {% set nav_icons = {'jobs': 'briefcase', 'answers': 'file-text', 'profile': 'user'} %}
       {% for key, href, label in NAV_ITEMS %}

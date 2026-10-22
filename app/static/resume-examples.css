@@ -1,0 +1,105 @@
+/* Original resume gallery; shared application tokens keep both themes consistent. */
+.examples-page { padding: 14px 0 36px; }
+.examples-back { display: inline-flex; align-items: center; gap: 7px; color: var(--ink-2); font-size: .82rem; text-decoration: none; }
+.examples-hero { display: grid; grid-template-columns: 1.2fr 1fr; align-items: end; gap: 64px; padding: 42px 0 48px; }
+.examples-hero .eyebrow { margin: 0 0 14px; color: var(--accent); }
+.examples-hero h1 { margin: 0; font-size: clamp(2rem, 4.2vw, 3.4rem); line-height: 1.09; letter-spacing: -.045em; font-weight: 650; }
+.examples-hero h1 span { color: var(--ink-3); }
+.examples-intro { padding-bottom: 4px; max-width: 390px; }
+.examples-intro p { color: var(--ink-2); font-size: 1rem; line-height: 1.75; margin: 0 0 18px; }
+.examples-intro a { display: inline-flex; align-items: center; gap: 8px; font-weight: 550; font-size: .84rem; text-decoration: none; }
+.examples-section-heading { display: flex; align-items: end; justify-content: space-between; gap: 20px; margin-bottom: 22px; }
+.examples-section-heading h2 { margin: 0 0 6px; font-size: 1.25rem; letter-spacing: -.025em; }
+.examples-section-heading p { margin: 0; color: var(--ink-2); font-size: .85rem; line-height: 1.65; max-width: 640px; }
+.examples-section-heading .eyebrow { margin-bottom: 10px; color: var(--accent); }
+.examples-count { color: var(--ink-3); font: .75rem var(--font-mono); white-space: nowrap; }
+.examples-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 24px; }
+.example-card { min-width: 0; border: 1px solid transparent; border-radius: 18px; background: var(--surface); box-shadow: 0 1px 3px rgb(0 0 0 / .03), 0 0 0 1px var(--rule); overflow: hidden; }
+.example-art { display: flex; flex-direction: column; align-items: center; padding: 26px 26px 16px; text-decoration: none; background: #e9e6e0; }
+.example-art-modern { background: #e3e9ee; }
+.example-art-compact { background: #e7e8e3; }
+.example-paper { display: block; width: 100%; box-shadow: 0 2px 3px rgb(0 0 0 / .06), 0 12px 22px -8px rgb(0 0 0 / .14); }
+.example-paper img, .example-detail-preview > img { display: block; width: 100%; height: auto; background: #fff; outline: 1px solid oklch(0 0 0 / .1); outline-offset: -1px; }
+.example-art-label { display: block; margin-top: 14px; color: #4b515a; font-size: .64rem; line-height: 1.4; }
+.example-card-body { padding: 22px; }
+.example-title-row { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+.example-title-row h3 { margin: 0; font-size: 1.2rem; letter-spacing: -.03em; }
+.example-title-row > span { color: var(--ink-3); font: .72rem var(--font-mono); }
+.example-card-body > p { margin: 8px 0 20px; color: var(--ink-2); font-size: .82rem; }
+.example-preview-link { display: flex; align-items: center; justify-content: space-between; gap: 12px; border-top: 1px solid var(--rule); padding-top: 16px; font-size: .82rem; font-weight: 600; text-decoration: none; }
+.hiring-section { scroll-margin-top: 90px; border-top: 1px solid var(--rule); margin-top: 58px; padding-top: 36px; }
+.hiring-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 24px; }
+.hiring-card { display: grid; grid-template-columns: 42px minmax(0, 1fr); align-content: start; gap: 18px 14px; padding: 22px; border: 1px solid var(--rule); border-radius: 12px; }
+.hiring-monogram { width: 42px; height: 42px; display: grid; place-items: center; border-radius: 9px; background: var(--surface); color: var(--ink); font-size: 1.1rem; font-weight: 700; letter-spacing: -.04em; }
+.hiring-card:last-child .hiring-monogram { font-size: .72rem; letter-spacing: -.05em; }
+.hiring-company { margin: 0 0 5px; font-size: 1rem; font-weight: 650; }
+.hiring-card h3 { margin: 0; font-size: .79rem; font-weight: 500; line-height: 1.5; }
+.hiring-attribution { margin: 6px 0 0; color: var(--ink-3); font-size: .7rem; }
+.hiring-card > a { grid-column: 1 / -1; display: inline-flex; gap: 8px; align-items: center; font-size: .78rem; font-weight: 550; text-decoration: none; }
+.examples-source-note { max-width: 760px; margin: 20px 0 0; color: var(--ink-3); font-size: .74rem; line-height: 1.65; }
+.example-detail { display: grid; grid-template-columns: minmax(240px, .72fr) minmax(0, 1.28fr); grid-template-rows: auto 1fr; column-gap: 60px; padding-top: 36px; }
+.example-detail-copy { padding-top: 14px; }
+.example-detail-preview { grid-column: 2; grid-row: 1 / span 2; }
+.example-detail-copy .eyebrow { margin: 0 0 16px; color: var(--accent); }
+.example-detail-copy h1 { max-width: 390px; margin: 0; font-size: clamp(1.8rem, 3vw, 2.65rem); line-height: 1.12; letter-spacing: -.045em; }
+.example-detail-description { margin: 20px 0 24px; color: var(--ink-2); line-height: 1.75; font-size: .92rem; }
+.example-best-for { display: grid; gap: 5px; margin: 0 0 28px; font-size: .84rem; color: var(--ink-2); }
+.example-best-for strong { color: var(--ink); font-weight: 600; }
+.example-detail-copy > .btn-primary { display: inline-flex; align-items: center; gap: 12px; }
+.example-apply-note { color: var(--ink-3); font-size: .76rem; line-height: 1.6; max-width: 340px; margin: 12px 0 0; }
+.example-notes { grid-column: 1; margin-top: 34px; border-top: 1px solid var(--rule); padding-top: 26px; }
+.example-notes h2 { font-size: .9rem; margin: 0 0 20px; }
+.example-notes > div { margin-bottom: 20px; }
+.example-notes h3 { margin: 0 0 5px; font-size: .82rem; font-weight: 600; }
+.example-notes p { margin: 0; color: var(--ink-2); font-size: .8rem; line-height: 1.7; }
+.example-preview-caption { display: flex; justify-content: space-between; gap: 12px; margin-bottom: 12px; color: var(--ink-3); font-size: .74rem; }
+.example-detail-preview > img { box-shadow: var(--shadow-md); }
+.example-readable { margin-top: 20px; border: 1px solid var(--rule); border-radius: 8px; overflow: hidden; background: var(--surface); }
+.example-readable summary { padding: 14px 16px; cursor: pointer; font-size: .8rem; color: var(--ink-2); }
+.example-text { padding: 8px 22px 22px; font-size: .85rem; line-height: 1.65; overflow-wrap: anywhere; }
+.example-text h1 { font-size: 1.3rem; }
+.example-text h2 { margin-top: 24px; font-size: 1rem; }
+.example-text h3 { font-size: .9rem; margin: 16px 0 4px; }
+.example-text p { margin: 4px 0; }
+.example-text .resume-entry + .resume-entry { margin-top: 20px; }
+.example-text ul { padding-left: 20px; }
+.example-art:focus-visible { outline: 3px solid var(--accent); outline-offset: -4px; }
+:root[data-theme="dark"] .example-paper img, :root[data-theme="dark"] .example-detail-preview > img { outline-color: oklch(1 0 0 / .1); }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .example-paper img, :root:not([data-theme="light"]) .example-detail-preview > img { outline-color: oklch(1 0 0 / .1); }
+}
+@media (hover: hover) {
+  .example-art:hover .example-paper { box-shadow: 0 3px 5px rgb(0 0 0 / .08), 0 16px 26px -8px rgb(0 0 0 / .2); }
+  .example-preview-link:hover, .hiring-card > a:hover, .examples-back:hover { text-decoration: underline; }
+}
+@media (prefers-reduced-motion: no-preference) {
+  .example-paper { transition: box-shadow 150ms ease-out; }
+  .example-detail-copy > .btn-primary { transition: transform 150ms ease-out, background-color 150ms ease-out; }
+  .example-detail-copy > .btn-primary:active { transform: scale(.96); }
+}
+@media (forced-colors: active) { .example-card { border-color: CanvasText; } }
+@media (max-width: 950px) {
+  .examples-hero { gap: 30px; }
+  .examples-grid, .hiring-grid { gap: 16px; }
+  .example-art { padding: 18px 18px 14px; }
+  .example-card-body, .hiring-card { padding: 18px; }
+  .example-detail { column-gap: 30px; grid-template-columns: minmax(220px, .8fr) minmax(0, 1.2fr); }
+}
+@media (max-width: 680px) {
+  .examples-page { padding-top: 8px; }
+  .examples-hero { grid-template-columns: minmax(0, 1fr); gap: 22px; padding: 30px 0 34px; }
+  .examples-hero h1 { font-size: 2.4rem; }
+  .examples-intro { max-width: 100%; }
+  .examples-intro p { font-size: .9rem; margin-bottom: 14px; }
+  .examples-grid, .hiring-grid { grid-template-columns: minmax(0, 1fr); gap: 22px; }
+  .example-art { padding: 24px 32px 16px; }
+  .example-card-body { padding: 22px; }
+  .examples-count { display: none; }
+  .examples-section-heading p { font-size: .8rem; }
+  .hiring-section { margin-top: 36px; padding-top: 28px; }
+  .example-detail { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto; gap: 28px; padding-top: 24px; }
+  .example-detail-preview { grid-column: 1; grid-row: auto; }
+  .example-detail-copy { padding: 0; }
+  .example-detail-copy h1 { max-width: 100%; }
+  .example-notes { margin-top: 0; }
+}

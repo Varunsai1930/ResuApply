@@ -1,10 +1,12 @@
 {# The name and contact header shared by the printed resume and cover letter. Expects `contact`. #}
     <header class="resume-header">
       <h1>{{ contact.name }}</h1>
+      <div class="resume-header-details">
       <p class="resume-contact">
         {% if contact.email %}<span>{{ contact.email }}</span>{% endif %}
         {% if contact.phone %}<span>{{ contact.phone }}</span>{% endif %}
         {% if contact.location %}<span>{{ contact.location }}</span>{% endif %}
       </p>
       {% for label, value in (contact.links or {}).items() %}{% if value %}<p class="resume-link">{{ value }}</p>{% endif %}{% endfor %}
+      </div>
     </header>

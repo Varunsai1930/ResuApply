@@ -14,6 +14,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import math
 import multiprocessing
 import re
 import tempfile
@@ -351,6 +352,15 @@ def _arguments(data: dict, tool_name: str) -> dict:
     return parsed
 
 
+def _valid_usage_number(value: object) -> bool:
+    if not isinstance(value, (int, float)) or isinstance(value, bool) or value < 0:
+        return False
+    try:
+        return math.isfinite(value)
+    except OverflowError:  # a JSON integer can exceed the range of a float
+        return False
+
+
 def _usage(data: dict) -> dict:
     usage = data.get("usage")
     if usage is None:
@@ -358,13 +368,19 @@ def _usage(data: dict) -> dict:
     if not isinstance(usage, dict):
         raise AIError("invalid", "The response usage must be an object.")
     keep = ("prompt_tokens", "completion_tokens", "total_tokens", "cost")
-    return {k: usage[k] for k in keep if isinstance(usage.get(k), (int, float)) and not isinstance(usage.get(k), bool)}
+    # Accounting is optional metadata; unusable numbers must not discard a valid answer
+    # or reach persistence/logging as NaN, infinity or an overflowing retry total.
+    return {k: usage[k] for k in keep if _valid_usage_number(usage.get(k))}
 
 
 def _add_usage(total: dict, usage: dict) -> dict:
     out = dict(total)
     for key, value in usage.items():
-        out[key] = out.get(key, 0) + value
+        combined = out.get(key, 0) + value
+        if _valid_usage_number(combined):
+            out[key] = combined
+        else:
+            out.pop(key, None)
     return out
 
 

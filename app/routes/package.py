@@ -3,17 +3,17 @@
 from __future__ import annotations
 
 from fastapi import APIRouter, Depends, Form, HTTPException, Request
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from sqlalchemy.orm import Session
 
 from ..db import get_session
 from ..models import Job
 from ..services import cover_letter as letter_service
-from ..services import package, resume_docx, resume_layouts
+from ..services import package, resume_docx, resume_layouts, resume_pdf
 from ..services.profile import get_candidate
 from ..templating import templates
 from .jobs import _job_or_404, _render_workspace
-from .resume_download import docx_response
+from .resume_download import docx_response, pdf_response, preview_image, preview_response
 
 router = APIRouter(prefix="/jobs/{job_id}")
 
@@ -63,6 +63,39 @@ def snapshot_docx(job_id: int, snapshot_id: int, session: Session = Depends(get_
     except (ValueError, resume_docx.ResumeDocxError) as exc:
         raise HTTPException(422, "This saved resume cannot be exported as a Word document.") from exc
     return docx_response(content, snapshot.resume["contact"]["name"], snapshot.job.get("company", ""))
+
+
+def _snapshot_pdf(request, session, job_id, snapshot_id):
+    job = _job_or_404(session, job_id)
+    saved = _snapshot_or_404(job, snapshot_id)
+    browser = request.app.state.settings.autofill_browser
+    try:
+        document = resume_pdf.render_html(saved.resume_html, str(browser.expanduser()) if browser else None)
+    except resume_pdf.PDFError as exc:
+        raise HTTPException(503, str(exc)) from exc
+    return saved, document
+
+
+@router.get("/snapshots/{snapshot_id}/resume.pdf")
+def snapshot_pdf(request: Request, job_id: int, snapshot_id: int, session: Session = Depends(get_session)):
+    saved, document = _snapshot_pdf(request, session, job_id, snapshot_id)
+    return pdf_response(document.content, saved.resume["contact"]["name"], saved.job.get("company", ""))
+
+
+@router.get("/snapshots/{snapshot_id}/resume/preview")
+def snapshot_preview(request: Request, job_id: int, snapshot_id: int, session: Session = Depends(get_session)):
+    try:
+        _, document = _snapshot_pdf(request, session, job_id, snapshot_id)
+    except HTTPException as exc:
+        return JSONResponse({"detail": exc.detail}, status_code=exc.status_code, headers={"Cache-Control": "no-store"})
+    return preview_response(document, f"/jobs/{job_id}/snapshots/{snapshot_id}/resume/preview")
+
+
+@router.get("/snapshots/{snapshot_id}/resume/preview/{page_number}.png")
+def snapshot_preview_page(request: Request, job_id: int, snapshot_id: int, page_number: int, version: str = "",
+                          session: Session = Depends(get_session)):
+    _, document = _snapshot_pdf(request, session, job_id, snapshot_id)
+    return preview_image(document, page_number, version)
 
 
 def _snapshot_letter(job: Job, snapshot_id: int):

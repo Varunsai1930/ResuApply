@@ -47,6 +47,11 @@
 .resume-block { margin-top: 15px; }
 .resume-entry + .resume-entry { margin-top: 12px; }
 .resume-entry-head p { font-size: 9.5pt; }
+.resume-block-body { min-width: 0; }
+.resume-entry-head { display: grid; grid-template-columns: minmax(0, 1fr) auto; column-gap: 12px; align-items: baseline; }
+.resume-entry-head > * { grid-column: 1; }
+.resume-entry-head .resume-dates { grid-column: 2; grid-row: 1; text-align: right; font-variant-numeric: tabular-nums; }
+.resume-entry-head .resume-technologies { font-size: 9pt; color: #414955; }
 .resume-document ul { margin: 5px 0 0; padding-left: 18px; }
 .resume-document li { margin: 4px 0; white-space: pre-wrap; }
 
@@ -55,34 +60,66 @@
 .cover-letter-document .letter-body p { margin: 0 0 11px; white-space: pre-line; }
 .cover-letter-document .letter-body .letter-closing { margin-top: 22px; }
 
-/* All choices keep the same content and one reading column. No external fonts are
-   needed, so the print view remains useful offline and on another computer. */
+/* Three distinct compositions with the same source order and selectable text.
+   System fonts keep every layout available offline. */
+.resume-layout-classic .resume-header { text-align: center; margin-bottom: 22px; }
+.resume-layout-classic h1 { font-family: Georgia, "Times New Roman", serif; font-size: 26pt; font-weight: 500; letter-spacing: -0.025em; margin-bottom: 10px; }
+.resume-layout-classic .resume-header-details > .resume-link { display: inline; }
+.resume-layout-classic .resume-header-details > .resume-link + .resume-link::before { content: " · "; }
+.resume-layout-classic h2 { font-size: 10pt; border-bottom: 1px solid #252525; padding-bottom: 5px; letter-spacing: 0.12em; }
+.resume-layout-classic .resume-block { margin-top: 19px; }
+
 .resume-layout-modern { font-family: Calibri, "Segoe UI", Arial, sans-serif; font-size: 10.5pt; line-height: 1.45; }
-.resume-layout-modern .resume-header { border-bottom: 2px solid #1f4e79; padding-bottom: 13px; margin-bottom: 18px; }
-.resume-layout-modern h1 { color: #1f4e79; font-size: 24pt; line-height: 1.16; margin-bottom: 9px; font-weight: 700; letter-spacing: -0.02em; }
-.resume-layout-modern h2 { color: #1f4e79; font-size: 11pt; border-bottom-color: #b9c7d5; padding-bottom: 5px; margin-bottom: 10px; letter-spacing: 0.1em; }
-.resume-layout-modern .resume-block { margin-top: 18px; }
-.resume-layout-modern .resume-entry + .resume-entry { margin-top: 14px; }
+.resume-layout-modern .resume-header { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); align-items: center; gap: 20px; border-bottom: 3px solid #234967; padding-bottom: 18px; margin-bottom: 23px; }
+.resume-layout-modern h1 { color: #234967; font-size: 29pt; line-height: 1.06; margin: 0; font-weight: 700; letter-spacing: -0.035em; }
+.resume-layout-modern .resume-header-details { border-left: 1px solid #bdcbd5; padding-left: 16px; font-size: 9pt; }
+.resume-layout-modern .resume-contact span { display: block; }
+.resume-layout-modern .resume-contact span + span::before { content: none; }
+.resume-layout-modern .resume-link { font-size: 8.5pt; }
+.resume-layout-modern .resume-block { display: grid; grid-template-columns: 27mm minmax(0, 1fr); gap: 14px; margin-top: 22px; }
+.resume-layout-modern h2 { color: #234967; font-size: 9pt; line-height: 1.5; border: 0; padding: 3px 0 0; margin: 0; letter-spacing: 0.08em; }
+.resume-layout-modern .resume-block-body { border-left: 1px solid #bdcbd5; padding-left: 16px; }
+.resume-layout-modern .resume-entry-head { display: block; }
+.resume-layout-modern .resume-entry-head .resume-dates { text-align: left; color: #414955; }
+.resume-layout-modern .resume-entry + .resume-entry { margin-top: 17px; }
 .resume-layout-modern li { margin: 5px 0; }
+
 .resume-layout-compact { font-size: 10pt; line-height: 1.32; }
-.resume-layout-compact h1 { font-size: 19pt; margin-bottom: 5px; }
-.resume-layout-compact h2 { font-size: 10.5pt; margin-bottom: 6px; padding-bottom: 2px; }
+.resume-layout-compact .resume-header { border-top: 4px solid #252525; border-bottom: 1px solid #9ca3af; padding: 11px 0 10px; margin-bottom: 14px; }
+.resume-layout-compact h1 { font-size: 20pt; margin-bottom: 6px; letter-spacing: -0.035em; }
+.resume-layout-compact .resume-header-details > .resume-link { display: inline; font-size: 8.5pt; }
+.resume-layout-compact .resume-header-details > .resume-link + .resume-link::before { content: " · "; }
+.resume-layout-compact h2 { display: flex; align-items: center; gap: 10px; font-size: 9pt; letter-spacing: 0.07em; border: 0; margin-bottom: 7px; padding: 0; }
+.resume-layout-compact h2::after { content: ""; height: 1px; flex: 1; background: #aeb4bc; }
 .resume-layout-compact h3 { font-size: 10pt; }
-.resume-layout-compact .resume-header { margin-bottom: 10px; }
-.resume-layout-compact .resume-block { margin-top: 11px; }
+.resume-layout-compact .resume-block { margin-top: 13px; }
 .resume-layout-compact .resume-entry + .resume-entry { margin-top: 9px; }
 .resume-layout-compact p { margin: 2px 0; }
 .resume-layout-compact ul { margin-top: 4px; }
 .resume-layout-compact li { margin: 2px 0; }
-@media (max-width: 640px) {
+@media screen and (max-width: 640px) {
   .resume-document { padding: 24px 22px; min-height: 0; margin-top: 20px; }
+  .resume-entry-head { display: block; }
+  .resume-entry-head .resume-dates { text-align: left; }
+  .resume-layout-modern .resume-header { grid-template-columns: minmax(0, 1fr); gap: 12px; }
+  .resume-layout-modern .resume-header-details { border-left: 0; padding-left: 0; }
+  .resume-layout-modern .resume-block { grid-template-columns: minmax(0, 1fr); gap: 6px; }
+  .resume-layout-modern .resume-block-body { padding-left: 0; border-left: 0; }
 }
-@page { size: A4; margin: 15mm 17mm; }
+/* Horizontal gutters belong to the document so choosing browser "Margins: None"
+   cannot remove them. Page margins provide the repeated top/bottom print inset. */
+@page { size: A4; margin: 15mm 0; }
 @media print {
   .resume-print-page { background: #fff; color: #000; }
   .resume-print-controls { display: none !important; }
-  .resume-document { max-width: none; width: auto; min-height: 0; margin: 0; padding: 0; color: #000; background: #fff; box-shadow: none; }
+  .resume-document { width: 100%; max-width: 210mm; min-height: 0; margin: 0 auto; padding: 0 18mm; color: #000; background: #fff; box-shadow: none; print-color-adjust: exact; -webkit-print-color-adjust: exact; }
   .resume-document h2, .resume-entry-head { break-after: avoid; page-break-after: avoid; }
+  .resume-entry-head { break-inside: avoid; page-break-inside: avoid; }
   .resume-document h2, .resume-document h3, .resume-document p, .resume-document li { orphans: 2; widows: 2; }
   .resume-entry, .resume-block, .resume-document li { break-inside: auto; page-break-inside: auto; }
+  /* Block flow fragments predictably over pages; floats reserve only the label
+     gutter, rather than making an entire long section a grid print fragment. */
+  .resume-layout-modern .resume-block { display: flow-root; }
+  .resume-layout-modern .resume-block > h2 { float: left; width: 27mm; }
+  .resume-layout-modern .resume-block-body { margin-left: calc(27mm + 14px); }
 }

@@ -5,11 +5,16 @@
 {% macro shown(key) %}{% if section and section.value != key %} hidden{% endif %}{% endmacro %}
 {% block content %}
 <p class="crumbs"><a href="/profile">{{ m.icon('arrow-left', 16) }} Profile</a></p>
-<div class="page-head">
+<div class="page-head profile-edit-head">
   <p class="eyebrow">Your application foundation</p>
   <h1>{{ 'Edit ' ~ section.label | lower if section else 'Your profile' }}</h1>
   <p class="lead">Add the facts that every application will draw from. Leave anything you do not know empty. You will review your changes before saving.{% if section %} Your other sections stay as they are.{% endif %}</p>
 </div>
+<ol class="profile-edit-progress" aria-label="Profile editing steps">
+  <li aria-current="step"><span>1</span> Edit facts</li>
+  <li><span>2</span> Review changes</li>
+  <li><span>3</span> Save profile</li>
+</ol>
 {% if section %}
 <nav aria-label="Profile sections" class="section-nav">
   {% for s in sections %}<a href="/profile/edit?section={{ s.value }}"{% if s == section %} aria-current="page"{% endif %}>{{ s.label }}</a>{% endfor %}

@@ -126,6 +126,21 @@ The database schema is managed by [Alembic](https://alembic.sqlalchemy.org) migr
 
 When a change to `app/models.py` needs a schema change, add a migration with `.venv/bin/alembic revision --autogenerate -m "What changed"`, review the generated file (it uses plain types such as `sa.JSON`, never the app's models), and run the tests: `tests/test_migrations.py` fails while the models and the migrations disagree.
 
+### Direct PDF downloads and page previews
+
+On an accepted resume, **Download PDF** creates an A4 file locally with fixed margins, without opening the browser's print dialog. The preview shows numbered pages rendered from the same PDF, including its actual page breaks. Selecting a layout previews it immediately; **Apply layout** saves that choice and requires package review again. Submitted resumes keep their frozen facts and layout.
+
+**Browse resume examples** opens a gallery of the three original layouts, with full-page fictional samples and readable text versions. Separate source links show public Google, Amazon and IBM hiring examples reported by Kickresume. **Preview with my resume** tries a layout with your accepted content; it does not save until you choose **Apply layout**. The gallery also opens from the welcome page and works without the optional browser add-on.
+
+Direct downloads and numbered page previews use the same optional local browser add-on as autofill:
+
+```bash
+.venv/bin/pip install -r requirements-autofill.txt
+.venv/bin/python -m playwright install chromium
+```
+
+On Windows, use `.\.venv\Scripts\python.exe -m pip install -r requirements-autofill.txt` and `.\.venv\Scripts\python.exe -m playwright install chromium`. The renderer uses Chromium locally and makes no network requests. Without the add-on, the regular HTML preview, your browser's Print command, and Word downloads remain available. If configured, `RESUAPPLY_AUTOFILL_BROWSER` also selects the browser used for PDF export.
+
 ### Optional OCR for scanned resumes
 
 Install **Tesseract with English (`eng`) language data**, and make its `tesseract` command available on `PATH`. On macOS, use `brew install tesseract`; on Debian/Ubuntu, use `sudo apt install tesseract-ocr tesseract-ocr-eng`. Windows installers and other platforms are listed in [Tesseract's installation guide](https://tesseract-ocr.github.io/tessdoc/Installation.html). Restart the app after changing `PATH`. `tesseract --list-langs` should include `eng`.
@@ -149,7 +164,7 @@ On Windows, use `.\.venv\Scripts\python.exe -m pip install -r requirements-autof
 
 1. The job's link is a posting on `boards.greenhouse.io` or `job-boards.greenhouse.io` (an imported job has one; otherwise add it with **Edit details**).
 2. The package is **Approved** and current.
-3. The resume PDF you saved from that package is attached: open the accepted resume, choose **Print / save PDF**, then **Attach PDF**. It must be a readable PDF of up to 10 pages and 10 MB, without a password, showing your name as the approved resume does. It is kept in `data/attachments/` and belongs to the package you approved: when the package changes, attach it again. If the package has an accepted cover letter, a **Cover Letter** upload gets it as a Word file made from the approved text, in the resume's layout; nothing else is needed for it.
+3. The resume PDF you saved from that package is attached: open the accepted resume, choose **Download PDF**, then **Attach PDF**. It must be a readable PDF of up to 10 pages and 10 MB, without a password, showing your name as the approved resume does. It is kept in `data/attachments/` and belongs to the package you approved: when the package changes, attach it again. If the package has an accepted cover letter, a **Cover Letter** upload gets it as a Word file made from the approved text, in the resume's layout; nothing else is needed for it.
 
 **Open the form in a browser** opens the form and reads it; nothing is filled yet. The card lists every field with what ResuApply would do and why. **Fill the verified fields** fills only those, reads each value back and shows the result: **Filled and read back**, **Attached and checked**, **Doesn't match** (with what the form shows, for example when the page reformats a phone number or rejects the file), **Kept the existing value**, **Already filled** or **Left for you**. Then check every field in the browser, answer the rest and click Submit there yourself. Record Applied under **Tracking** afterwards; autofill never changes the status. **Close the browser** closes it; stopping the app closes it too.
 
@@ -196,7 +211,7 @@ Review the original sources and proposed wording side by side, then choose **Acc
 
 Choose **Classic**, **Modern** or **Compact** in the Resume section or print view, then **Apply layout**. All three use the same selected resume facts in a single reading column; Modern adds a navy accent and Compact reduces spacing. The choice is saved for that job. Changing it clears package approval and requires review again; applying the current choice leaves approval intact. A page showing an older package cannot change its layout.
 
-**Print / save PDF** opens the accepted resume in your chosen layout. Choose **Print / save PDF** again, select A4, and turn off browser headers and footers. Long profiles continue onto more pages. Short and multi-page synthetic resumes were checked in Chromium for content retention and unclipped output across all three layouts.
+**Preview / print resume** opens the accepted resume in your chosen layout. **Download PDF** saves an A4 file matching the numbered preview. You can also use your browser's Print command with A4 paper and browser headers and footers disabled. Long profiles continue onto more pages. Short and multi-page synthetic resumes were checked in Chromium for content retention and unclipped output across all three layouts.
 
 **Download Word (.docx)** exports the current accepted resume as editable Word paragraphs, bullets and links in the chosen layout. It includes only the selected content, with employers, dates and other facts from your verified profile. Submitted packages also offer a Word download from their frozen content and layout, even after later profile edits. Editing a downloaded file does not update the app's package, so review any outside edits yourself before submitting.
 

@@ -233,6 +233,7 @@ def test_routes_write_print_download_and_remove_a_letter(client, sample_profile)
 
     printed = client.get(f"/jobs/{job_id}/cover-letter/print")
     assert printed.status_code == 200 and "cover-letter-document" in printed.text
+    assert 'data-print-resume' in printed.text and 'Print / save PDF</button>' in printed.text
     assert "Dear " in printed.text and "<p>Second paragraph.</p>" in printed.text and "Sincerely," in printed.text
     assert sample_profile["contact"]["email"] in printed.text and "· Cover letter</title>" in printed.text
 

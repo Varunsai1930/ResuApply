@@ -1,0 +1,79 @@
+/* Shared layout chooser. The fallback palette is used by the standalone print page. */
+.resume-layout-picker { margin-top: 20px; }
+.resume-examples-link { display: inline-flex; align-items: center; gap: 8px; margin-top: 14px; color: var(--accent, #234967); font-size: .82rem; text-decoration: none; }
+.resume-examples-link:focus-visible { outline: 2px solid var(--accent, #234967); outline-offset: 4px; }
+.resume-layout-options { min-width: 0; width: 100%; margin: 0; padding: 0; border: 0; }
+.resume-layout-options legend { margin-bottom: 12px; padding: 0; font-size: 0.9rem; font-weight: 600; }
+.resume-layout-cards { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+.resume-layout-choice { position: relative; display: flex; flex-direction: column; min-width: 0; padding: 16px; border: 1px solid var(--rule-strong, #bdc2ca); border-radius: 10px; background: var(--surface, #fff); color: var(--ink, #17191c); cursor: pointer; }
+.resume-layout-choice:has(input:checked) { border-color: var(--accent, #234967); box-shadow: 0 0 0 1px var(--accent, #234967); background: var(--accent-wash, #f1f5f8); }
+.resume-layout-choice:has(input:focus-visible) { outline: 2px solid var(--accent, #234967); outline-offset: 4px; }
+.resume-layout-choice input[type="radio"] { position: absolute; top: 14px; right: 14px; width: 16px; height: 16px; margin: 0; accent-color: var(--accent, #234967); }
+.layout-choice-title { font-size: 0.88rem; font-weight: 600; margin: 12px 0 4px; }
+.layout-choice-description { color: var(--ink-2, #4b5565); font-size: 0.75rem; font-weight: 400; line-height: 1.5; }
+.layout-mini { display: block; box-sizing: border-box; width: 92px; height: 130px; padding: 12px 10px; background: #fff; border: 1px solid #d1d5db; box-shadow: 0 2px 3px rgb(0 0 0 / 0.04); }
+.layout-mini i, .layout-mini b { display: block; height: 2px; margin: 3px 0; background: #d5d9df; }
+.layout-mini-header { display: block; margin-bottom: 9px; }
+.layout-mini-header > i:first-child { height: 4px; width: 60%; background: #374151; }
+.layout-mini-header > i:nth-child(2) { width: 85%; }
+.layout-mini-header > i:last-child { width: 70%; }
+.layout-mini-section { display: block; margin-top: 7px; }
+.layout-mini-section > b { width: 33%; background: #6b7280; }
+.layout-mini-section > span > i:last-child { width: 70%; }
+.layout-mini-classic .layout-mini-header > i { margin-left: auto; margin-right: auto; }
+.layout-mini-classic .layout-mini-section { border-top: 1px solid #adb5bf; padding-top: 2px; }
+.layout-mini-modern .layout-mini-header { border-bottom: 2px solid #234967; padding-bottom: 4px; }
+.layout-mini-modern .layout-mini-header > i:first-child { width: 45%; height: 6px; background: #234967; }
+.layout-mini-modern .layout-mini-section { display: grid; grid-template-columns: 17px 1fr; gap: 5px; }
+.layout-mini-modern .layout-mini-section > b { width: 100%; background: #234967; }
+.layout-mini-modern .layout-mini-section > span { border-left: 1px solid #bdcbd5; padding-left: 4px; }
+.layout-mini-compact { padding-top: 10px; }
+.layout-mini-compact .layout-mini-header { border-top: 3px solid #374151; padding-top: 4px; margin-bottom: 6px; }
+.layout-mini-compact .layout-mini-section { margin-top: 5px; }
+.layout-mini-compact i { margin: 2px 0; }
+.resume-layout-actions { display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: center; margin-top: 14px; }
+.resume-layout-actions p { margin: 0; color: var(--ink-2, #4b5565); font-size: 0.8rem; }
+.resume-print-controls .resume-layout-picker { display: block; }
+.resume-print-controls .resume-layout-actions button { margin: 0; }
+.resume-layout-actions .layout-preview-notice { flex-basis: 100%; color: var(--accent, #234967); font-weight: 500; }
+.resume-layout-picker button:disabled, [data-saved-export][aria-disabled="true"] { opacity: 0.45; cursor: not-allowed; }
+.resume-preview-panel { min-width: 0; margin: 24px auto; }
+.resume-preview-toolbar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; padding: 0 2px; margin-bottom: 14px; color: var(--ink-2, #474c55); font-size: 0.8rem; }
+.resume-preview-toolbar p { margin: 0; }
+.resume-preview-toolbar button { border: 1px solid var(--rule-strong, #bdc2ca); border-radius: 6px; background: var(--surface, #fff); color: var(--ink, #17191c); padding: 7px 10px; font: inherit; cursor: pointer; }
+.resume-page-list { display: grid; gap: 22px; }
+.resume-preview-page { min-width: 0; margin: 0; }
+.resume-preview-page img { display: block; width: 100%; height: auto; aspect-ratio: 210 / 297; background: #fff; outline: 1px solid rgb(0 0 0 / 0.1); outline-offset: -1px; box-shadow: 0 2px 8px rgb(0 0 0 / 0.08); }
+.resume-preview-page figcaption { margin-top: 9px; text-align: center; font-size: 0.75rem; color: var(--ink-3, #6a6f78); }
+.resume-print-page .resume-preview-panel { max-width: 210mm; margin: 24px auto 40px; }
+.resume-print-page [hidden] { display: none !important; }
+.resume-print-controls > .resume-print-actions { grid-column: 2; grid-row: 2 / span 2; display: flex; flex-direction: column; gap: 8px; align-items: stretch; min-width: 180px; }
+.resume-print-actions a.resume-print-pdf { display: block; border: 1px solid #1f3a5f; border-radius: 4px; padding: 10px 15px; color: #fff; background: #1f3a5f; text-align: center; font-size: 14px; font-weight: 600; text-decoration: none; }
+.resume-print-actions [data-print-resume] { margin: 0; background: #fff; color: #1f3a5f; border-color: #c0c5cc; }
+.resume-print-controls .resume-print-actions a.resume-print-download { padding: 9px 15px; text-align: center; }
+@media screen {
+  /* Keep selectable, accessible text while showing the exact PDF pagination. */
+  .has-page-preview > .resume-html-preview { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+}
+@media (max-width: 640px) {
+  .resume-print-controls > .resume-print-actions { grid-column: 1; grid-row: auto; }
+  .resume-print-page .resume-preview-toolbar { padding: 0 16px; }
+}
+@media print {
+  .resume-preview-toolbar, .resume-page-list { display: none !important; }
+  .resume-print-page .resume-preview-panel { max-width: none; margin: 0; }
+}
+@media (hover: hover) {
+  .resume-layout-choice:hover { border-color: var(--accent, #234967); }
+  .resume-print-actions [data-print-resume]:hover { background: #f1f5f8; }
+}
+@media (max-width: 540px) {
+  .resume-layout-cards { gap: 8px; }
+  .resume-layout-choice { padding: 12px 10px; }
+  .layout-mini { width: 64px; height: 90px; padding: 8px 6px; }
+  .layout-mini i, .layout-mini b { height: 1px; margin: 2px 0; }
+  .layout-mini-section { margin-top: 4px; }
+  .layout-mini-modern .layout-mini-section { grid-template-columns: 10px 1fr; gap: 3px; }
+  .resume-layout-choice input[type="radio"] { top: 9px; right: 8px; width: 13px; height: 13px; }
+  .layout-choice-description { display: none; }
+}

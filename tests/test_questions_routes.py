@@ -441,13 +441,15 @@ def test_snapshot_pages_show_the_frozen_package(client, sample_profile):
     assert f'href="/jobs/{job_id}/snapshots/1/resume"' in text
     printed = client.get(f"/jobs/{job_id}/snapshots/1/resume")
     assert printed.status_code == 200
-    assert "Resume as submitted" in printed.text and "data-print-resume" in printed.text
+    assert "Resume as submitted" in printed.text and "Download PDF" in printed.text
+    assert "data-print-resume" not in printed.text
     assert 'class="resume-document resume-layout-classic"' in printed.text and "Jordan Example" in printed.text
     assert BULLET in printed.text and "resume.css" in printed.text
     assert f'href="/jobs/{job_id}/snapshots/1"' in printed.text
     # The live print page still works and shares the same shell.
     live = client.get(f"/jobs/{job_id}/resume/print")
-    assert "Accepted resume" in live.text and "data-print-resume" in live.text
+    assert "Accepted resume" in live.text and "Download PDF" in live.text
+    assert "data-print-resume" not in live.text
 
 
 def test_unknown_snapshots_and_jobs_are_404(client, sample_profile):

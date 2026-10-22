@@ -1,6 +1,7 @@
 {% extends "base.html" %}
 {% import "macros.html" as m with context %}
 {% block title %}{{ step.label }} · {{ job.title }} at {{ job.company }}{% endblock %}
+{% block extra_head %}<script src="{{ asset('resume.js') }}" defer></script>{% endblock %}
 {% block content %}
 {% set intros = {
   Step.REQUIREMENTS: ("See how your experience fits", "Compare each requirement with your profile. Gaps stay visible and never block an application."),

@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+{% import "macros.html" as ui with context %}
+{% block title %}{{ choice.label }} resume example{% endblock %}
+{% block extra_head %}<link rel="stylesheet" href="{{ asset('resume-examples.css') }}">{% endblock %}
+{% block content %}
+<div class="examples-page">
+  <a class="examples-back" href="/resume-examples{{ '?job_id=' ~ job.id if job else '' }}">{{ ui.icon('arrow-left', 16) }} All resume layouts</a>
+  <div class="example-detail">
+    <aside class="example-detail-copy">
+      <p class="eyebrow">The {{ choice.label }} layout</p><h1>{{ example.audience }}</h1><p class="example-detail-description">{{ example.description }}</p>
+      <p class="example-best-for"><strong>A good fit for</strong>{{ example.best_for }}</p>
+      {% if job %}<a class="btn-primary" href="/jobs/{{ job.id }}/resume/print?preview_layout={{ choice.key }}">Preview with my resume {{ ui.icon('arrow-right', 17) }}</a><p class="example-apply-note">Try it with your accepted resume. Apply layout when you're ready to save.</p>
+      {% else %}<a class="btn-primary" href="/jobs">Choose a job to use this layout {{ ui.icon('arrow-right', 17) }}</a><p class="example-apply-note">Layouts use the resume you review and accept for a job.</p>{% endif %}
+    </aside>
+    <section class="example-detail-preview" aria-label="{{ choice.label }} sample resume">
+      <div class="example-preview-caption"><span>{{ choice.label }} · A4</span><span>Fictional sample</span></div>
+      <img src="{{ asset('resume-examples/' ~ choice.key ~ '.webp') }}" width="1191" height="1684" alt="Full {{ choice.label }} resume layout for Avery Morgan. Fictional content; a readable text version follows.">
+      <details class="example-readable"><summary>Read the sample resume as text</summary><div class="example-text">{% with selected_layout=choice.key, is_example=true %}{% include '_resume_document.html' %}{% endwith %}</div></details>
+    </section>
+    <aside class="example-notes"><h2>What makes it work</h2>{% for title, text in example.notes %}<div><h3>{{ title }}</h3><p>{{ text }}</p></div>{% endfor %}</aside>
+  </div>
+</div>
+{% endblock %}

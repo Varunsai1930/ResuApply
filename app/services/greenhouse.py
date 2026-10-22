@@ -133,7 +133,13 @@ def fetch(ref: PostingRef, transport: httpx.BaseTransport | None = None) -> dict
                     raise GreenhouseError(f"Greenhouse answered with an error ({response.status_code}). Nothing was "
                                           "imported; try again later or paste the posting instead.")
                 length = response.headers.get("content-length", "")
-                expected = int(length) if length.isascii() and length.isdigit() else None
+                expected = None
+                if length.isascii() and length.isdigit():
+                    # Bound the decimal text before int(): untrusted headers can exceed Python's digit limit.
+                    length = length.lstrip("0") or "0"
+                    if len(length) > len(str(MAX_BYTES)):
+                        raise _too_large()
+                    expected = int(length)
                 if expected is not None and expected > MAX_BYTES:
                     raise _too_large()
 
@@ -235,6 +241,12 @@ def read_posting(data: dict) -> Posting:
     )
     if not posting.title or not posting.description:
         raise _malformed()
+    try:
+        # JSON accepts lone surrogate escapes, which cannot be rendered in the UTF-8 import form.
+        for value in (posting.title, posting.company, posting.location, posting.description):
+            value.encode("utf-8")
+    except UnicodeError:
+        raise _malformed() from None
     return posting
 
 

@@ -2,16 +2,19 @@
 {% set name = rendered.contact.name %}
 {% block back_href %}/jobs/{{ job.id }}#resume{% endblock %}
 {% block heading %}Accepted resume{% endblock %}
-{% block download_extra %}<a class="resume-print-download" href="/jobs/{{ job.id }}/resume/docx">Download Word (.docx)</a>{% endblock %}
+{% block note %}Download a ready-to-use PDF. The page preview matches your download, including page breaks.{% endblock %}
+{% block primary_download %}<a class="resume-print-pdf" data-saved-export href="/jobs/{{ job.id }}/resume/pdf">Download PDF</a>{% endblock %}
+{% block print_action %}{% endblock %}
+{% block download_extra %}<a class="resume-print-download" data-saved-export href="/jobs/{{ job.id }}/resume/docx">Download Word (.docx)</a>{% endblock %}
 {% block layout_controls %}
-  <form method="post" action="/jobs/{{ job.id }}/resume/layout" class="resume-layout-picker">
-    <input type="hidden" name="package_token" value="{{ layout_token }}">
-    <label for="print-resume-layout">Resume layout</label>
-    <select id="print-resume-layout" name="layout" aria-describedby="print-layout-hint">
-      {% for choice in layout_choices %}<option value="{{ choice.key }}"{% if choice.key == selected_layout %} selected{% endif %}>{{ choice.label }}</option>{% endfor %}
-    </select>
-    <button type="submit">Apply layout</button>
-    <p id="print-layout-hint">Changing the layout requires package review again.</p>
+  <form method="post" action="/jobs/{{ job.id }}/resume/layout" class="resume-layout-picker" data-live-layout data-saved-layout="{{ selected_layout }}">
+    {% with picker_id = 'print-layout' %}{% include "_resume_layout_picker.html" %}{% endwith %}
   </form>
 {% endblock %}
-{% block document %}{% include "_resume_document.html" %}{% endblock %}
+{% block document %}
+<div class="resume-preview-panel" data-resume-preview data-preview-auto data-preview-url="/jobs/{{ job.id }}/resume/preview" data-saved-layout="{{ selected_layout }}">
+  {% include "_resume_preview_controls.html" %}
+  <div class="resume-page-list" data-resume-pages hidden></div>
+  <div class="resume-html-preview" data-resume-html>{% include "_resume_document.html" %}</div>
+</div>
+{% endblock %}

@@ -17,9 +17,9 @@ class Layout:
 
 
 LAYOUTS = (
-    Layout("classic", "Classic", "Traditional Arial type with clear section rules."),
-    Layout("modern", "Modern", "A navy accent and generous spacing for a clear hierarchy."),
-    Layout("compact", "Compact", "Closer spacing to fit more detail while staying readable."),
+    Layout("classic", "Classic", "Centered header, traditional section rules and a balanced reading column."),
+    Layout("modern", "Modern", "Split header, navy accents and section labels beside your experience."),
+    Layout("compact", "Compact", "Condensed header, inline dates and tighter spacing for more detail."),
 )
 
 

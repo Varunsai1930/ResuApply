@@ -28,4 +28,9 @@ UPLOAD_FRAMING = 64 * 1024
 def upload_too_large(request: Request, max_bytes: int) -> bool:
     """Whether the request's declared size can't hold a file of at most ``max_bytes``."""
     length = request.headers.get("content-length", "")
-    return length.isascii() and length.isdigit() and int(length) > max_bytes + UPLOAD_FRAMING
+    if not (length.isascii() and length.isdigit()):
+        return False
+    # Compare decimal strings without converting an unbounded, untrusted integer.
+    digits = length.lstrip("0") or "0"
+    limit = str(max_bytes + UPLOAD_FRAMING)
+    return len(digits) > len(limit) or (len(digits) == len(limit) and digits > limit)

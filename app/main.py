@@ -23,7 +23,7 @@ from .ai.tasks import AITasks
 from .db import init_db, make_engine, make_session_factory
 from .routes import (
     ai_tasks, answers, autofill, cover_letter, jobs, package, profile, questions, requirements, resume, sharing,
-    welcome,
+    resume_examples, welcome,
 )
 from .input_cleaning import ControlCharacterMiddleware
 from .security import HeadAsGetMiddleware, NoFramingMiddleware, SameOriginMiddleware
@@ -93,6 +93,7 @@ def create_app(settings: Settings | None = None, ai_transport: httpx.AsyncBaseTr
     app.include_router(answers.router)
     app.include_router(ai_tasks.router)
     app.include_router(welcome.router)
+    app.include_router(resume_examples.router)
 
     @app.get("/favicon.ico", include_in_schema=False)
     def favicon():

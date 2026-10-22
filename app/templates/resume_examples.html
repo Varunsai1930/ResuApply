@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+{% import "macros.html" as ui with context %}
+{% block title %}Resume examples{% endblock %}
+{% block extra_head %}<link rel="stylesheet" href="{{ asset('resume-examples.css') }}">{% endblock %}
+{% block content %}
+<div class="examples-page">
+  <a class="examples-back" href="{{ '/jobs/' ~ job.id ~ '/resume/print' if job else '/welcome' }}">{{ ui.icon('arrow-left', 16) }} {{ 'Back to your resume' if job else 'Getting started' }}</a>
+  <header class="examples-hero">
+    <div><p class="eyebrow">The resume collection</p><h1>Resume layouts.<br><span>Real hiring inspiration.</span></h1></div>
+    <div class="examples-intro"><p>Find a format that gives your experience room to speak. Explore our original layouts, then learn from publicly shared resumes that led to a hire.</p><a href="#hiring-examples">Explore the hiring examples <span aria-hidden="true">↓</span></a></div>
+  </header>
+  <section aria-labelledby="collection-title">
+    <div class="examples-section-heading"><div><h2 id="collection-title">Make it your own</h2><p>The same fictional career, three distinct ways to tell the story.</p></div><span class="examples-count">01 — 03</span></div>
+    <div class="examples-grid">
+      {% for choice in layouts %}
+      {% set detail_url = '/resume-examples/' ~ choice.key ~ ('?job_id=' ~ job.id if job else '') %}
+      <article class="example-card">
+        <a class="example-art example-art-{{ choice.key }}" href="{{ detail_url }}" aria-label="Preview the {{ choice.label }} resume layout">
+          <span class="example-paper"><img src="{{ asset('resume-examples/' ~ choice.key ~ '.webp') }}" width="1191" height="1684" alt="{{ choice.label }} layout showing Avery Morgan's fictional software engineering resume"{% if not loop.first %} loading="lazy"{% endif %}></span>
+          <span class="example-art-label">ResuApply demo · fictional content</span>
+        </a>
+        <div class="example-card-body"><div class="example-title-row"><h3>{{ choice.label }}</h3><span>0{{ loop.index }}</span></div><p>{{ examples[choice.key].audience }}</p><a class="example-preview-link" href="{{ detail_url }}">Preview {{ choice.label }} {{ ui.icon('arrow-right', 17) }}</a></div>
+      </article>
+      {% endfor %}
+    </div>
+  </section>
+  <section class="hiring-section" id="hiring-examples" aria-labelledby="hiring-title">
+    <div class="examples-section-heading"><div><p class="eyebrow">Learn from the originals</p><h2 id="hiring-title">Resumes behind real hires</h2><p>Kickresume reports these public submissions were used by successful candidates. Read the originals at the source.</p></div></div>
+    <div class="hiring-grid">
+      {% for source in hiring_examples %}
+      <article class="hiring-card"><span class="hiring-monogram" aria-hidden="true">{{ source.mark }}</span><div><p class="hiring-company">{{ source.company }}</p><h3>{{ source.role }}</h3><p class="hiring-attribution">Hire reported by Kickresume</p></div><a href="{{ source.url }}" target="_blank" rel="noopener noreferrer">View original resume {{ ui.icon('external-link', 16) }}<span class="visually-hidden"> at {{ source.company }} (opens in a new tab)</span></a></article>
+      {% endfor %}
+    </div>
+    <p class="examples-source-note">The layouts above are original ResuApply designs with fictional content. The linked hiring examples are separate resumes shared by their publisher.</p>
+  </section>
+</div>
+{% endblock %}

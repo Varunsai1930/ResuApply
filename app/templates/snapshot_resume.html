@@ -4,7 +4,15 @@
 {% block back_href %}/jobs/{{ job.id }}/snapshots/{{ snapshot.id }}{% endblock %}
 {% block back_label %}← Submitted package{% endblock %}
 {% block heading %}Resume as submitted{% endblock %}
-{% block note %}Frozen when you recorded Applied on {{ snapshot.submitted_on.isoformat() }}. Choose Print, then Save as PDF. Use A4 paper and disable the browser's headers and footers.{% endblock %}
+{% block primary_download %}<a class="resume-print-pdf" href="/jobs/{{ job.id }}/snapshots/{{ snapshot.id }}/resume.pdf">Download PDF</a>{% endblock %}
+{% block print_action %}{% endblock %}
+{% block note %}Frozen when you recorded Applied on {{ snapshot.submitted_on.isoformat() }}. The page preview matches your PDF download, including page breaks.{% endblock %}
 {% block download_extra %}<a class="resume-print-download" href="/jobs/{{ job.id }}/snapshots/{{ snapshot.id }}/resume.docx">Download Word (.docx)</a>{% endblock %}
 {# resume_html was rendered by the app's own escaping template from the stored profile, never from request input. #}
-{% block document %}{{ snapshot.resume_html | safe }}{% endblock %}
+{% block document %}
+<div class="resume-preview-panel" data-resume-preview data-preview-auto data-preview-url="/jobs/{{ job.id }}/snapshots/{{ snapshot.id }}/resume/preview">
+  {% include "_resume_preview_controls.html" %}
+  <div class="resume-page-list" data-resume-pages hidden></div>
+  <div class="resume-html-preview" data-resume-html>{{ snapshot.resume_html | safe }}</div>
+</div>
+{% endblock %}

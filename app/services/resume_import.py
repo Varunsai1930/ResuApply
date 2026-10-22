@@ -8,6 +8,7 @@ on, raised before anything is stored. Files are recognized by their content, nev
 from __future__ import annotations
 
 import io
+import lzma
 import math
 import re
 import zipfile
@@ -348,9 +349,9 @@ def _docx_text(data: bytes) -> str:
                                     "then import that.")
     try:
         return _docx_lines(data)
-    # Damaged XML, a garbled compressed part, or a compression method zipfile can't read.
-    except (PackageNotFoundError, XMLSyntaxError, InvalidXmlError, zlib.error, NotImplementedError, KeyError, IndexError, ValueError,
-            zipfile.BadZipFile) as exc:
+    # ZIP decoders and malformed package relationships can fail outside python-docx's own errors.
+    except (PackageNotFoundError, XMLSyntaxError, InvalidXmlError, zlib.error, lzma.LZMAError, OSError,
+            NotImplementedError, KeyError, IndexError, ValueError, AttributeError, zipfile.BadZipFile) as exc:
         raise ResumeImportError("This Word file couldn't be read. Try saving it again as .docx.") from exc
 
 

@@ -44,6 +44,8 @@ def test_current_download_and_print_use_persisted_layout_and_selected_facts(clie
     printed = client.get(f"/jobs/{job_id}/resume/print")
     assert f"resume-layout-{layout}" in printed.text
     assert f'/jobs/{job_id}/resume/docx' in printed.text
+    assert printed.text.count('>Download PDF</a>') == 1
+    assert 'data-print-resume' not in printed.text
     response = client.get(f"/jobs/{job_id}/resume/docx")
     document, output = word_text(response)
     assert sample_profile["contact"]["name"] in output and sample_profile["contact"]["email"] in output
@@ -138,6 +140,8 @@ def test_layout_and_word_export_of_snapshot_survive_live_profile_and_layout_chan
     saved_print = client.get(f"/jobs/{job_id}/snapshots/1/resume").text
     assert "resume-layout-modern" in saved_print and 'name="layout"' not in saved_print
     assert frozen_url in saved_print
+    assert saved_print.count('>Download PDF</a>') == 1
+    assert 'data-print-resume' not in saved_print
     assert client.get(f"/jobs/{job_id}/snapshots/999/resume.docx").status_code == 404
 
 
@@ -171,4 +175,4 @@ def test_layout_change_is_confirmed_on_the_print_view(client, sample_profile):
     assert 'role="status"' in page.text and "Resume layout changed." in page.text
     same = client.get(choose(client, job_id, "modern").headers["location"])
     assert "That layout was already selected" in same.text
-    assert 'role="status"' not in client.get(f"/jobs/{job_id}/resume/print?msg=unknown").text
+    assert 'class="resume-print-flash"' not in client.get(f"/jobs/{job_id}/resume/print?msg=unknown").text
