@@ -126,6 +126,12 @@ The database schema is managed by [Alembic](https://alembic.sqlalchemy.org) migr
 
 When a change to `app/models.py` needs a schema change, add a migration with `.venv/bin/alembic revision --autogenerate -m "What changed"`, review the generated file (it uses plain types such as `sa.JSON`, never the app's models), and run the tests: `tests/test_migrations.py` fails while the models and the migrations disagree.
 
+### Portable backup and application export
+
+Open **Your data & backups** in the footer to download a JSON backup or an applications CSV. Backups include the saved profile, jobs, answers, resume history, submitted packages and attached PDFs; API keys, app settings and browser-only drafts are excluded. Portable backups support up to 32 MB and require the same database schema version.
+
+To restore, upload the backup, review the replacement counts and confirm. The restore runs at the next start, before background work begins. Any saved changes after confirmation cancel the restore so they are preserved. A recovery copy is kept under `data/backups/` and is downloadable on the data page. Saved resume facts remain frozen; submitted resume markup is rebuilt from those facts using current templates. Database changes roll back if attachment installation fails.
+
 ### Direct PDF downloads and page previews
 
 On an accepted resume, **Download PDF** creates an A4 file locally with fixed margins, without opening the browser's print dialog. The preview shows numbered pages rendered from the same PDF, including its actual page breaks. Selecting a layout previews it immediately; **Apply layout** saves that choice and requires package review again. Submitted resumes keep their frozen facts and layout.

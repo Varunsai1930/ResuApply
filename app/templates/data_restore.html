@@ -1,0 +1,8 @@
+{% extends "base.html" %}
+{% block title %}Review backup restore{% endblock %}
+{% block content %}
+<div class="page-head"><p class="eyebrow">Before you restore</p><h1>Review this replacement</h1><p class="lead">The backup replaces the saved workspace when ResuApply next starts.</p></div>
+<section class="card"><h2>What will change</h2><table class="simple"><thead><tr><th>Saved data</th><th>Current workspace</th><th>Backup</th></tr></thead><tbody>{% for key, label in [('candidates', 'Profiles'), ('jobs', 'Jobs'), ('applications', 'Applications'), ('answer_bank', 'Reusable answers')] %}<tr><th scope="row">{{ label }}</th><td>{{ existing[key] }}</td><td>{{ incoming[key] }}</td></tr>{% endfor %}</tbody></table>
+<p class="hint">Resume history, notes, submitted packages and attachments are also restored. Your API key and app settings stay on this computer. Browser-only drafts are not part of a backup.</p>
+<form method="post" action="/data/restore/confirm" class="stack"><input type="hidden" name="token" value="{{ token }}"><label class="check"><input type="checkbox" name="confirm" value="replace" required> I understand this replaces the current workspace, and a recovery copy will be kept.</label><div class="form-actions"><button class="btn-primary" type="submit">Schedule restore on restart</button><a class="btn-secondary" href="/data">Cancel</a></div></form></section>
+{% endblock %}

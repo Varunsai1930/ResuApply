@@ -1,0 +1,14 @@
+{% extends "base.html" %}
+{% block title %}Your data{% endblock %}
+{% block content %}
+<div class="page-head"><p class="eyebrow">Local workspace</p><h1>Your data</h1><p class="lead">Keep a copy of your work and move it when you need to.</p></div>
+{% if error %}<p class="notice warn" role="alert" tabindex="-1" data-focus>{{ error }}</p>{% endif %}
+{% if message %}<p class="notice" role="status">{{ message }}</p>{% endif %}
+{% if result %}<p class="notice" role="status">{{ result }}</p>{% endif %}
+{% if pending %}<section class="card"><h2>Restore scheduled</h2><p>Restart ResuApply to apply the backup. If you save more changes before restarting, the restore will be cancelled to protect that work.</p><form method="post" action="/data/restore/cancel"><button class="btn-secondary" type="submit">Cancel scheduled restore</button></form></section>{% endif %}
+<div class="split">
+<section class="card"><h2>Back up your workspace</h2><p>Includes your profile, jobs, answers, resume versions, submitted packages and attached PDFs. Your API key, app settings and browser-only drafts are excluded.</p><p class="hint">The file contains your private application data. Keep it somewhere you trust. Portable backups support up to 32 MB and restore into this app version.</p><div class="form-actions"><a class="btn-primary" href="/data/backup">Download backup</a><a class="btn-secondary" href="/data/applications.csv">Export applications (CSV)</a></div></section>
+<section class="card"><h2>Restore a backup</h2><p>Choose a backup to review its contents before replacing this workspace. A recovery backup is kept first. Saved snapshots retain their facts; their document markup is rebuilt using current templates.</p><form method="post" action="/data/restore/review" enctype="multipart/form-data" class="stack"><div class="field"><label for="restore-backup">ResuApply backup</label><input id="restore-backup" type="file" name="backup" accept=".json,application/json" required></div><button class="btn-secondary" type="submit">Review backup</button></form></section>
+</div>
+{% if recovery %}<section class="card"><h2>Recovery backups</h2><p class="hint">Copies kept before a restore. You can download one and use it in the restore form.</p><ul class="review-list">{% for name in recovery %}<li><a href="/data/recovery/{{ name }}">{{ name }}</a></li>{% endfor %}</ul></section>{% endif %}
+{% endblock %}
