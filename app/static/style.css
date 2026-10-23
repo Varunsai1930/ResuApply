@@ -1344,3 +1344,15 @@ details.card:not(.job-description)[open] summary::after { content: " −"; }
 @media (max-width: 760px) { .fit-columns { grid-template-columns: 1fr; gap: 8px; } }
 .history-comparison { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 24px; overflow-wrap: anywhere; }
 @media (max-width: 760px) { .history-comparison { grid-template-columns: 1fr; } }
+
+/* Small screens must accommodate long employer names, links and editor controls. */
+@media (max-width: 640px) {
+  .page-head.with-actions > div, .workspace-context, .workspace-context strong, .crumbs a { min-width: 0; max-width: 100%; }
+  .page-head h1, .workspace-context, .crumbs a { overflow-wrap: anywhere; }
+  fieldset { min-width: 0; }
+  table.simple { table-layout: fixed; width: 100%; }
+  table.simple th, table.simple td { overflow-wrap: anywhere; }
+  input, textarea, select { min-width: 0; max-width: 100%; scroll-margin-bottom: calc(110px + env(safe-area-inset-bottom, 0px)); }
+  .btn-icon, .btn-small { min-width: 44px; min-height: 44px; }
+  .form-actions.sticky { padding-bottom: calc(14px + env(safe-area-inset-bottom, 0px)); }
+}
