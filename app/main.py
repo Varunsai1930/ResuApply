@@ -11,7 +11,6 @@ from contextlib import asynccontextmanager
 import httpx
 from fastapi import FastAPI, Request
 from fastapi.responses import RedirectResponse
-from fastapi.staticfiles import StaticFiles
 from fastapi.exceptions import RequestValidationError
 from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.middleware.trustedhost import TrustedHostMiddleware
@@ -21,6 +20,7 @@ from .config import ALLOWED_HOSTS, Settings, get_settings
 from .ai.client import OpenRouterClient
 from .ai.tasks import AITasks
 from .services.resume_pdf import PreviewQueue
+from .static_files import VersionedStaticFiles
 from .db import init_db, make_engine, make_session_factory
 from .routes import (
     ai_tasks, answers, autofill, cover_letter, jobs, package, profile, questions, requirements, resume, sharing,
@@ -83,7 +83,7 @@ def create_app(settings: Settings | None = None, ai_transport: httpx.AsyncBaseTr
     app.add_middleware(SameOriginMiddleware)
     app.add_middleware(TrustedHostMiddleware, allowed_hosts=ALLOWED_HOSTS)
     app.add_middleware(NoFramingMiddleware)  # added last, so it is outermost and covers every response
-    app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
+    app.mount("/static", VersionedStaticFiles(directory=STATIC_DIR), name="static")
     app.include_router(sharing.router)
     app.include_router(profile.router)
     app.include_router(jobs.router)

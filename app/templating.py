@@ -78,9 +78,9 @@ MESSAGES = {
 
 
 def asset(path: str) -> str:
-    """URL of a static file with its modification time appended, so browsers fetch new versions."""
+    """Versioned static URL, including edits made within the same second."""
     try:
-        version = int((STATIC_DIR / path).stat().st_mtime)
+        version = (STATIC_DIR / path).stat().st_mtime_ns
     except OSError:
         version = 0
     return f"/static/{path}?v={version}"

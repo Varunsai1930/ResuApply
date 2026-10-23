@@ -1,6 +1,7 @@
 {% extends "base.html" %}
 {% import "macros.html" as m with context %}
 {% block title %}{{ 'Edit ' ~ section.label | lower if section else 'Edit profile' }}{% endblock %}
+{% block draft_script %}<script src="{{ asset('drafts.js') }}" defer></script>{% endblock %}
 {# In a section, the other sections stay in the form, hidden, so their saved values are posted unchanged. #}
 {% macro shown(key) %}{% if section and section.value != key %} hidden{% endif %}{% endmacro %}
 {% block content %}

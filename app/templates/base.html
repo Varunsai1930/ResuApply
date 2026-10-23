@@ -6,11 +6,10 @@
   <title>{% block title %}ResuApply{% endblock %} · ResuApply</title>
   <link rel="icon" href="{{ asset('favicon.svg') }}" type="image/svg+xml">
   <link rel="stylesheet" href="{{ asset('style.css') }}">
-  <link rel="stylesheet" href="{{ asset('resume-layouts.css') }}">
   {# Not deferred: it applies the chosen light or dark mode before the page is drawn. #}
   <script src="{{ asset('theme.js') }}"></script>
   <script src="{{ asset('forms.js') }}" defer></script>
-  <script src="{{ asset('drafts.js') }}" defer></script>
+  {% block draft_script %}{% endblock %}
   {% block extra_head %}{% endblock %}
 </head>
 <body>
