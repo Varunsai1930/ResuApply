@@ -130,7 +130,7 @@ When a change to `app/models.py` needs a schema change, add a migration with `.v
 
 Open **Your data & backups** in the footer to download a JSON backup or an applications CSV. Backups include the saved profile, jobs, answers, resume history, submitted packages and attached PDFs; API keys, app settings and browser-only drafts are excluded. Portable backups support up to 32 MB and require the same database schema version.
 
-To restore, upload the backup, review the replacement counts and confirm. The restore runs at the next start, before background work begins. Any saved changes after confirmation cancel the restore so they are preserved. A recovery copy is kept under `data/backups/` and is downloadable on the data page. Saved resume facts remain frozen; submitted resume markup is rebuilt from those facts using current templates. Database changes roll back if attachment installation fails.
+To restore, upload the backup, review the replacement counts and confirm. The restore runs at the next start, before background work begins. Any saved changes after confirmation cancel the restore so they are preserved. A recovery copy is kept under `data/backups/` and is downloadable on the data page. Saved resume facts remain frozen; submitted resume markup is rebuilt from those facts using current templates. Database changes roll back if attachment installation fails. Browser drafts are matched against actual saved profile, job and question facts as applicable, as well as revision numbers and saved text. When restored facts differ, drafts from before the restore are offered as text downloads.
 
 ### Visual and loading regression checks
 

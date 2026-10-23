@@ -22,15 +22,17 @@ Workflow: implement one optimization, run focused checks and independent review,
 | 14 | Keyboard navigation and accessibility | d3f72a4 | 15 passed; independent review clean |
 | 15 | Application follow-up tracking | 5194043 | 56 passed; independent review clean |
 | 16 | Local backup restore and data export | bc8d376 | 72 passed; desktop/mobile inspected; reviewer recovery-limit finding fixed and rechecked |
-| 17 | Automated visual and performance checks | This commit | 9 visual, mobile and loading checks passed |
+| 17 | Automated visual and performance checks | `6a05278` | 9 visual, mobile and loading checks passed |
+
+A follow-up integration fix fingerprints saved facts in browser drafts, so restoring a different profile, employer or question under reused revisions makes earlier drafts download-only. Identical restored facts preserve recovery. All 85 focused draft, backup, profile and route checks passed, and the independent reviewer confirmed both findings were resolved.
 
 ## Final combined validation
 
-- Full suite: **1,886 passed** in 119.33 seconds; one existing Starlette/httpx deprecation warning.
+- Full suite: **1,897 passed** in 165.99 seconds; one existing Starlette/httpx deprecation warning.
 - Real CLI smoke check: startup, occupied-port rejection, PDF/DOCX import, reviewed save, AI disabled, shutdown, restart persistence and Chromium PDF output passed using disposable fictional data.
 - Every application JavaScript file passed `node --check`; `git diff --check` passed.
 - Visual regression capture: 48 screenshots across 12 pages, light/dark modes and desktop/mobile widths. Representative desktop/mobile captures were also visually inspected.
-- Highest measured HTML: 36,430 bytes; cold static assets: 367,313 bytes (the resume gallery); compressed CSS: 19,313 bytes; compressed JavaScript: 7,187 bytes.
+- Highest measured HTML: 36,606 bytes; cold static assets: 367,313 bytes (the resume gallery); compressed CSS: 19,313 bytes; compressed JavaScript: 7,187 bytes.
 - Automated bounds: HTML 192 KiB, static assets 512 KiB, CSS and JavaScript 32 KiB each. Local server render times are informational, not browser/network performance claims.
 
 ## Repeating the checks

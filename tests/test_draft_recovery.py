@@ -151,3 +151,98 @@ def test_unsaved_server_responses_preserve_recovery_baseline(client, editor, pat
     assert not any(url == '/profile/save' for _, url in requests)
     with client.app.state.session_factory() as session:
         assert get_candidate(session) is None
+
+
+@pytest.mark.parametrize('section', ['', '?section=contact'])
+@pytest.mark.parametrize('changed', [True, False])
+def test_restore_matches_drafts_against_saved_facts_even_with_equal_revision(client, sample_profile, editor, section, changed):
+    from app.services import backup
+    from tests.test_data_backup import exported, schedule
+    review_and_save(client, profile_form(sample_profile))
+    page, expect, _ = editor
+    page.goto('http://127.0.0.1:8000/profile/edit' + section)
+    page.get_by_label('Summary', exact=True).fill('Local draft before restore')
+    expect(page.locator('.draft-recovery [role=status]')).to_contain_text('Draft saved')
+    data = exported(client)
+    if changed:
+        # A hidden section changed, while both the revision and visible saved contact remain identical.
+        data['tables']['candidates'][0]['profile']['education'][0]['institution'] = 'Restored Institution'
+    schedule(client, data)
+    folder = client.app.state.settings.resolved_data_dir
+    backup.apply_pending(client.app.state.engine, folder)
+    assert 'Restore completed' in (folder / backup.RESULT).read_text()
+    page.reload()
+    if changed:
+        expect(page.get_by_role('button', name='Restore draft', exact=True)).to_be_hidden()
+        expect(page.get_by_role('button', name='Download older draft', exact=True)).to_be_visible()
+        with client.app.state.session_factory() as session:
+            saved = get_candidate(session)
+            assert saved.revision == 1
+            assert saved.profile.education[0].institution == 'Restored Institution'
+    else:
+        page.get_by_role('button', name='Restore draft', exact=True).click()
+        expect(page.get_by_label('Summary', exact=True)).to_have_value('Local draft before restore')
+
+
+@pytest.mark.parametrize('kind', ['answer', 'letter'])
+@pytest.mark.parametrize('change', ['job', 'profile', 'same'])
+def test_restore_matches_application_drafts_against_saved_context(client, sample_profile, editor, kind, change):
+    from app.models import Job
+    from app.services import answers, backup
+    from tests.test_data_backup import exported, schedule
+    from tests.test_resume_export_routes import accepted_job
+    job_id = accepted_job(client, sample_profile)
+    with client.app.state.session_factory() as session:
+        job = session.get(Job, job_id)
+        question = answers.add_question(session, job, 'Why do you want this role?')
+    page, expect, _ = editor
+    path = f'/jobs/{job_id}?step=questions'
+    page.goto('http://127.0.0.1:8000' + path)
+    field = page.locator(f'#answer-{question.id}' if kind == 'answer' else '#cover-letter-text')
+    if kind == 'letter':
+        details = page.locator('details:has(#cover-letter-text)')
+        if details.get_attribute('open') is None:
+            details.locator('summary').click()
+    field.fill('An unsaved draft for the original context')
+    form = field.locator('xpath=ancestor::form')
+    expect(form.locator('.draft-recovery [role=status]')).to_contain_text('Draft saved')
+    data = exported(client)
+    if change == 'job':
+        data['tables']['jobs'][0]['company'] = 'A Different Employer'
+    elif change == 'profile':
+        data['tables']['candidates'][0]['profile']['summary'] = 'Different restored career facts'
+    schedule(client, data)
+    backup.apply_pending(client.app.state.engine, client.app.state.settings.resolved_data_dir)
+    page.reload()
+    if kind == 'letter':
+        details = page.locator('details:has(#cover-letter-text)')
+        if details.get_attribute('open') is None:
+            details.locator('summary').click()
+    if change == 'same':
+        form.get_by_role('button', name='Restore draft', exact=True).click()
+        expect(field).to_have_value('An unsaved draft for the original context')
+    else:
+        expect(form.get_by_role('button', name='Restore draft', exact=True)).to_be_hidden()
+        expect(form.get_by_role('button', name='Download older draft', exact=True)).to_be_visible()
+
+
+def test_changed_question_definition_does_not_reuse_answer_draft(client, sample_profile, editor):
+    from app.models import Job
+    from app.services import answers
+    from tests.test_resume_export_routes import accepted_job
+    job_id = accepted_job(client, sample_profile)
+    with client.app.state.session_factory() as session:
+        job = session.get(Job, job_id)
+        question = answers.add_question(session, job, 'Why do you want this role?')
+    page, expect, _ = editor
+    page.goto(f'http://127.0.0.1:8000/jobs/{job_id}?step=questions')
+    form = page.locator(f'form[action$="/{question.id}/answer"]')
+    form.locator('textarea').fill('For the original question')
+    expect(form.locator('.draft-recovery [role=status]')).to_contain_text('Draft saved')
+    with client.app.state.session_factory() as session:
+        job = session.get(Job, job_id)
+        job.questions = [q.model_copy(update={'text': 'Describe a different situation.'}) for q in job.questions]
+        session.commit()
+    page.reload()
+    expect(form.get_by_role('button', name='Restore draft', exact=True)).to_be_hidden()
+    expect(form.get_by_role('button', name='Download older draft', exact=True)).to_be_visible()

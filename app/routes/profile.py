@@ -6,6 +6,7 @@ and only the confirmation on that page posts to /profile/save.
 
 from __future__ import annotations
 
+import hashlib
 import json
 from enum import StrEnum
 
@@ -101,9 +102,13 @@ def _revision_of(raw: object) -> int | None:
     return int(raw)
 
 
+def _draft_baseline(data: dict) -> str:
+    return hashlib.sha256(json.dumps(data, sort_keys=True, ensure_ascii=True).encode()).hexdigest()
+
+
 def _render_form(request: Request, data: dict, errors=(), warnings=(), status_code: int = 200, message: str = "",
                  section: Section | None = None, opened_revision: int | None = None, imported: dict | None = None,
-                 draft_from_saved: bool = False):
+                 draft_from_saved: bool = False, draft_baseline: str = ""):
     """The profile editor. With ``section``, only that section shows; the others stay in the form as
     hidden fields with their saved values, so the review and save steps are the same as for the
     whole profile. A problem outside the section shows the whole profile, so it can be fixed."""
@@ -127,6 +132,7 @@ def _render_form(request: Request, data: dict, errors=(), warnings=(), status_co
             "opened_revision": opened_revision,
             "imported": imported,
             "draft_from_saved": draft_from_saved,
+            "draft_baseline": _draft_baseline(data) if draft_from_saved else draft_baseline,
             "active": "profile",
         },
         status_code=status_code,
@@ -192,6 +198,7 @@ async def back_to_edit(request: Request):
     form = await read_form(request)
     return _render_form(request, _load_payload(form.get("payload")), section=_section_of(form.get("section")),
                         opened_revision=_revision_of(form.get("opened_revision")),
+                        draft_baseline=str(form.get("draft_baseline", ""))[:64],
                         imported=_imported_of(form.get("imported")))
 
 
@@ -201,8 +208,9 @@ async def review_profile(request: Request, session: Session = Depends(get_sessio
     section = _section_of(form.get("section"))
     opened = _revision_of(form.get("opened_revision"))
     imported = _imported_of(form.get("imported"))
+    draft_baseline = str(form.get("draft_baseline", ""))[:64]
     data = parse_form((k, v) for k, v in form.multi_items()
-                      if isinstance(v, str) and k not in ("section", "opened_revision", "imported"))
+                      if isinstance(v, str) and k not in ("section", "opened_revision", "imported", "draft_baseline"))
     candidate = profile_service.get_candidate(session)
     if section and candidate and opened != candidate.revision:
         # The other sections were posted as they were when the editor opened. The profile has
@@ -213,12 +221,12 @@ async def review_profile(request: Request, session: Session = Depends(get_sessio
                    f"{candidate.revision}). The other sections now show their saved values and your edits to "
                    "this section are kept. Check them, then review again.")
         return _render_form(request, fresh, status_code=409, message=message, section=section,
-                            opened_revision=candidate.revision)
+                            opened_revision=candidate.revision, draft_baseline=_draft_baseline(candidate.profile.model_dump()))
     try:
         result = profile_service.review(session, data)
     except profile_service.ProfileInvalid as exc:
         return _render_form(request, data, exc.errors, exc.warnings, status_code=422, section=section,
-                            opened_revision=opened, imported=imported)
+                            opened_revision=opened, imported=imported, draft_baseline=draft_baseline)
     return templates.TemplateResponse(
         request,
         "profile_review.html",
@@ -228,6 +236,7 @@ async def review_profile(request: Request, session: Session = Depends(get_sessio
             "section": section,
             "opened_revision": opened,
             "imported": json.dumps(imported) if imported else "",
+            "draft_baseline": draft_baseline,
             "active": "profile",
         },
     )
@@ -246,16 +255,19 @@ async def save_profile(request: Request, session: Session = Depends(get_session)
     data = _load_payload(form.get("payload"))
     # The form is read here with the editor's limits; the save itself runs in the thread pool,
     # like other synchronous routes, so overlapping saves are serialized by the database.
-    return await run_in_threadpool(_save, request, session, data, base_revision)
+    return await run_in_threadpool(_save, request, session, data, base_revision,
+                                  str(form.get("draft_baseline", ""))[:64])
 
 
-def _save(request: Request, session: Session, data: dict, base_revision: int):
+def _save(request: Request, session: Session, data: dict, base_revision: int, draft_baseline: str = ""):
     try:
         result = profile_service.save(session, data, base_revision=base_revision)
     except profile_service.ProfileInvalid as exc:
-        return _render_form(request, data, exc.errors, exc.warnings, status_code=422, opened_revision=base_revision)
+        return _render_form(request, data, exc.errors, exc.warnings, status_code=422, opened_revision=base_revision,
+                            draft_baseline=draft_baseline)
     except profile_service.StaleReview as exc:
-        return _render_form(request, data, status_code=409, message=str(exc), opened_revision=base_revision)
+        return _render_form(request, data, status_code=409, message=str(exc), opened_revision=base_revision,
+                            draft_baseline=draft_baseline)
     msg = "profile_saved" if result.saved else "profile_unchanged"
     return RedirectResponse(f"/profile?msg={msg}", status_code=303)
 
@@ -307,11 +319,11 @@ async def import_resume(request: Request, session: Session = Depends(get_session
     name = ((file.filename if file else "") or "your resume").rsplit("/", 1)[-1].rsplit("\\", 1)[-1][:200]
     if candidate is None:
         return _render_form(request, draft, imported={"filename": name, "added": None, "text": text,
-                                                     "ocr": bool(read.ocr_pages)})
+                                                     "ocr": bool(read.ocr_pages)}, draft_baseline=_draft_baseline(BLANK_PROFILE))
     merged = resume_draft.merge(candidate.profile.model_dump(), draft)
     if not merged.added:
         return _render_import(request, candidate, message=f"Nothing new was found in {name}: everything it was "
                               "read to hold is already in your profile.")
     return _render_form(request, merged.data, imported={"filename": name, "added": merged.added, "text": text,
                                                        "ocr": bool(read.ocr_pages)},
-                        opened_revision=candidate.revision)
+                        opened_revision=candidate.revision, draft_baseline=_draft_baseline(candidate.profile.model_dump()))

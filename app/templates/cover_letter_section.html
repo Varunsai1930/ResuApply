@@ -73,7 +73,7 @@
     {% set own = err.text if (err and err.text is not none) else (state.letter.text if state.letter else '') %}
     <details class="add-question"{% if (err and err.text is not none) or (not state.letter and not state.draft and not settings.ai_configured) %} open{% endif %}>
       <summary>{{ 'Edit the letter yourself' if state.letter else 'Write the letter yourself' }}</summary>
-      <form method="post" action="/jobs/{{ job.id }}/cover-letter" class="stack" data-guard data-draft="job-{{ job.id }}-letter" data-draft-revision="{{ job.revision }}:{{ candidate.revision }}" data-draft-baseline="{{ (state.letter.text if state.letter else '') | tojson | forceescape }}" data-draft-saved="{{ 'false' if err and err.text is not none else 'true' }}">
+      <form method="post" action="/jobs/{{ job.id }}/cover-letter" class="stack" data-guard data-draft="job-{{ job.id }}-letter" data-draft-revision="{{ job.revision }}:{{ candidate.revision }}:{{ draft_context(job, candidate) }}" data-draft-baseline="{{ (state.letter.text if state.letter else '') | tojson | forceescape }}" data-draft-saved="{{ 'false' if err and err.text is not none else 'true' }}">
         <div class="field">
           <label for="cover-letter-text">Letter body</label>
           <textarea id="cover-letter-text" name="text" rows="12" aria-describedby="cover-letter-hint"{% if err and err.text is not none %} class="invalid" aria-invalid="true"{% endif %}>{{ m.textarea_value(own) }}</textarea>

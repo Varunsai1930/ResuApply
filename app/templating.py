@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import hashlib
+import json
 from datetime import datetime
 from pathlib import Path
 
@@ -110,6 +112,14 @@ def tristate_label(value: bool | None) -> str:
     return {True: "Yes", False: "No"}.get(value, "Unknown")
 
 
+def draft_context(job, candidate, question=None) -> str:
+    """Stable across restarts; changes when restored facts change under reused revisions."""
+    data = {'job': {key: getattr(job, key) for key in ('title', 'company', 'description', 'location', 'url')},
+            'profile': candidate.profile.model_dump(mode='json') if candidate else None,
+            'question': question.model_dump(mode='json') if question else None}
+    return hashlib.sha256(json.dumps(data, sort_keys=True, ensure_ascii=True).encode()).hexdigest()
+
+
 templates = Jinja2Templates(directory=TEMPLATE_DIR)
 templates.env.filters.update(
     first_name=first_name,
@@ -120,6 +130,7 @@ templates.env.filters.update(
 )
 templates.env.globals.update(
     asset=asset,
+    draft_context=draft_context,
     TrackingStatus=TrackingStatus,
     ReviewState=ReviewState,
     MESSAGES=MESSAGES,

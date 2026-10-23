@@ -30,7 +30,7 @@
 {% set a = row.item.answer %}
 {% set current = a.text if (a and not a.skipped and a.origin in ['user', 'bank']) else '' %}
 {% set text = err.text if (err and err.text is not none) else current %}
-<form method="post" action="/jobs/{{ job.id }}/questions/{{ q.id }}/answer" class="stack answer-form" data-guard{% if q.category == 'open' %} data-draft="job-{{ job.id }}-answer-{{ q.id }}" data-draft-revision="{{ job.revision }}:{{ candidate.revision }}" data-draft-baseline="{{ current | tojson | forceescape }}" data-draft-saved="{{ 'false' if err and err.text is not none else 'true' }}"{% endif %}>
+<form method="post" action="/jobs/{{ job.id }}/questions/{{ q.id }}/answer" class="stack answer-form" data-guard{% if q.category == 'open' %} data-draft="job-{{ job.id }}-answer-{{ q.id }}" data-draft-revision="{{ job.revision }}:{{ candidate.revision }}:{{ draft_context(job, candidate, q) }}" data-draft-baseline="{{ current | tojson | forceescape }}" data-draft-saved="{{ 'false' if err and err.text is not none else 'true' }}"{% endif %}>
   <input type="hidden" name="origin" value="user">
   <input type="hidden" name="bank_id" value="">
   <div class="field">

@@ -46,6 +46,7 @@
   <form method="post" action="/profile/save">
     <input type="hidden" name="payload" value="{{ payload }}">
     <input type="hidden" name="base_revision" value="{{ result.base_revision }}">
+    <input type="hidden" name="draft_baseline" value="{{ draft_baseline }}">
     <button type="submit" class="btn-primary">{{ m.icon('check', 17) }} Save profile</button>
   </form>
   {% endif %}
@@ -53,6 +54,7 @@
     <input type="hidden" name="payload" value="{{ payload }}">
     {% if section %}<input type="hidden" name="section" value="{{ section.value }}">{% endif %}
     <input type="hidden" name="opened_revision" value="{{ opened_revision if opened_revision is not none else '' }}">
+    <input type="hidden" name="draft_baseline" value="{{ draft_baseline }}">
     {% if imported %}<input type="hidden" name="imported" value="{{ imported }}">{% endif %}
     <button type="submit" class="btn-secondary">{{ m.icon('arrow-left', 17) }} Back to editing</button>
   </form>

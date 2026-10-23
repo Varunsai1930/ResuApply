@@ -41,7 +41,8 @@
 <div class="notice"><ul>{% for w in warnings %}<li>{{ w }}</li>{% endfor %}</ul></div>
 {% endif %}
 
-<form method="post" action="/profile/review" class="profile-form profile-editor" data-guard novalidate data-draft="profile-{{ section.value if section else 'all' }}" data-draft-revision="{{ opened_revision if opened_revision is not none else '' }}" data-draft-baseline="profile" data-draft-saved="{{ 'true' if draft_from_saved else 'false' }}">
+<form method="post" action="/profile/review" class="profile-form profile-editor" data-guard novalidate data-draft="profile-{{ section.value if section else 'all' }}" data-draft-revision="{{ opened_revision if opened_revision is not none else '' }}" data-draft-baseline="{{ draft_baseline }}" data-draft-saved="{{ 'true' if draft_from_saved else 'false' }}">
+  <input type="hidden" name="draft_baseline" value="{{ draft_baseline }}">
   {% if section %}<input type="hidden" name="section" value="{{ section.value }}">{% endif %}
   <input type="hidden" name="opened_revision" value="{{ opened_revision if opened_revision is not none else '' }}">
   {% if imported %}<input type="hidden" name="imported" value="{{ imported | tojson | forceescape }}">{% endif %}
