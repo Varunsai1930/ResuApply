@@ -1343,6 +1343,13 @@ details.card:not(.job-description)[open] summary::after { content: " −"; }
 .fit-columns small { display: block; color: var(--muted); line-height: 1.6; margin-top: 4px; }
 @media (max-width: 760px) { .fit-columns { grid-template-columns: 1fr; gap: 8px; } }
 .history-comparison { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 24px; overflow-wrap: anywhere; }
+.workspace-section > .section-head, .workspace-section > h2:first-child { padding-bottom: 16px; margin-bottom: 16px; border-bottom: 1px solid var(--rule); }
+.workspace-section > .section-head h2, .workspace-section > h2:first-child { font-size: 1.05rem; line-height: 1.45; letter-spacing: -.02em; }
+.workspace-section > .hint:first-of-type { max-width: 78ch; line-height: 1.65; color: var(--ink-2); margin-bottom: 20px; }
+.workspace-section > h3 { font-size: .95rem; margin-top: 26px; margin-bottom: 12px; }
+.document-actions { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin: 16px 0; }
+.document-actions > a { justify-content: center; }
+@media (max-width: 640px) { .document-actions > a { flex: 1 1 180px; } }
 @media (max-width: 760px) { .history-comparison { grid-template-columns: 1fr; } }
 
 /* Small screens must accommodate long employer names, links and editor controls. */

@@ -1,7 +1,7 @@
 {# The Review section of the Job Workspace. Included with the workspace's context. #}
 {% import "macros.html" as m with context %}
 {% set approval = application.approval %}
-<section class="card" id="review" aria-labelledby="review-title">
+<section class="card workspace-section" id="review" aria-labelledby="review-title">
   <div class="section-head">
     <h2 id="review-title">Review</h2>
     {{ m.review_badge(review) }}
@@ -56,7 +56,7 @@
   {% endif %}
 </section>
 
-<section class="card" id="review-contents" aria-labelledby="review-contents-title" tabindex="-1">
+<section class="card workspace-section" id="review-contents" aria-labelledby="review-contents-title" tabindex="-1">
   <h2 id="review-contents-title">What you're approving</h2>
   <p>
     {% if resume_state.accepted %}

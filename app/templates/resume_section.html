@@ -1,10 +1,9 @@
-<section class="card" id="resume" aria-labelledby="resume-title">
-  <h2 id="resume-title">Resume</h2>
+<section class="card workspace-section" id="resume" aria-labelledby="resume-title">
+  <div class="section-head"><h2 id="resume-title">Resume</h2><a class="btn-small" href="/jobs/{{ job.id }}/resume/history">Version history</a></div>
   <p class="hint">Prepare a proposal, review its wording against your profile, then accept the resume for printing.</p>
-  <p><a href="/jobs/{{ job.id }}/resume/history">Resume version history</a></p>
   {% if resume_error %}<p class="notice warn" role="alert" tabindex="-1" data-focus>{{ resume_error }}</p>{% endif %}
   {% if resume_notice %}<p class="notice" role="status">{{ resume_notice }}</p>{% endif %}
-  {% if msg == 'resume_accepted' %}<p class="flash" role="status">Resume accepted. Open the print view to save it as a PDF.</p>{% endif %}
+  {% if msg == 'resume_accepted' %}<p class="flash" role="status">Resume accepted. Download the PDF or open its preview below.</p>{% endif %}
 
   {% if not candidate %}
     <p><a href="/profile/edit">Create your profile</a> to prepare a resume.</p>
@@ -16,9 +15,11 @@
       {% if resume_state.accepted_stale %}
         <p class="notice">Your profile or job changed. Review and accept a fresh proposal before printing.</p>
       {% else %}
+        <div class="document-actions" aria-label="Resume downloads">
         <a class="btn-secondary" data-saved-export href="/jobs/{{ job.id }}/resume/pdf">Download PDF</a>
         <a class="btn-secondary" href="/jobs/{{ job.id }}/resume/print">Preview / print resume</a>
         <a class="btn-secondary" data-saved-export href="/jobs/{{ job.id }}/resume/docx">Download Word (.docx)</a>
+        </div>
         <form method="post" action="/jobs/{{ job.id }}/resume/layout" class="resume-layout-picker" data-live-layout data-saved-layout="{{ selected_layout }}" data-guard>
           {% with picker_id = 'workspace-layout' %}{% include "_resume_layout_picker.html" %}{% endwith %}
         </form>

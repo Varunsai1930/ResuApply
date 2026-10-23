@@ -34,7 +34,7 @@
 {% elif follow_up_error %}
 <p class="notice warn" id="follow-up" role="alert" tabindex="-1" data-focus>{{ follow_up_error }}</p>
 {% endif %}
-<section class="card" id="tracking">
+<section class="card workspace-section" id="tracking">
   <h2>Tracking</h2>
   <dl class="facts compact">
     <dt>Status</dt><dd>{{ m.status_badge(application.status) }}</dd>
@@ -104,7 +104,7 @@
   {% endif %}
 </section>
 
-<section class="card" id="notes">
+<section class="card workspace-section" id="notes">
   <h2>Notes</h2>
   <form method="post" action="/jobs/{{ job.id }}/notes" class="stack" data-guard>
     <div class="field">
