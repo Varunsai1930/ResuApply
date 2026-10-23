@@ -23,6 +23,7 @@
       {% if job.url %} · <a href="{{ job.url }}" target="_blank" rel="noopener noreferrer nofollow">View posting {{ m.icon('external-link', 14) }}</a>{% endif %}
     </p>
     <p class="chips">{% if job.sample %}<span class="chip">Sample job: fictional</span> {% endif %}<span class="chip">Status: {{ m.status_badge(application.status) }}</span> <span class="chip">Package: {{ m.review_badge(review) }}</span></p>
+    <p class="meta">{% if application.priority != 'normal' %}{{ application.priority | capitalize }} priority · {% endif %}{% if application.deadline %}Deadline {{ application.deadline.isoformat() }} · {% endif %}<a href="/jobs/{{ job.id }}?step=track#application-plan">Set priority and deadline</a></p>
   </div>
   <a class="btn-secondary" href="/jobs/{{ job.id }}/edit">Edit details</a>
 </div>

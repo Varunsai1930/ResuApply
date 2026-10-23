@@ -28,6 +28,7 @@ COLUMNS = (
 )
 HEARD_BACK = (TrackingStatus.ASSESSMENT, TrackingStatus.INTERVIEW, TrackingStatus.OFFER, TrackingStatus.REJECTED)
 CLOSED = (TrackingStatus.REJECTED, TrackingStatus.WITHDRAWN)
+SORTS = {"recent": "Most recent", "deadline": "Deadline", "priority": "Priority"}
 
 
 @dataclass(frozen=True)
@@ -36,6 +37,7 @@ class Card:
     meaning: Meaning  # the status, and the text the card shows after it
     step: Step | None = None  # the step of the next action, for a job still being prepared
     coverage: checklist.Coverage | None = None  # Met requirements, for a job that has any
+    deadline_due: bool = False
 
 
 @dataclass(frozen=True)
@@ -68,6 +70,7 @@ class Board:
     query: str
     shown: int  # cards matching the search
     follow_ups: list[FollowUp]  # applications due a follow-up, whatever the search
+    sort: str = "recent"
 
 
 def matches(job: Job, query: str) -> bool:
@@ -86,7 +89,9 @@ def _days(n: int) -> str:
 
 def card(job: Job, candidate: Candidate | None, today: date) -> Card:
     covered = checklist.coverage(checklist.evaluate(job, candidate.profile if candidate else None))
-    return replace(_card(job, candidate, today), coverage=covered)
+    due = job.application.deadline
+    return replace(_card(job, candidate, today), coverage=covered,
+                   deadline_due=bool(due and due <= today and job.application.status == TrackingStatus.SAVED))
 
 
 def _card(job: Job, candidate: Candidate | None, today: date) -> Card:
@@ -126,14 +131,19 @@ def summary(jobs: list[Job], today: date) -> Summary:
     )
 
 
-def board(jobs: list[Job], candidate: Candidate | None, today: date, query: str = "") -> Board:
+def board(jobs: list[Job], candidate: Candidate | None, today: date, query: str = "", sort: str = "recent") -> Board:
     """The board for these jobs (in their given order), filtered by the search; the summary counts every job."""
     query = clean_query(query)
     shown = [j for j in jobs if matches(j, query)] if query else jobs
+    sort = sort if sort in SORTS else "recent"
+    if sort == "deadline":
+        shown = sorted(shown, key=lambda j: (j.application.deadline is None, j.application.deadline or date.max))
+    elif sort == "priority":
+        shown = sorted(shown, key=lambda j: {"high": 0, "normal": 1, "low": 2}.get(j.application.priority, 1))
     columns = [
         Column(key, title, [card(j, candidate, today) for j in shown if j.application.status in statuses], empty)
         for key, title, statuses, empty in COLUMNS
     ]
     follow_ups = [FollowUp(j, tracking.days_since_applied(j.application, today))
                   for j in jobs if tracking.follow_up_due(j.application, today)]
-    return Board(columns, summary(jobs, today), query, len(shown), follow_ups)
+    return Board(columns, summary(jobs, today), query, len(shown), follow_ups, sort)

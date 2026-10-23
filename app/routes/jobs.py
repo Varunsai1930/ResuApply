@@ -146,6 +146,9 @@ def _render_workspace(request: Request, session: Session, job: Job, msg: str = "
             "msg": msg,
             "today": date.today().isoformat(),
             "status_form": forms.get("status_form", {}),
+            "planning_form": forms.get("planning_form", {}),
+            "priorities": tracking.PRIORITIES,
+            "plan_token": tracking.plan_token(application),
             "follow_up_error": forms.get("follow_up_error"),
             "follow_up_due": tracking.follow_up_due(application),
             "days_since_applied": tracking.days_since_applied(application),
@@ -206,17 +209,17 @@ def _render_workspace(request: Request, session: Session, job: Job, msg: str = "
 
 
 @router.get("", response_class=HTMLResponse)
-def list_jobs(request: Request, q: str = "", msg: str = "", session: Session = Depends(get_session)):
+def list_jobs(request: Request, q: str = "", msg: str = "", sort: str = "recent", session: Session = Depends(get_session)):
     """The jobs board: columns by tracking status, each card with its next action; ``q`` searches."""
     candidate = get_candidate(session)
     jobs = job_service.list_all(session)
     for job in jobs:  # the stored review state is refreshed so the board shows Stale as soon as inputs change
         package.sync_review_state(session, job, job.application, candidate)
-    board = board_service.board(jobs, candidate, date.today(), q)
+    board = board_service.board(jobs, candidate, date.today(), q, sort)
     return templates.TemplateResponse(request, "jobs_list.html",
                                       {"jobs": jobs, "board": board, "candidate": candidate, "msg": msg, "Step": guide_service.Step,
                                        "sample": sample_service.current(session),
-                                       "snooze_days": tracking.SNOOZE_DAYS, "active": "jobs"})
+                                       "sorts": board_service.SORTS, "snooze_days": tracking.SNOOZE_DAYS, "active": "jobs"})
 
 
 @router.get("/new", response_class=HTMLResponse)
@@ -373,6 +376,20 @@ def change_status(
         return _render_workspace(request, session, job, status_code=409, status_form=form)
     msg = "status_recorded" if save_package else "status_changed"
     return RedirectResponse(f"/jobs/{job.id}?step=track&msg={msg}#tracking", status_code=303)
+
+
+@router.post("/{job_id}/plan")
+def set_plan(request: Request, job_id: int, priority: str = Form("normal"), deadline: str = Form(""),
+             plan_token: str = Form(""), session: Session = Depends(get_session)):
+    job = _job_or_404(session, job_id)
+    try:
+        tracking.set_plan(session, job.application, priority, deadline, plan_token)
+    except tracking.TrackingError as exc:
+        session.rollback()
+        return _render_workspace(request, session, job, step=guide_service.Step.TRACK,
+                                 status_code=409 if exc.field == "plan" else 422,
+                                 planning_form={"priority": priority, "deadline": deadline, "error": str(exc)})
+    return RedirectResponse(f"/jobs/{job.id}?step=track&msg=plan_saved#application-plan", status_code=303)
 
 
 @router.post("/{job_id}/notes")

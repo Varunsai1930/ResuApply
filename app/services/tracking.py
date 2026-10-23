@@ -15,6 +15,7 @@ from ..db import utcnow
 from ..models import Application
 from ..schemas.tracking import Note, StatusEvent, TrackingStatus
 from . import transactions
+from .text import content_hash
 
 NOTE_LIMIT = 5000
 FOLLOW_UP_CHOICES = (7, 10, 14)  # days after applying, offered when recording Applied
@@ -24,6 +25,28 @@ REMIND_CHOICES = (3, 7, 10, 14)  # days from today, when setting a reminder late
 FOLLOWED_UP_NOTE = "Followed up with the employer."
 EARLIEST = date(1990, 1, 1)  # older dates are typing mistakes, such as a missing digit in the year
 _ISO_DATE = re.compile(r"[0-9]{4}-[0-9]{2}-[0-9]{2}")
+PRIORITIES = {"high": "High", "normal": "Normal", "low": "Low"}
+
+
+def plan_token(application: Application) -> str:
+    return content_hash({"priority": application.priority,
+                         "deadline": application.deadline.isoformat() if application.deadline else None})
+
+
+def set_plan(session: Session, application: Application, priority: str, deadline: str, token: str):
+    if priority not in PRIORITIES:
+        raise TrackingError("Choose a priority from the list.", "priority")
+    try:
+        due = parse_date(deadline)
+    except TrackingError:
+        raise TrackingError("Enter the deadline as YYYY-MM-DD.", "deadline") from None
+    if due and due < EARLIEST:
+        raise TrackingError(f"Enter a deadline from {EARLIEST.year} onwards.", "deadline")
+    with transactions.write(session, application.job):
+        if token != plan_token(application):
+            raise TrackingError("The plan changed in another tab. Review the current plan before saving again.", "plan")
+        application.priority, application.deadline = priority, due
+        application.updated_at = utcnow()
 
 
 def parse_date(text: str) -> date | None:

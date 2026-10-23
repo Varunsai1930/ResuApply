@@ -30,7 +30,7 @@ from tests.synthetic import DEMO_JOB, SAMPLE_PROFILE
 # Columns added after the first releases; an older database has none of them.
 LATER_COLUMNS = {
     "applications": ["resume_layout", "cover_letter", "cover_letter_draft", "answer_drafts", "approval_rules",
-                     "approval_rules_for", "follow_up_after", "resume_versions"],
+                     "approval_rules_for", "follow_up_after", "resume_versions", "priority", "deadline"],
     "jobs": ["posting_import", "sample"],
     "candidates": ["sample"],
 }

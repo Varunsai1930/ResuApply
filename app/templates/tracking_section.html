@@ -1,5 +1,19 @@
 {# The Submit and track step of the Job Workspace: tracking status, history and notes. Included with the workspace's context. #}
 {% import "macros.html" as m with context %}
+<section class="card workspace-section" id="application-plan" aria-labelledby="plan-title">
+  <h2 id="plan-title">Your application plan</h2>
+  <p class="hint">Set your own priority and submission deadline. This changes how you organize the application; it does not change its status or approval.</p>
+  {% if msg == 'plan_saved' %}<p class="flash" role="status">Application plan saved.</p>{% endif %}
+  {% if planning_form.error %}<p class="notice warn" role="alert" tabindex="-1" data-focus>{{ planning_form.error }}</p>{% endif %}
+  <form method="post" action="/jobs/{{ job.id }}/plan" class="stack" data-guard>
+    <input type="hidden" name="plan_token" value="{{ plan_token }}">
+    <div class="grid">
+      <div class="field"><label for="plan-priority">Priority</label><select id="plan-priority" name="priority">{% for value, label in priorities.items() %}<option value="{{ value }}" {% if value == planning_form.get('priority', application.priority) %}selected{% endif %}>{{ label }}</option>{% endfor %}</select></div>
+      <div class="field"><label for="plan-deadline">Submission deadline <span class="muted">(optional)</span></label><input id="plan-deadline" name="deadline" type="date" value="{{ planning_form.get('deadline', application.deadline.isoformat() if application.deadline else '') }}"></div>
+    </div>
+    <button class="btn-secondary" type="submit">Save application plan</button>
+  </form>
+</section>
 {% if application.status == TrackingStatus.APPLIED %}
 {% set days = days_since_applied %}
 <section class="card follow-up{% if follow_up_due %} due{% endif %}" id="follow-up" aria-labelledby="follow-up-title">

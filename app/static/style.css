@@ -1352,6 +1352,10 @@ details.card:not(.job-description)[open] summary::after { content: " −"; }
 .workspace-section > h3 { font-size: .95rem; margin-top: 26px; margin-bottom: 12px; }
 .document-actions { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin: 16px 0; }
 .document-actions > a { justify-content: center; }
+.board-search { flex-wrap: wrap; }
+.board-search select { width: auto; min-width: 130px; flex: 1 1 130px; }
+.job-card-deadline { display: block; margin-top: 8px; font-size: .78rem; color: var(--ink-2); }
+.job-card-deadline.deadline-due { color: var(--unmet); font-weight: 600; }
 @media (max-width: 640px) { .document-actions > a { flex: 1 1 180px; } }
 @media (max-width: 760px) { .history-comparison { grid-template-columns: 1fr; } }
 
@@ -1362,6 +1366,7 @@ details.card:not(.job-description)[open] summary::after { content: " −"; }
   fieldset { min-width: 0; }
   table.simple { table-layout: fixed; width: 100%; }
   table.simple th, table.simple td { overflow-wrap: anywhere; }
+  .board-search .search-field { flex: 1 0 100%; }
   input, textarea, select { min-width: 0; max-width: 100%; scroll-margin-bottom: calc(110px + env(safe-area-inset-bottom, 0px)); }
   .btn-icon, .btn-small { min-width: 44px; min-height: 44px; }
   .form-actions.sticky { padding-bottom: calc(14px + env(safe-area-inset-bottom, 0px)); }

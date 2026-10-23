@@ -95,6 +95,8 @@ class Application(Base):
     # When to remind the user to follow up on an application with no reply. Only meaningful
     # while the status is Applied; any other status clears it.
     follow_up_after: Mapped[date | None] = mapped_column(Date, nullable=True)
+    priority: Mapped[str] = mapped_column(String(16), default="normal", server_default="normal")
+    deadline: Mapped[date | None] = mapped_column(Date, nullable=True)
     current_proposal: Mapped[ResumeRecord | None] = mapped_column(PydanticJSON(ResumeRecord), nullable=True)
     accepted_package: Mapped[ResumePackage | None] = mapped_column(PydanticJSON(ResumePackage), nullable=True)
     resume_versions: Mapped[list[ResumeVersion]] = mapped_column(PydanticJSON(list[ResumeVersion]), default=list, server_default="[]")
