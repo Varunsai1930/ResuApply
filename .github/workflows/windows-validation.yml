@@ -39,6 +39,12 @@ jobs:
         # Independent of the test suite, so it still reports when tests fail or the run was stopped by a timeout.
         if: ${{ !cancelled() }}
         run: python -m scripts.smoke_local --output-dir validation-results/local-smoke --print-pdf validation-results/local-smoke/accepted-resume.pdf
+      - name: Check visual layout and page-size budgets
+        if: ${{ !cancelled() }}
+        env:
+          RESUAPPLY_UI_ARTIFACT_DIR: validation-results/ui
+          RESUAPPLY_REQUIRE_UI_BROWSER: "1"
+        run: python -m pytest tests/test_ui_regressions.py -q --junitxml=validation-results/ui-checks.xml
       - name: Keep synthetic validation results
         if: always()
         uses: actions/upload-artifact@v7

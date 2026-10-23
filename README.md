@@ -132,6 +132,12 @@ Open **Your data & backups** in the footer to download a JSON backup or an appli
 
 To restore, upload the backup, review the replacement counts and confirm. The restore runs at the next start, before background work begins. Any saved changes after confirmation cancel the restore so they are preserved. A recovery copy is kept under `data/backups/` and is downloadable on the data page. Saved resume facts remain frozen; submitted resume markup is rebuilt from those facts using current templates. Database changes roll back if attachment installation fails.
 
+### Visual and loading regression checks
+
+Run `.venv/bin/python -m pytest tests/test_ui_regressions.py -q` for offline checks of 12 key pages in four desktop/mobile and light/dark combinations, with reduced motion enabled. Install the test dependencies and Chromium first (`.venv/bin/python -m playwright install chromium`); local checks skip when the optional browser is missing. Set `RESUAPPLY_UI_ARTIFACT_DIR=validation-results/ui` to keep the full-page screenshots and JSON measurements. The Windows validation workflow requires the browser and retains these artifacts even when a check fails.
+
+The checks enforce centered content, heading hierarchy and contrast, intact images, no horizontal overflow, and no overlapping header/footer. Cold-load budgets allow 192 KiB of HTML and 512 KiB of static assets per page, including at most 32 KiB each of compressed CSS and JavaScript. The image allowance includes all three resume previews in the gallery. Local render times are recorded for comparison; they are not network-speed or Core Web Vitals measurements. Screenshots support human review; geometry checks remain portable across operating-system fonts. Each run uses temporary fictional data and makes no external requests.
+
 ### Direct PDF downloads and page previews
 
 On an accepted resume, **Download PDF** creates an A4 file locally with fixed margins, without opening the browser's print dialog. The preview shows numbered pages rendered from the same PDF, including its actual page breaks. Selecting a layout previews it immediately; **Apply layout** saves that choice and requires package review again. Submitted resumes keep their frozen facts and layout.
