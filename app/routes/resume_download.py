@@ -34,6 +34,9 @@ def _attachment(content: bytes, name: str, company: str, kind: str, extension: s
 
 
 def preview_response(document, base_url: str, layout: str = "") -> JSONResponse:
+    if document is None:
+        return JSONResponse({"state": "preparing"}, status_code=202,
+                            headers={"Cache-Control": "no-store", "Retry-After": "1"})
     query = urlencode({"version": document.version, **({"layout": layout} if layout else {})})
     return JSONResponse({"page_count": document.pages, "version": document.version,
                          "readability": {"text_characters": document.text_characters, "warnings": list(document.warnings)},

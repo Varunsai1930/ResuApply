@@ -20,6 +20,7 @@ from . import __version__
 from .config import ALLOWED_HOSTS, Settings, get_settings
 from .ai.client import OpenRouterClient
 from .ai.tasks import AITasks
+from .services.resume_pdf import PreviewQueue
 from .db import init_db, make_engine, make_session_factory
 from .routes import (
     ai_tasks, answers, autofill, cover_letter, jobs, package, profile, questions, requirements, resume, sharing,
@@ -63,11 +64,13 @@ def create_app(settings: Settings | None = None, ai_transport: httpx.AsyncBaseTr
         key = settings.openrouter_api_key.get_secret_value() if settings.openrouter_api_key else None
         app.state.ai_client = OpenRouterClient(key, settings.openrouter_model, transport=ai_transport)
         app.state.ai_tasks = AITasks(app.state.session_factory)
+        app.state.pdf_previews = PreviewQueue()
         try:
             yield
         finally:
             app.state.autofill.shutdown()  # the autofill browser, if one is open
             app.state.ai_tasks.shutdown()
+            app.state.pdf_previews.shutdown()
             app.state.ai_client.close()
             engine.dispose()
 

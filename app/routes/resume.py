@@ -250,7 +250,7 @@ def download_docx(request: Request, job_id: int, session: Session = Depends(get_
     return docx_response(content, rendered["contact"]["name"], job.company)
 
 
-def _pdf_document(request, session, job_id, layout=None):
+def _pdf_document(request, session, job_id, layout=None, background=False):
     """Preview choices are read-only. Downloads always use the persisted layout."""
     job = _job_or_404(session, job_id)
     candidate = get_candidate(session)
@@ -263,7 +263,8 @@ def _pdf_document(request, session, job_id, layout=None):
         selected = resume_layouts.get_layout(layout).key if layout is not None else resume_layouts.layout_key(job.application)
         rendered = resume_service.render_context(candidate.profile, current.accepted.resume)
         browser = request.app.state.settings.autofill_browser
-        document = resume_pdf.export_resume(rendered, selected, str(browser.expanduser()) if browser else None)
+        document = resume_pdf.export_resume(rendered, selected, str(browser.expanduser()) if browser else None,
+                                            queue=request.app.state.pdf_previews if background else None)
     except resume_pdf.PDFError as exc:
         raise HTTPException(503, str(exc)) from exc
     except (ValueError, resume_service.ResumeError) as exc:
@@ -278,9 +279,10 @@ def download_pdf(request: Request, job_id: int, session: Session = Depends(get_s
 
 
 @router.get("/preview")
-def preview_pdf(request: Request, job_id: int, layout: str | None = None, session: Session = Depends(get_session)):
+def preview_pdf(request: Request, job_id: int, layout: str | None = None, background: bool = False,
+                session: Session = Depends(get_session)):
     try:
-        _, _, document, selected = _pdf_document(request, session, job_id, layout)
+        _, _, document, selected = _pdf_document(request, session, job_id, layout, background)
     except HTTPException as exc:
         return JSONResponse({"detail": exc.detail}, status_code=exc.status_code, headers={"Cache-Control": "no-store"})
     return preview_response(document, f"/jobs/{job_id}/resume/preview", selected)

@@ -65,12 +65,14 @@ def snapshot_docx(job_id: int, snapshot_id: int, session: Session = Depends(get_
     return docx_response(content, snapshot.resume["contact"]["name"], snapshot.job.get("company", ""))
 
 
-def _snapshot_pdf(request, session, job_id, snapshot_id):
+def _snapshot_pdf(request, session, job_id, snapshot_id, background=False):
     job = _job_or_404(session, job_id)
     saved = _snapshot_or_404(job, snapshot_id)
     browser = request.app.state.settings.autofill_browser
     try:
-        document = resume_pdf.render_html(saved.resume_html, str(browser.expanduser()) if browser else None)
+        executable = str(browser.expanduser()) if browser else None
+        document = (request.app.state.pdf_previews.request(saved.resume_html, executable) if background
+                    else resume_pdf.render_html(saved.resume_html, executable))
     except resume_pdf.PDFError as exc:
         raise HTTPException(503, str(exc)) from exc
     return saved, document
@@ -83,9 +85,10 @@ def snapshot_pdf(request: Request, job_id: int, snapshot_id: int, session: Sessi
 
 
 @router.get("/snapshots/{snapshot_id}/resume/preview")
-def snapshot_preview(request: Request, job_id: int, snapshot_id: int, session: Session = Depends(get_session)):
+def snapshot_preview(request: Request, job_id: int, snapshot_id: int, background: bool = False,
+                     session: Session = Depends(get_session)):
     try:
-        _, document = _snapshot_pdf(request, session, job_id, snapshot_id)
+        _, document = _snapshot_pdf(request, session, job_id, snapshot_id, background)
     except HTTPException as exc:
         return JSONResponse({"detail": exc.detail}, status_code=exc.status_code, headers={"Cache-Control": "no-store"})
     return preview_response(document, f"/jobs/{job_id}/snapshots/{snapshot_id}/resume/preview")

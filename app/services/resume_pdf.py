@@ -6,6 +6,7 @@ Playwright stays optional; ordinary print and Word export still work without it.
 
 from collections import OrderedDict
 from contextlib import closing
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from hashlib import sha256
 from io import BytesIO
@@ -26,9 +27,13 @@ SETUP_MESSAGE = (
     "`pip install -r requirements-autofill.txt`, then run `python -m playwright install chromium`. "
     "You can still download Word or use your browser's Print command."
 )
-_lock = RLock()  # PDFium and each synchronous Playwright session are used serially.
+_lock = RLock()  # PDFium calls are used serially.
+_render_lock = RLock()  # Coalesce identical exports without blocking cached page images.
+_cache_lock = RLock()
 _cache: OrderedDict[str, 'PDFDocument'] = OrderedDict()
+_images: OrderedDict[tuple[str, int], bytes] = OrderedDict()
 MAX_CACHE_BYTES = 24 * 1024 * 1024
+MAX_IMAGE_BYTES = 12 * 1024 * 1024
 
 
 @dataclass(frozen=True)
@@ -42,7 +47,20 @@ class PDFDocument:
     def image(self, page_number: int) -> bytes:
         if not 1 <= page_number <= self.pages:
             raise IndexError("Preview page not found.")
-        with _lock, pdfium.PdfDocument(self.content) as document:
+        with _lock:
+            key = (self.version, page_number)
+            if key in _images:
+                _images.move_to_end(key)
+                return _images[key]
+            content = self._image(page_number)
+            if len(content) <= MAX_IMAGE_BYTES:
+                _images[key] = content
+                while len(_images) > 12 or sum(map(len, _images.values())) > MAX_IMAGE_BYTES:
+                    _images.popitem(last=False)
+            return content
+
+    def _image(self, page_number: int) -> bytes:
+        with pdfium.PdfDocument(self.content) as document:
             page = document[page_number - 1]
             bitmap = None
             try:
@@ -110,32 +128,89 @@ def _build(html: str, executable: str | None) -> bytes:
         raise PDFError("The PDF could not be prepared. Try again, download Word, or use your browser's Print command.") from exc
 
 
-def render_html(document_html: str, executable: str | None = None) -> PDFDocument:
-    """Only call with the app's escaped resume template or a frozen app-generated snapshot."""
+def _source(document_html, executable):
     css = (STATIC_DIR / "resume.css").read_text(encoding="utf-8")
     html = ('<!doctype html><html lang="en"><head><meta charset="utf-8">'
             f'<style>{css}</style></head><body class="resume-print-page">{document_html}</body></html>')
     version = sha256((html + "\0" + (executable or "")).encode("utf-8")).hexdigest()
-    with _lock:
+    return html, version
+
+
+def _cached(version):
+    with _cache_lock:
         if version in _cache:
             _cache.move_to_end(version)
             return _cache[version]
+
+
+def _render(html, version, executable):
+    result = _cached(version)
+    if result is not None:
+        return result
+    with _render_lock:
+        result = _cached(version)
+        if result is not None:
+            return result
         content = _build(html, executable)
         try:
-            with pdfium.PdfDocument(content) as pdf:
+            with _lock, pdfium.PdfDocument(content) as pdf:
                 pages = len(pdf)
                 characters, warnings = _readability(pdf)
         except pdfium.PdfiumError as exc:
             raise PDFError("The PDF could not be read. Try again, or download Word.") from exc
         result = PDFDocument(content, pages, version, characters, warnings)
-        if len(content) <= MAX_CACHE_BYTES:
-            _cache[version] = result
-            while len(_cache) > 4 or sum(len(value.content) for value in _cache.values()) > MAX_CACHE_BYTES:
-                _cache.popitem(last=False)
+        with _cache_lock:
+            if len(content) <= MAX_CACHE_BYTES:
+                _cache[version] = result
+                while len(_cache) > 4 or sum(len(value.content) for value in _cache.values()) > MAX_CACHE_BYTES:
+                    _cache.popitem(last=False)
         return result
 
 
-def export_resume(rendered: dict, layout: str = "classic", executable: str | None = None) -> PDFDocument:
+def render_html(document_html: str, executable: str | None = None) -> PDFDocument:
+    """Only call with the app's escaped resume template or a frozen app-generated snapshot."""
+    html, version = _source(document_html, executable)
+    return _render(html, version, executable)
+
+
+class PreviewQueue:
+    """One bounded worker per application; workers only receive immutable document text."""
+
+    def __init__(self):
+        self._pool = ThreadPoolExecutor(max_workers=1, thread_name_prefix="resume-preview")
+        self._pending = OrderedDict()
+        self._lock = RLock()
+
+    def request(self, document_html, executable=None):
+        html, version = _source(document_html, executable)
+        cached = _cached(version)
+        if cached is not None:
+            return cached
+        with self._lock:
+            if version not in self._pending:
+                while len(self._pending) >= 4:
+                    completed = next((key for key, value in self._pending.items() if value.done()), None)
+                    if completed is None:
+                        raise PDFError("Other previews are still preparing. Retry in a moment.")
+                    del self._pending[completed]
+                self._pending[version] = self._pool.submit(_render, html, version, executable)
+            future = self._pending[version]
+            self._pending.move_to_end(version)
+            if not future.done():
+                return None
+            try:
+                return future.result()
+            except Exception:
+                del self._pending[version]  # A later explicit retry can render again.
+                raise
+
+    def shutdown(self):
+        self._pool.shutdown(wait=True, cancel_futures=True)
+        self._pending.clear()
+
+
+def export_resume(rendered: dict, layout: str = "classic", executable: str | None = None,
+                  queue: PreviewQueue | None = None) -> PDFDocument | None:
     key = get_layout(layout).key
     html = templates.env.get_template("_resume_document.html").render(rendered=rendered, selected_layout=key)
-    return render_html(html, executable)
+    return queue.request(html, executable) if queue is not None else render_html(html, executable)

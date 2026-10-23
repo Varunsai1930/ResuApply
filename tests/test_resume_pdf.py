@@ -1,6 +1,8 @@
 """Read-only PDF previews, accepted-only downloads and frozen submitted exports."""
 
 import copy
+import time
+from threading import Event
 from collections import OrderedDict
 from io import BytesIO
 
@@ -19,6 +21,7 @@ from tests.test_resume_routes import accept, manual_proposal, setup
 @pytest.fixture(autouse=True)
 def isolated_pdf_cache(monkeypatch):
     monkeypatch.setattr(resume_pdf, "_cache", OrderedDict())
+    monkeypatch.setattr(resume_pdf, "_images", OrderedDict())
 
 
 @pytest.fixture
@@ -103,6 +106,61 @@ def test_pdf_renderer_failure_keeps_print_and_word_available(client, sample_prof
     assert client.get(f"/jobs/{job_id}/resume/docx").status_code == 200
 
 
+def test_background_preview_coalesces_work_and_checks_freshness_on_every_poll(client, sample_profile, pdf_builder, monkeypatch):
+    job_id = accepted_job(client, sample_profile)
+    release, started = Event(), Event()
+    build = resume_pdf._build
+    calls = []
+    def held(*args):
+        calls.append(1)
+        started.set()
+        assert release.wait(5)
+        return build(*args)
+    monkeypatch.setattr(resume_pdf, '_build', held)
+    url = f'/jobs/{job_id}/resume/preview?background=true'
+    try:
+        assert client.get(url).status_code == 202
+        assert started.wait(1)
+        assert client.get(url).status_code == 202
+        assert client.get('/profile').status_code == 200
+    finally:
+        release.set()
+    for _ in range(100):
+        response = client.get(url)
+        if response.status_code != 202:
+            break
+        time.sleep(.01)
+    assert response.status_code == 200 and response.json()['page_count'] == 1
+    assert len(calls) == 1
+    with client.app.state.session_factory() as session:
+        session.get(Job, job_id).revision += 1
+        session.commit()
+    assert client.get(url).status_code == 409
+
+
+def test_background_queue_has_a_bounded_backlog(pdf_builder, monkeypatch):
+    release, started = Event(), Event()
+    build = resume_pdf._build
+    cached_html = '<main class="resume-document resume-layout-classic">already rendered</main>'
+    cached_document = resume_pdf.render_html(cached_html)
+    def held(*args):
+        started.set()
+        assert release.wait(5)
+        return build(*args)
+    monkeypatch.setattr(resume_pdf, '_build', held)
+    queue = resume_pdf.PreviewQueue()
+    try:
+        for index in range(4):
+            assert queue.request(f'<main class="resume-document resume-layout-classic">{index}</main>') is None
+        assert started.wait(1)
+        assert queue.request(cached_html) is cached_document
+        with pytest.raises(resume_pdf.PDFError, match='Other previews'):
+            queue.request('<main>fifth</main>')
+    finally:
+        release.set()
+        queue.shutdown()
+
+
 def test_pdf_cache_changes_with_selected_facts_and_preview_uses_accepted_selection(client, sample_profile, pdf_builder):
     job_id = accepted_job(client, sample_profile)
     with client.app.state.session_factory() as session:
@@ -183,5 +241,6 @@ def test_real_pdf_keeps_a4_selected_text_and_actual_page_previews(session, sampl
         assert value in text
     assert text.index('Jordan Example') < text.index('Sample Analytics') < text.index('TaskBot')
     assert document.image(1).startswith(b"\x89PNG")
+    assert document.image(1) is document.image(1)
     assert document.image(document.pages).startswith(b"\x89PNG")
     assert resume_pdf.export_resume(rendered, layout, executable) is document

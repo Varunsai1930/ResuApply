@@ -34,8 +34,15 @@ document.addEventListener("click", function (event) {
       try {
         const url = new URL(panel.dataset.previewUrl, window.location.href);
         if (layout) url.searchParams.set('layout', layout);
-        const response = await fetch(url, { signal: request.signal, cache: 'no-store', headers: { Accept: 'application/json' } });
-        const result = await response.json();
+        url.searchParams.set('background', 'true');
+        let response;
+        let result;
+        do {
+          response = await fetch(url, { signal: request.signal, cache: 'no-store', headers: { Accept: 'application/json' } });
+          result = await response.json();
+          if (response.status === 202) await new Promise(resolve => window.setTimeout(resolve, 350));
+        } while (response.status === 202 && !request.signal.aborted);
+        if (request.signal.aborted) throw new DOMException('Preview interrupted', 'AbortError');
         if (!response.ok) throw new Error(result.detail || 'The page preview could not be prepared.');
         if (pending !== request) return;
         const fragment = document.createDocumentFragment();
