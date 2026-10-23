@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from fastapi import APIRouter, Depends, HTTPException, Request
-from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from sqlalchemy.orm import Session
 
 from ..ai import tasks
@@ -33,7 +33,18 @@ def status(request: Request, job_id: int, task_id: str):
     return {
         "id": task.id, "job_id": task.job_id, "operation": task.operation, "label": task.label,
         "state": task.state, "message": task.message(), "elapsed_seconds": task.elapsed_seconds(),
+        "phase": task.phase,
         "started_at": task.started_at.isoformat(),
         "finished_at": task.finished_at.isoformat() if task.finished_at and task.done else None,
         "page": task.page,
     }
+
+
+@router.post("/{task_id}/cancel")
+def cancel(request: Request, job_id: int, task_id: str, session: Session = Depends(get_session)):
+    job = _job_or_404(session, job_id)
+    task = request.app.state.ai_tasks.get(job.id, task_id)
+    if task is None:
+        raise HTTPException(404, GONE)
+    request.app.state.ai_tasks.cancel(job.id, task.id)
+    return RedirectResponse(task.page, status_code=303)

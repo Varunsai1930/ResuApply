@@ -1,0 +1,5 @@
+{% extends "base.html" %}
+{% block title %}Generation cancelled{% endblock %}
+{% block content %}
+<section class="card ai-task"><p class="eyebrow">AI request</p><h1>Generation cancelled</h1><p>No new result was saved. Your previous work is still available.</p><a class="btn-primary" href="{{ task.back }}">Return to the job</a><p class="hint">You can start a new request from its original controls. Review what is shared before generating again.</p></section>
+{% endblock %}

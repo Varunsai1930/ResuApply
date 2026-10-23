@@ -30,6 +30,7 @@ from typing import Any
 
 from fastapi import HTTPException, Request
 from fastapi.responses import RedirectResponse, Response
+from sqlalchemy import event
 from sqlalchemy.orm import Session, sessionmaker
 
 from ..db import get_by_id, utcnow
@@ -41,7 +42,7 @@ from ..services.resume import ResumeError
 from ..templating import templates
 from . import operations
 from .answers import DRAFT_ANSWERS
-from .client import AIError
+from .client import AIError, request_cancel_check
 from .cover_letter import DRAFT_COVER_LETTER
 from .resume import TAILOR_RESUME
 
@@ -80,6 +81,10 @@ class Gone(Exception):
     """What the request needed was removed while it waited to run."""
 
 
+class Cancelled(Gone):
+    """A user cancelled before the result committed."""
+
+
 @dataclass
 class Task:
     id: str
@@ -89,6 +94,21 @@ class Task:
     started_at: datetime = field(default_factory=utcnow)
     finished_at: datetime | None = None
     future: Future = field(default_factory=Future)
+    cancel_requested: threading.Event = field(default_factory=threading.Event, repr=False)
+    guard: threading.RLock = field(default_factory=threading.RLock, repr=False)
+    committed: bool = False
+
+    def check_cancelled(self):
+        if self.cancel_requested.is_set():
+            raise Cancelled("Request cancelled. No new result was saved.")
+
+    @property
+    def phase(self):
+        if self.cancel_requested.is_set():
+            return "Stopping after the current call"
+        if self.committed:
+            return "Result saved"
+        return "Waiting for the model and checking its answer" if self.future.running() else "Waiting for a worker"
 
     @property
     def label(self) -> str:
@@ -111,6 +131,8 @@ class Task:
     @property
     def state(self) -> str:
         """running, done or failed. A refusal that changes nothing (approval needed, nothing to do) is failed too."""
+        if self.cancel_requested.is_set():
+            return "cancelled" if self.future.done() else "cancelling"
         if not self.future.done():
             return "running"
         return "failed" if self.future.cancelled() or self.future.exception() is not None else "done"
@@ -124,6 +146,9 @@ class Task:
 
     def message(self) -> str:
         """A plain account of a finished request, for the status endpoint."""
+        if self.cancel_requested.is_set():
+            return ("Request cancelled. No new result was saved." if self.done else
+                    "Cancelling. The current model call may finish; its result will not be saved.")
         if not self.future.done():
             return f"{self.label}… This can take up to 90 seconds."
         if self.future.cancelled():
@@ -188,13 +213,45 @@ class AITasks:
             try:
                 result = self._run(task, work)
             except BaseException as exc:  # noqa: BLE001  (handed to the page, which reports it)
-                task.future.set_exception(exc)
+                with task.guard:
+                    task.future.set_exception(Cancelled("Request cancelled. No new result was saved.")
+                                              if task.cancel_requested.is_set() else exc)
             else:
-                task.future.set_result(result)
+                with task.guard:
+                    if task.cancel_requested.is_set():
+                        task.future.set_exception(Cancelled("Request cancelled. No new result was saved."))
+                    else:
+                        task.future.set_result(result)
 
     def _run(self, task: Task, work: Work):
+        token = request_cancel_check.set(task.check_cancelled)
+        commit_held = False
+        def before_commit(session):
+            nonlocal commit_held
+            task.guard.acquire()
+            try:
+                task.check_cancelled()
+            except BaseException:
+                task.guard.release()
+                raise
+            commit_held = True
+
+        def end_commit(session, *args):
+            nonlocal commit_held
+            if commit_held:
+                commit_held = False
+                task.guard.release()
+
+        def after_commit(session):
+            task.committed = True
+            end_commit(session)
+
         try:
+            task.check_cancelled()
             with self._session_factory() as session:
+                event.listen(session, "before_commit", before_commit)
+                event.listen(session, "after_commit", after_commit)
+                event.listen(session, "after_rollback", end_commit)
                 job = get_by_id(session, Job, task.job_id)
                 if job is None:
                     raise Gone("This job was deleted while the request was waiting. Nothing was saved.")
@@ -206,6 +263,8 @@ class AITasks:
             logger.info("ai task op=%s ended with %s", task.operation, type(exc).__name__)
             raise
         finally:
+            end_commit(None)
+            request_cancel_check.reset(token)
             task.finished_at = utcnow()
 
     def _forget_finished(self) -> None:
@@ -224,6 +283,18 @@ class AITasks:
             self._forget_finished()
             tasks = [t for t in self._tasks.values() if t.job_id == job_id and not t.done]
         return sorted(tasks, key=lambda t: t.started_at)
+
+    def cancel(self, job_id: int, task_id: str) -> bool:
+        task = self.get(job_id, task_id)
+        if task is None:
+            return False
+        with task.guard:
+            if task.done or task.committed:
+                return False
+            task.cancel_requested.set()
+            if task.future.cancel():
+                task.finished_at = utcnow()
+            return True
 
     def shutdown(self, timeout: float | None = None) -> None:
         """Start nothing new, then wait a little for running requests before the app closes the model client.
@@ -261,6 +332,8 @@ def respond(request: Request, session: Session, job: Job, task: Task, wait_secon
     redirects to that page. The page itself passes ``wait_seconds=0`` and shows the progress.
     """
     wait([task.future], timeout=WAIT_SECONDS if wait_seconds is None else wait_seconds)
+    if task.done and task.cancel_requested.is_set():
+        return templates.TemplateResponse(request, "ai_task_cancelled.html", {"job": job, "task": task, "active": "jobs"})
     if not task.done:
         if wait_seconds is None:  # a form post: send the browser to the page a reload keeps working on
             return RedirectResponse(task.page, status_code=303)

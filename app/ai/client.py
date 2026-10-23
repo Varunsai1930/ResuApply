@@ -20,6 +20,7 @@ import re
 import tempfile
 import time
 from collections.abc import Callable
+from contextvars import ContextVar
 from dataclasses import dataclass, field
 from multiprocessing.connection import Connection
 from pathlib import Path
@@ -33,6 +34,7 @@ API_URL = "https://openrouter.ai/api/v1/chat/completions"
 TIMEOUT_SECONDS = 90.0
 MAX_RESPONSE_BYTES = 2 * 1024 * 1024
 T = TypeVar("T")
+request_cancel_check: ContextVar[Callable[[], None] | None] = ContextVar("ai_cancel_check", default=None)
 
 ErrorKind = Literal["not_configured", "auth", "quota", "timeout", "provider", "invalid", "busy"]
 
@@ -282,6 +284,9 @@ class OpenRouterClient:
         conversation = list(messages)
         total: dict = {}
         for attempt in (1, 2):
+            cancel_check = request_cancel_check.get()
+            if cancel_check is not None:
+                cancel_check()
             if before_attempt is not None:
                 before_attempt()
             try:

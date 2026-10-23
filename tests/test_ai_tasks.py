@@ -13,6 +13,7 @@ from datetime import timedelta
 
 import pytest
 from fastapi.testclient import TestClient
+from sqlalchemy import text
 
 from app.ai import tasks
 from app.main import create_app
@@ -168,10 +169,112 @@ def test_each_ai_request_runs_in_the_background_and_its_page_shows_the_result(
     assert client.get(result).status_code == 200
 
 
+def test_cancelled_generation_can_start_again(ai_app_client, fake_ai, sample_profile, background):
+    client = ai_app_client
+    _, answer, action, _ = _tailor(client, sample_profile)
+    fake_ai.hold()
+    fake_ai.push(answer)
+    old = client.post(action, follow_redirects=False).headers['location']
+    try:
+        assert fake_ai.arrived.wait(5)
+        client.post(old + '/cancel', follow_redirects=False)
+    finally:
+        fake_ai.release()
+    assert finished(client, old).state == 'cancelled'
+    fake_ai.push(answer)
+    new = client.post(action, follow_redirects=False).headers['location']
+    assert new != old
+    assert finished(client, new).state == 'done'
+
+
+def test_a_queued_request_can_be_cancelled_before_it_runs(client, sample_profile):
+    job_id = requirements_setup(client, sample_profile, requirements=False)
+    started, release = threading.Event(), threading.Event()
+    registry = tasks.AITasks(client.app.state.session_factory, workers=1)
+    def held(*args):
+        started.set()
+        assert release.wait(5)
+    first = registry.start('first', job_id, held, lambda *args: None)
+    try:
+        assert started.wait(5)
+        queued = registry.start('queued', job_id, lambda *_: pytest.fail('cancelled work ran'), lambda *args: None)
+        assert registry.cancel(job_id, queued.id)
+        assert queued.future.cancelled() and queued.state == 'cancelled'
+    finally:
+        release.set()
+        wait([first.future], timeout=5)
+        registry.shutdown()
+
+
 def _stored(client, job_id):
     with client.app.state.session_factory() as session:
         application = session.get(Job, job_id).application
         return application.current_proposal, application.accepted_package
+
+
+def _outputs(client, job_id):
+    with client.app.state.session_factory() as session:
+        application = session.get(Job, job_id).application
+        return (application.current_proposal, application.accepted_package, application.answer_drafts,
+                application.cover_letter_draft, session.execute(text('SELECT count(*) FROM ai_runs')).scalar_one())
+
+
+@pytest.mark.parametrize('label', REQUESTS)
+def test_cancel_discards_late_results_for_every_generation(ai_app_client, fake_ai, sample_profile, background, label):
+    client = ai_app_client
+    job_id, answer, action, _ = REQUESTS[label](client, sample_profile)
+    before = _outputs(client, job_id)
+    fake_ai.hold()
+    fake_ai.push(answer)
+    page_url = client.post(action, follow_redirects=False).headers['location']
+    try:
+        assert fake_ai.arrived.wait(5)
+        assert 'Cancel generation' in client.get(page_url).text
+        assert client.post(page_url + '/cancel', follow_redirects=False).status_code == 303
+        assert client.get(page_url + '/status').json()['state'] == 'cancelling'
+        assert 'result will not be saved' in client.get(page_url).text
+    finally:
+        fake_ai.release()
+    assert finished(client, page_url).state == 'cancelled'
+    assert 'Generation cancelled' in client.get(page_url).text
+    assert _outputs(client, job_id) == before
+    assert len(fake_ai.requests) == 1
+
+
+def test_cancel_stops_correction_retries(ai_app_client, fake_ai, sample_profile, background):
+    client = ai_app_client
+    _, _, action, _ = _tailor(client, sample_profile)
+    fake_ai.hold()
+    fake_ai.push(tool_response('return_resume', {'summary': {'text': 'Invented statement', 'sources': []}}))
+    page_url = client.post(action, follow_redirects=False).headers['location']
+    try:
+        assert fake_ai.arrived.wait(5)
+        client.post(page_url + '/cancel', follow_redirects=False)
+    finally:
+        fake_ai.release()
+    assert finished(client, page_url).state == 'cancelled'
+    assert len(fake_ai.requests) == 1
+
+
+def test_cancellation_cannot_claim_to_discard_an_already_committed_result(client, sample_profile):
+    job_id = requirements_setup(client, sample_profile, requirements=False)
+    saved, release = threading.Event(), threading.Event()
+    registry = tasks.AITasks(client.app.state.session_factory, workers=1)
+    def work(session, job, candidate):
+        job.title = 'Committed title'
+        session.commit()
+        saved.set()
+        assert release.wait(5)
+    task = registry.start('check', job_id, work, lambda *args: None)
+    try:
+        assert saved.wait(5)
+        assert registry.cancel(job_id, task.id) is False
+        assert not task.cancel_requested.is_set()
+    finally:
+        release.set()
+        wait([task.future], timeout=5)
+        registry.shutdown()
+    assert task.state == 'done'
 
 
 def test_a_failed_background_request_leaves_work_untouched_and_reloads_the_same_error(
