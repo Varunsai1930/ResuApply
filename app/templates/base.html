@@ -15,7 +15,7 @@
 <body>
   <a class="skip-link" href="#main">Skip to content</a>
   {% include "_header.html" %}
-  <main id="main" class="wrap">
+  <main id="main" class="wrap" tabindex="-1">
     {% if msg and MESSAGES.get(msg) %}
       <p class="flash" role="status">{{ MESSAGES[msg] }}</p>
     {% endif %}

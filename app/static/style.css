@@ -25,6 +25,7 @@
   --ink-3: #6b7280;
   --rule: #e5e7eb;
   --rule-strong: #d1d5db;
+  --control-rule: #808a9a;
 
   --accent: #4f46e5;
   --accent-hover: #4338ca;
@@ -88,6 +89,7 @@
     --ink-3: #8f96a1;
     --rule: #252a32;
     --rule-strong: #363c46;
+    --control-rule: #737f91;
 
     --accent: #a5a6ff;
     --accent-hover: #c0c1ff;
@@ -122,6 +124,7 @@
   --ink-3: #8f96a1;
   --rule: #252a32;
   --rule-strong: #363c46;
+  --control-rule: #737f91;
 
   --accent: #a5a6ff;
   --accent-hover: #c0c1ff;
@@ -391,7 +394,7 @@ input, textarea, select {
   font-size: 0.94rem;
   color: var(--ink);
   background: var(--surface);
-  border: 1px solid var(--rule-strong);
+  border: 1px solid var(--control-rule);
   border-radius: var(--radius-sm);
   padding: 9px 12px;
   width: 100%;
@@ -399,7 +402,7 @@ input, textarea, select {
   box-shadow: var(--shadow-sm);
   transition: border-color 0.12s ease, box-shadow 0.12s ease;
 }
-input::placeholder, textarea::placeholder { color: var(--ink-3); opacity: 0.8; }
+input::placeholder, textarea::placeholder { color: var(--ink-3); opacity: 1; }
 textarea { resize: vertical; line-height: 1.5; }
 select {
   appearance: none; -webkit-appearance: none;

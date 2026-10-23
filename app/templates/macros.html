@@ -102,7 +102,7 @@
 {% macro entry_head(prefix, entry, title) -%}
 <div class="entry-head">
   <h3>{{ title }} {% if entry.get('id') %}<span class="id-badge" title="Stable entry ID">{{ entry.id }}</span>{% else %}<span class="id-badge new" title="Gets an ID when saved">new</span>{% endif %}</h3>
-  <button type="button" class="btn-small danger" data-remove>Remove</button>
+  <button type="button" class="btn-small danger" data-remove aria-label="Remove {{ title | lower }}">Remove</button>
   <input type="hidden" name="{{ prefix }}-id" value="{{ entry.get('id', '') }}">
 </div>
 {%- endmacro %}

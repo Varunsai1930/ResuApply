@@ -32,8 +32,16 @@
     if (remove) {
       const item = remove.closest("[data-item]");
       if (item) {
+        const list = item.parentElement;
+        const neighbor = item.nextElementSibling || item.previousElementSibling;
+        const field = neighbor && (neighbor.querySelector('input:not([type="hidden"]), textarea, select')
+          || neighbor.querySelector('button'));
+        const addButton = list && Array.from(document.querySelectorAll('[data-add]'))
+          .find(button => button.dataset.target === list.id);
         markDirty(remove);
         item.remove();
+        const focus = field || addButton;
+        if (focus) focus.focus();
       }
     }
   });
