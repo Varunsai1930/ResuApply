@@ -41,12 +41,27 @@ EXAMPLES = {
 # Checked 2026-10-22. The demo layouts above are independent original designs.
 HIRING_EXAMPLES = (
     {"company": "Google", "role": "Software Engineering Intern", "mark": "G",
+     "group": "software", "level": "intern", "focus": "Look for projects and contributions that demonstrate practical experience.",
      "url": "https://www.kickresume.com/en/help-center/software-engineer-intern-google-resume-sample/"},
     {"company": "Amazon", "role": "Software Development Engineer", "mark": "a",
+     "group": "software", "level": "professional", "focus": "Look for the connection between technical work and its impact.",
      "url": "https://www.kickresume.com/en/help-center/software-development-engineer-amazon-resume-sample/"},
     {"company": "IBM", "role": "Software Engineer", "mark": "IBM",
+     "group": "software", "level": "professional", "focus": "Look for a clear progression of relevant engineering experience.",
      "url": "https://www.kickresume.com/en/help-center/ibm-software-engineer-resume-sample/"},
+    {"company": "Vacasa", "role": "Data Analyst", "mark": "V", "group": "data", "level": "professional",
+     "focus": "Look for how analytical tools support a business question or decision.",
+     "url": "https://www.kickresume.com/en/help-center/data-analyst-3-resume-sample/"},
+    {"company": "Cactus communication", "role": "Lead Data Analyst", "mark": "C", "group": "data", "level": "lead",
+     "focus": "Look for ownership, team scope and the decisions behind the analysis.",
+     "url": "https://www.kickresume.com/en/help-center/lead-data-analyst-resume-sample/"},
+    {"company": "RS Express", "role": "Marketing Manager", "mark": "RS", "group": "marketing", "level": "lead",
+     "focus": "Look for campaign ownership, channels and clearly described responsibilities.",
+     "url": "https://www.kickresume.com/en/help-center/marketing-manager-resume-sample/"},
 )
+
+ROLE_GROUPS = {"all": "All roles", "software": "Software engineering", "data": "Data analysis", "marketing": "Marketing"}
+ROLE_LEVELS = {"all": "All levels", "intern": "Internship", "professional": "Professional", "lead": "Lead / management"}
 
 # One fictional career across all three layouts makes comparison meaningful.
 SAMPLE_RESUME = {

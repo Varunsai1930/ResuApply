@@ -26,9 +26,17 @@
   </section>
   <section class="hiring-section" id="hiring-examples" aria-labelledby="hiring-title">
     <div class="examples-section-heading"><div><p class="eyebrow">Learn from the originals</p><h2 id="hiring-title">Resumes behind real hires</h2><p>Kickresume reports these public submissions were used by successful candidates. Read the originals at the source.</p></div></div>
+    <form method="get" action="/resume-examples#hiring-examples" class="example-filters">
+      {% if job %}<input type="hidden" name="job_id" value="{{ job.id }}">{% endif %}
+      <div class="field"><label for="example-role">Role</label><select id="example-role" name="role">{% for value, label in role_groups.items() %}<option value="{{ value }}" {% if value == role %}selected{% endif %}>{{ label }}</option>{% endfor %}</select></div>
+      <div class="field"><label for="example-level">Role level</label><select id="example-level" name="level">{% for value, label in role_levels.items() %}<option value="{{ value }}" {% if value == level %}selected{% endif %}>{{ label }}</option>{% endfor %}</select></div>
+      <button class="btn-secondary" type="submit">Filter examples</button><a href="/resume-examples{{ '?job_id=' ~ job.id if job else '' }}#hiring-examples">Reset</a>
+    </form>
+    <p class="hint">{{ hiring_examples | length }} example{{ 's' if hiring_examples | length != 1 }} · Levels describe the sample's role title, not a required number of years.</p>
     <div class="hiring-grid">
       {% for source in hiring_examples %}
-      <article class="hiring-card"><span class="hiring-monogram" aria-hidden="true">{{ source.mark }}</span><div><p class="hiring-company">{{ source.company }}</p><h3>{{ source.role }}</h3><p class="hiring-attribution">Hire reported by Kickresume</p></div><a href="{{ source.url }}" target="_blank" rel="noopener noreferrer">View original resume {{ ui.icon('external-link', 16) }}<span class="visually-hidden"> at {{ source.company }} (opens in a new tab)</span></a></article>
+      <article class="hiring-card"><span class="hiring-monogram" aria-hidden="true">{{ source.mark }}</span><div><p class="hiring-company">{{ source.company }}</p><h3>{{ source.role }}</h3><p class="hiring-attribution">Hire reported by Kickresume</p><p class="hint">{{ source.focus }}</p></div><a href="{{ source.url }}" target="_blank" rel="noopener noreferrer">View original resume {{ ui.icon('external-link', 16) }}<span class="visually-hidden"> at {{ source.company }} (opens in a new tab)</span></a></article>
+      {% else %}<p>No examples match these filters yet. Try another role or level.</p>
       {% endfor %}
     </div>
     <p class="examples-source-note">The layouts above are original ResuApply designs with fictional content. The linked hiring examples are separate resumes shared by their publisher.</p>

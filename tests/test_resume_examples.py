@@ -44,12 +44,23 @@ def test_public_collection_has_local_demos_and_attributed_hiring_sources(client,
         assert response.content.startswith(b"RIFF")
     sources = [link for link in markup.elements("a")
                if urlsplit(link.get("href", "")).netloc == "www.kickresume.com"]
-    assert len(sources) == 3
+    assert len(sources) == 6
     assert all(link.get("target") == "_blank" and "noopener" in link.get("rel", "") for link in sources)
     assert all(any(company in link["href"] for link in sources) for company in ("google", "amazon", "ibm"))
-    assert page.text.count("Hire reported by Kickresume") == 3
+    assert page.text.count("Hire reported by Kickresume") == 6
     with client.app.state.session_factory() as session:
         assert profile.get_candidate(session) is None
+
+
+def test_hiring_filters_preserve_job_context_and_have_an_empty_state(client, sample_profile):
+    job_id = accepted_job(client, sample_profile)
+    filtered = client.get(f'/resume-examples?job_id={job_id}&role=data&level=lead')
+    assert filtered.status_code == 200
+    assert filtered.text.count('Hire reported by Kickresume') == 1
+    assert 'Lead Data Analyst' in filtered.text
+    assert f'name="job_id" value="{job_id}"' in filtered.text
+    assert 'No examples match' in client.get('/resume-examples?role=marketing&level=intern').text
+    assert client.get('/resume-examples?role=made-up').status_code == 400
 
 
 @pytest.mark.parametrize("layout", ["classic", "modern", "compact"])

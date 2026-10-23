@@ -1,5 +1,7 @@
 """A read-only gallery. Trying a layout never saves a candidate's data."""
 
+from typing import Literal
+
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import HTMLResponse
 from sqlalchemy.orm import Session
@@ -19,8 +21,15 @@ def _context(session, job_id):
 
 
 @router.get("", response_class=HTMLResponse)
-def gallery(request: Request, job_id: int | None = None, session: Session = Depends(get_session)):
-    return templates.TemplateResponse(request, "resume_examples.html", _context(session, job_id))
+def gallery(request: Request, job_id: int | None = None,
+            role: Literal["all", "software", "data", "marketing"] = "all",
+            level: Literal["all", "intern", "professional", "lead"] = "all",
+            session: Session = Depends(get_session)):
+    context = _context(session, job_id)
+    context.update(role=role, level=level, role_groups=resume_examples.ROLE_GROUPS, role_levels=resume_examples.ROLE_LEVELS,
+                   hiring_examples=[e for e in resume_examples.HIRING_EXAMPLES
+                                    if (role == "all" or e["group"] == role) and (level == "all" or e["level"] == level)])
+    return templates.TemplateResponse(request, "resume_examples.html", context)
 
 
 @router.get("/{layout}", response_class=HTMLResponse)

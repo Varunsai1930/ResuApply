@@ -28,6 +28,9 @@
 .example-card-body > p { margin: 8px 0 20px; color: var(--ink-2); font-size: .82rem; }
 .example-preview-link { display: flex; align-items: center; justify-content: space-between; gap: 12px; border-top: 1px solid var(--rule); padding-top: 16px; font-size: .82rem; font-weight: 600; text-decoration: none; }
 .hiring-section { scroll-margin-top: 90px; border-top: 1px solid var(--rule); margin-top: 58px; padding-top: 36px; }
+.example-filters { display: flex; align-items: end; flex-wrap: wrap; gap: 14px; margin: 0 0 16px; }
+.example-filters .field { flex: 1 1 180px; margin: 0; }
+.example-filters > a { padding-bottom: 10px; font-size: .8rem; }
 .hiring-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 24px; }
 .hiring-card { display: grid; grid-template-columns: 42px minmax(0, 1fr); align-content: start; gap: 18px 14px; padding: 22px; border: 1px solid var(--rule); border-radius: 12px; }
 .hiring-monogram { width: 42px; height: 42px; display: grid; place-items: center; border-radius: 9px; background: var(--surface); color: var(--ink); font-size: 1.1rem; font-weight: 700; letter-spacing: -.04em; }
